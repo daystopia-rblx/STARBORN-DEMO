@@ -48,15 +48,21 @@ DataModule.Templates = {
             level = 1,
             experience = 0
         },
+        checkpoint = {
+            type = nil,
+            position = nil,
+            lastActivated = 0
+        }
     }
 }
 
 DataModule.Validation = {
     PlayerData = {
-        required = {"stats", "settings"},
+        required = {"stats", "settings", "checkpoint"},
         types = {
             stats = "table",
-            settings = "table"
+            settings = "table",
+            checkpoint = "table"
         }
     },
 }

@@ -65,6 +65,7 @@ StateModule.Templates = {
         displayName = "Attacking",
         description = "Executing an attack",
         exclusive = true,
+        cooldown = 0.2,
         transitions = {
             BLOCKING = false,
             ROLLING = true,

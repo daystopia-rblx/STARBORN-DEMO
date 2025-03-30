@@ -196,22 +196,26 @@ local function set(instance: Instance, key: string, value: any)
     if type(value) == "table" and not (#value > 0) then
         local flattened = flatten(value)
         for flatKey, flatValue in pairs(flattened) do
-            local convertedValue, success = convert(flatValue)
-            if success and convertedValue ~= nil then
-                instance:SetAttribute(flatKey, convertedValue)
+            if instance:GetAttribute(flatKey) == nil then
+                local convertedValue, success = convert(flatValue)
+                if success and convertedValue ~= nil then
+                    instance:SetAttribute(flatKey, convertedValue)
+                end
             end
         end
     else
-        local convertedValue, success = convert(value)
-        if success and convertedValue ~= nil then
-            instance:SetAttribute(string.upper(key), convertedValue)
-        else
-            warn(string.format(
-                "Failed to set attribute %q on %s: Unsupported type %s",
-                key,
-                instance:GetFullName(),
-                typeof(value)
-            ))
+        if instance:GetAttribute(string.upper(key)) == nil then
+            local convertedValue, success = convert(value)
+            if success and convertedValue ~= nil then
+                instance:SetAttribute(string.upper(key), convertedValue)
+            else
+                warn(string.format(
+                    "Failed to set attribute %q on %s: Unsupported type %s",
+                    key,
+                    instance:GetFullName(),
+                    typeof(value)
+                ))
+            end
         end
     end
 end

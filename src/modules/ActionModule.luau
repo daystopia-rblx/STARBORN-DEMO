@@ -38,7 +38,8 @@ export type ActionHandler = {
 
 --[[ Action Categories ]]
 ActionModule.Categories = {
-    INTERACTION = "interaction"
+    INTERACTION = "interaction",
+    CHECKPOINT = "checkpoint"
 }
 
 --[[ Action Types ]]
