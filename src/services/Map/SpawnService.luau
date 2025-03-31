@@ -1,8 +1,8 @@
 --[[ SpawnService
     Manages checkpoint activation, respawning, and associated effects.
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-30
+    @version 1.0.1
+    @date 2025-03-31
 ]]
 local SpawnService = {}
 
@@ -42,8 +42,18 @@ SpawnService.Listeners = {
 
     ["Combat.Death"] = function(self, data)
         if data and data.player then
-            task.wait(3)
+            task.wait(6)
+            data.player:LoadCharacter()
+            task.wait(0.1)
             self:RespawnCheckpoint(data.player)
+        elseif data and data.entity then
+            local player = game:GetService("Players"):GetPlayerFromCharacter(data.entity)
+            if player then
+                task.wait(10)
+                player:LoadCharacter()
+                task.wait(0.1)
+                self:RespawnCheckpoint(player)
+            end
         end
     end,
 
@@ -76,7 +86,7 @@ SpawnService.Listeners = {
     end,
 
     [workspace.ChildAdded] = function(self, instance: Instance)
-        if instance.Name == "Spawn" and instance:IsA("Model") then
+        if instance.Name == "SpawnLocation" and instance:IsA("Model") then
             State.defaultSpawn = instance
         end
     end
@@ -88,11 +98,34 @@ function SpawnService:Init(services, modules)
     Modules = modules
     return true
 end
-
 function SpawnService:Start()
-    State.defaultSpawn = workspace:FindFirstChild("Spawn", true)
+    game:GetService("Players").RespawnTime = math.huge
+
+    game:GetService("Players").PlayerAdded:Connect(function(player)
+        player.CharacterAdded:Connect(function(character)
+            local humanoid = character:WaitForChild("Humanoid")
+            humanoid.Died:Connect(function()
+                task.wait()
+                player.AutoJumpEnabled = false
+            end)
+        end)
+    end)
+
+    State.defaultSpawn = workspace:FindFirstChild("SpawnLocation", true)
     if not (State.defaultSpawn and State.defaultSpawn:IsA("Model")) then
         warn("No default spawn model found in workspace")
+    else
+        local hasSpawnPoints = false
+        for _, child in State.defaultSpawn:GetDescendants() do
+            if child.Name == "Spawn" and (child:IsA("BasePart") or (child:IsA("Model") and child.PrimaryPart)) then
+                hasSpawnPoints = true
+                break
+            end
+        end
+
+        if not hasSpawnPoints and not State.defaultSpawn.PrimaryPart then
+            warn("Default spawn model has no Spawn parts or PrimaryPart")
+        end
     end
 
     for _, model in workspace:GetDescendants() do
@@ -106,25 +139,94 @@ function SpawnService:Cleanup()
     table.clear(State.activeCheckpoints)
 end
 
+--[[ Utility Functions ]]
+function SpawnService:CheckOccupation(spawnPart: BasePart): boolean
+    local characterSize = Vector3.new(4, 6, 4)
+    local region = Region3.new(
+        spawnPart.Position - (characterSize / 2),
+        spawnPart.Position + (characterSize / 2)
+    )
+
+    local parts = workspace:GetPartsInPart(spawnPart)
+    for _, part in parts do
+        if part.Parent and part.Parent:IsA("Model") then
+            local player = game:GetService("Players"):GetPlayerFromCharacter(part.Parent)
+            if player then
+                return true
+            end
+        end
+    end
+
+    return false
+end
+
+function SpawnService:GetPosition(model: Instance): Vector3
+    if not model then return Vector3.new(0, 10, 0) end
+
+    local spawnParts = {}
+    local occupiedParts = {}
+
+    for _, child in model:GetDescendants() do
+        if child.Name == "Spawn" then
+            local spawnPart
+            if child:IsA("BasePart") then
+                spawnPart = child
+            elseif child:IsA("Model") and child.PrimaryPart then
+                spawnPart = child.PrimaryPart
+            end
+
+            if spawnPart then
+                if self:CheckOccupation(spawnPart) then
+                    table.insert(occupiedParts, spawnPart)
+                else
+                    table.insert(spawnParts, spawnPart)
+                end
+            end
+        end
+    end
+
+    if #spawnParts > 0 then
+        local selectedSpawn = spawnParts[math.random(1, #spawnParts)]
+        return selectedSpawn.Position
+    end
+
+    if #occupiedParts > 0 then
+        local selectedSpawn = occupiedParts[math.random(1, #occupiedParts)]
+        return selectedSpawn.Position + Vector3.new(0, 3, 0)
+    end
+
+    if model:IsA("Model") then
+        if model.PrimaryPart then
+            return model.PrimaryPart.Position
+        else
+            return model:GetPivot().Position
+        end
+    elseif model:IsA("BasePart") then
+        return model.Position
+    end
+
+    return Vector3.new(0, 10, 0)
+end
+
 --[[ Checkpoint Management ]]
 function SpawnService:RegisterCheckpoint(checkpoint: Model): boolean
     if not checkpoint:IsA("Model") or not checkpoint:IsDescendantOf(game) then return false end
 
     local checkpointType = checkpoint:GetAttribute("TYPE")
-    if not checkpointType or (checkpointType ~= "Bonfire" and checkpointType ~= "Bed") then
-        return false
-    end
+    if not checkpointType or (checkpointType ~= "Bonfire" and checkpointType ~= "Bed") then return false end
 
     local spawnLocation = checkpoint:GetAttribute("SPAWN")
     if not spawnLocation then return false end
 
+    local position = self:GetPosition(checkpoint)
     local objectData = Modules.Object.GetObject(checkpointType)
     local healRate = objectData and objectData.defaults.properties.heal_rate or 1.0
 
-    local checkpointId = checkpointType .. "_" .. spawnLocation .. "_" .. tostring(checkpoint:GetPivot().Position):gsub("[^%d]", "")
+    local positionString = tostring(position):gsub("[^%d]", "")
+    local checkpointId = checkpointType .. "_" .. spawnLocation .. "_" .. positionString
     State.activeCheckpoints[checkpointId] = {
         instance = checkpoint,
-        position = checkpoint:GetPivot().Position,
+        position = position,
         type = checkpointType,
         location = spawnLocation,
         healRate = healRate
@@ -133,7 +235,7 @@ function SpawnService:RegisterCheckpoint(checkpoint: Model): boolean
     Services.Event:Fire("Spawn.Checkpoint", {
         checkpoint = checkpoint,
         id = checkpointId,
-        position = State.activeCheckpoints[checkpointId].position,
+        position = position,
         type = checkpointType,
         location = spawnLocation
     })
@@ -162,7 +264,10 @@ function SpawnService:ActivateCheckpoint(player: Player, checkpoint: Instance)
     local spawnLocation = checkpoint:GetAttribute("SPAWN")
     if not checkpointType or not spawnLocation then return false end
 
-    local checkpointId = checkpointType .. "_" .. spawnLocation
+    local position = checkpoint:GetPivot().Position
+    local positionString = tostring(position):gsub("[^%d]", "")
+    local checkpointId = checkpointType .. "_" .. spawnLocation .. "_" .. positionString
+
     if not State.activeCheckpoints[checkpointId] then return false end
 
     local checkpointData = State.activeCheckpoints[checkpointId]
@@ -224,11 +329,15 @@ function SpawnService:RespawnCheckpoint(player: Player)
     if not player then return false end
 
     local checkpointData = self:GetCheckpoint(player)
-    local spawnPosition = State.defaultSpawn and State.defaultSpawn:GetPivot().Position or Vector3.new(0, 10, 0)
+    local spawnPosition = Vector3.new(0, 10, 0)
     local spawnCheckpoint = nil
 
+    if State.defaultSpawn then
+        spawnPosition = self:GetPosition(State.defaultSpawn)
+    end
+
     if checkpointData and checkpointData.lastCheckpoint:IsDescendantOf(game) then
-        spawnPosition = checkpointData.position
+        spawnPosition = self:GetPosition(checkpointData.lastCheckpoint)
         spawnCheckpoint = checkpointData.lastCheckpoint
     else
         State.playerCheckpoints[player.UserId] = nil

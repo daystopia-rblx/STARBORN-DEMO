@@ -2,8 +2,8 @@
     Extensible action system for managing and executing interaction behaviors. 
     Handles action registration, validation, cooldowns, and state tracking.
     @author @Daystopia
-    @version 1.0.4
-    @date 2025-03-09
+    @version 1.0.5
+    @date 2025-03-31
 ]]
 local ActionService = {}
 
@@ -214,6 +214,10 @@ local function CheckInventory(player: Player): boolean
     return playerActions["storage"] ~= nil
 end
 
+local function SetAction(player: Player, actionType: string?)
+    player:SetAttribute("ACTION", actionType or "None")
+end
+
 --[[ Core Functions ]]
 function ActionService:Init(services, modules)
     Services = services
@@ -265,6 +269,7 @@ function ActionService:ExecuteAction(actionName: string, params: {[string]: any}
     params.category = params.category or instance:GetAttribute("CATEGORY")
 
     SetController(instance, userId)
+    SetAction(player, actionName:lower())
 
     local success, result = pcall(function()
         local handler = self:GetHandler(actionName)
@@ -296,6 +301,7 @@ function ActionService:ExecuteAction(actionName: string, params: {[string]: any}
 
         if success then
             SetCooldown(player, actionName:lower())
+            SetAction(player, "none")
 
             local currentState = instance:GetAttribute("STATE")
             if currentState == nil then
@@ -343,6 +349,7 @@ function ActionService:ExecuteAction(actionName: string, params: {[string]: any}
         else
             if handler.onCancel then
                 handler.onCancel(Services, context)
+                SetAction(player, "none")
                 if instance:GetAttribute("CONTROLLER") == userId then
                     SetController(instance, nil)
                 end
@@ -428,6 +435,7 @@ function ActionService:CancelAction(
         if not next(playerActions) then
             state.activeActions[player] = nil
         end
+        SetAction(player, "none")
         return true
     end
 
@@ -438,6 +446,7 @@ function ActionService:CancelAction(
         end
     end
     state.activeActions[player] = nil
+    SetAction(player, "none")
     return true
 end
 
@@ -454,6 +463,8 @@ function ActionService:EndPersist(actionType: string, context: Types.ActionConte
             state.activeActions[player] = nil
         end
     end
+
+    SetAction(context.player, "none")
 
     Services.Event:Fire("Action.End", {
         player = context.player,

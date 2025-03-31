@@ -1,8 +1,8 @@
 --[[ StateModule
     Handles entity state definitions and transitions
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-30
+    @version 1.0.1
+    @date 2025-03-31
 ]]
 local StateModule = {}
 
@@ -33,43 +33,43 @@ StateModule.Categories = {
 --[[ Templates ]]
 StateModule.Templates = {
     -- Combat States
-    BLOCKING = {
+    BLOCK = {
         category = "COMBAT",
         displayName = "Blocking",
         description = "Currently blocking attacks",
         exclusive = true,
-        cooldown = 0.5,
+        cooldown = 0.2,
         transitions = {
-            ROLLING = false,
-            ATTACKING = false,
-            PARRYING = true
+            ROLL = false,
+            ATTACK = false,
+            PARRY = true
         }
     },
 
-    PARRYING = {
+    PARRY = {
         category = "COMBAT",
         displayName = "Parrying",
         description = "Executing a parry",
         exclusive = true,
         duration = 0.3,
-        cooldown = 1,
+        cooldown = 0.2,
         transitions = {
-            BLOCKING = true,
-            ROLLING = false,
-            ATTACKING = true
+            BLOCK = true,
+            ROLL = false,
+            ATTACK = true
         }
     },
 
-    ATTACKING = {
+    ATTACK = {
         category = "COMBAT",
         displayName = "Attacking",
         description = "Executing an attack",
         exclusive = true,
         cooldown = 0.2,
         transitions = {
-            BLOCKING = false,
-            ROLLING = true,
-            PARRYING = false
+            BLOCK = false,
+            ROLL = true,
+            PARRY = false
         }
     },
 
@@ -82,8 +82,8 @@ StateModule.Templates = {
         cooldown = 0.2,
         transitions = {
             CRITICAL_ATTACK = true,
-            BLOCKING = false,
-            ROLLING = true
+            BLOCK = false,
+            ROLL = true
         }
     },
 
@@ -93,179 +93,268 @@ StateModule.Templates = {
         description = "Executing a powerful attack",
         exclusive = true,
         duration = 0.8,
-        cooldown = 1.5,
+        cooldown = 0.2,
         transitions = {
             LIGHT_ATTACK = false,
-            BLOCKING = false,
-            ROLLING = true
+            BLOCK = false,
+            ROLL = true
         }
     },
 
-    FEINTING = {
+    FEINT = {
         category = "COMBAT",
         displayName = "Feinting",
         description = "Canceling an attack",
         exclusive = true,
         duration = 0.2,
-        cooldown = 0.5,
+        cooldown = 0.2,
         transitions = {
-            ATTACKING = true,
-            BLOCKING = true,
-            ROLLING = true
+            ATTACK = true,
+            BLOCK = true,
+            ROLL = true
         }
     },
 
     -- Movement States
-    ROLLING = {
+    ROLL = {
         category = "MOVEMENT",
         displayName = "Rolling",
         description = "Executing an evasive roll",
         exclusive = true,
-        duration = 0.5,
-        cooldown = 1,
+        duration = 0.8,
+        cooldown = 0.2,
         transitions = {
-            BLOCKING = false,
-            ATTACKING = false,
-            PARRYING = false,
-            RUNNING = false
+            BLOCK = false,
+            ATTACK = false,
+            PARRY = false,
+            RUN = true,
+            DASH = true,
+            SLIDE = true,
+            CROUCH = true,
+            JUMP = true,
+            WALK = true
         }
     },
 
-    RUNNING = {
+    WALK = {
         category = "MOVEMENT",
-        displayName = "Sprinting",
+        displayName = "Walking",
+        description = "Moving at normal speed",
+        exclusive = true,
+        transitions = {
+            RUN = true,
+            BLOCK = true,
+            ROLL = true,
+            SLIDE = true,
+            DASH = true,
+            CROUCH = true,
+            JUMP = true,
+            IDLE = true
+        }
+    },
+
+    IDLE = {
+        category = "MOVEMENT",
+        displayName = "Idle",
+        description = "Standing still",
+        exclusive = true,
+        transitions = {
+            WALK = true,
+            RUN = true,
+            BLOCK = true,
+            ROLL = true,
+            DASH = true,
+            CROUCH = true,
+            JUMP = true
+        }
+    },
+
+    RUN = {
+        category = "MOVEMENT",
+        displayName = "Running",
         description = "Moving at increased speed",
         exclusive = true,
         transitions = {
-            BLOCKING = true,
-            ROLLING = true,
-            SLIDING = true
+            WALK = true,
+            IDLE = true,
+            BLOCK = true,
+            ROLL = true,
+            SLIDE = true,
+            DASH = true
         }
     },
 
-    SLIDING = {
+    SLIDE = {
         category = "MOVEMENT",
         displayName = "Sliding",
         description = "Executing a slide",
         exclusive = true,
         duration = 0.7,
-        cooldown = 1.5,
+        cooldown = 0.2,
         transitions = {
-            RUNNING = true,
-            ROLLING = true
+            RUN = true,
+            ROLL = true,
+            DASH = true
         }
     },
 
-    WALL_RUNNING = {
+    WALL_RUN = {
         category = "MOVEMENT",
         displayName = "Wall Running",
         description = "Running along a wall",
         exclusive = true,
         transitions = {
-            WALL_CLIMBING = true,
-            JUMPING = true,
-            LEDGE_HANGING = true
+            WALL_CLIMB = true,
+            JUMP = true,
+            HANG = true
         }
     },
 
-    WALL_CLIMBING = {
+    WALL_CLIMB = {
         category = "MOVEMENT",
         displayName = "Wall Climbing",
         description = "Climbing a wall",
         exclusive = true,
         transitions = {
-            WALL_RUNNING = true,
-            LEDGE_HANGING = true
+            WALL_RUN = true,
+            HANG = true
         }
     },
 
-    LEDGE_HANGING = {
+    HANG = {
         category = "MOVEMENT",
         displayName = "Ledge Hanging",
         description = "Hanging from a ledge",
         exclusive = true,
         transitions = {
-            WALL_CLIMBING = true,
-            JUMPING = true
+            WALL_CLIMB = true,
+            JUMP = true
         }
     },
 
-    JUMPING = {
+    JUMP = {
         category = "MOVEMENT",
         displayName = "Jumping",
         description = "In mid-air jump",
         exclusive = true,
         duration = 0.5,
         transitions = {
-            WALL_RUNNING = true,
-            LEDGE_HANGING = true,
-            ROLLING = true
+            WALL_RUN = true,
+            HANG = true,
+            ROLL = true
         }
     },
 
-    SWINGING = {
+    LAND = {
+        category = "MOVEMENT",
+        displayName = "Landing",
+        description = "Landing from a jump or fall",
+        exclusive = true,
+        duration = 0.5,
+        cooldown = 0.1,
+        transitions = {
+            WALK = true,
+            RUN = true,
+            ROLL = true,
+            CROUCH = true,
+            IDLE = true
+        }
+    },
+
+    SWING = {
         category = "MOVEMENT",
         displayName = "Swinging",
         description = "Swinging from an object",
         exclusive = true,
         transitions = {
-            JUMPING = true,
-            LEDGE_HANGING = true
+            JUMP = true,
+            HANG = true
         }
     },
 
-    CROUCHING = {
+    DASH = {
+        category = "MOVEMENT",
+        displayName = "Dashing",
+        description = "Executing a quick dash",
+        exclusive = true,
+        duration = 0.3,
+        cooldown = 0.2,
+        transitions = {
+            RUN = true,
+            ROLL = true,
+            SLIDE = true
+        }
+    },
+
+    VAULT = {
+        category = "MOVEMENT",
+        displayName = "Vaulting",
+        description = "Vaulting over an obstacle",
+        exclusive = true,
+        duration = 0.5,
+        cooldown = 0.2,
+        transitions = {
+            RUN = true,
+            ROLL = true
+        }
+    },
+
+    CROUCH = {
         category = "MOVEMENT",
         displayName = "Crouching",
         description = "In crouched position",
         exclusive = true,
         transitions = {
-            SLIDING = true,
-            ROLLING = true,
-            RUNNING = true
+            SLIDE = true,
+            ROLL = true,
+            RUN = true
         }
     },
 
-    SWIMMING = {
+    SWIM = {
         category = "MOVEMENT",
         displayName = "Swimming",
         description = "Moving through water",
         exclusive = true,
         transitions = {
-            JUMPING = true,
-            SPRINTING = false,
-            ROLLING = false,
-            ATTACKING = true,
-            BLOCKING = false
+            JUMP = true,
+            SPRINT = false,
+            ROLL = false,
+            ATTACK = true,
+            BLOCK = false
         },
         onEnter = function(entity)
-            entity:SetAttribute("UNDERWATER", true)
+            if entity:GetAttribute("UNDERWATER") then
+                entity:SetAttribute("UNDERWATER", true)
+            end
         end,
         onExit = function(entity)
-            entity:SetAttribute("UNDERWATER", false)
+            if entity:GetAttribute("UNDERWATER") then
+                entity:SetAttribute("UNDERWATER", false)
+            end
         end
     },
 
     -- Status States
-    KNOCKED = {
+    KNOCK = {
         category = "STATUS",
         displayName = "Knocked Out",
         description = "Incapacitated and vulnerable",
         exclusive = true,
         transitions = {
             DEAD = true,
-            EXECUTING = false
+            EXECUTE = false
         }
     },
 
-    EXECUTING = {
+    EXECUTE = {
         category = "STATUS",
         displayName = "Executing",
         description = "Performing execution on knocked enemy",
         exclusive = true,
         duration = 2,
         transitions = {
-            KNOCKED = false
+            KNOCK = false
         }
     },
 
@@ -277,15 +366,40 @@ StateModule.Templates = {
         transitions = {}
     },
 
-    CARRYING = {
+    CARRY = {
         category = "STATUS",
         displayName = "Carrying",
         description = "Carrying another character",
         exclusive = true,
         transitions = {
-            RUNNING = true,
-            ROLLING = false,
-            ATTACKING = false
+            RUN = true,
+            ROLL = false,
+            ATTACK = false
+        }
+    },
+
+    GRIP = {
+        category = "STATUS",
+        displayName = "Gripped",
+        description = "Being held by another character",
+        exclusive = true,
+        transitions = {
+            ATTACK = false,
+            BLOCK = false,
+            ROLL = false
+        }
+    },
+
+    INVINCIBLE = {
+        category = "STATUS",
+        displayName = "Invincible",
+        description = "Temporarily immune to all damage",
+        exclusive = true,
+        duration = 0.5,
+        transitions = {
+            ATTACK = true,
+            BLOCK = true,
+            ROLL = true
         }
     },
 
@@ -344,27 +458,27 @@ StateModule.Templates = {
     },
 
     -- Interaction States
-    INTERACTING = {
+    INTERACT = {
         category = "INTERACTION",
         displayName = "Interacting",
         description = "Interacting with object/entity",
         exclusive = true,
         transitions = {
-            ATTACKING = false,
-            ROLLING = true
+            ATTACK = false,
+            ROLL = true
         }
     },
 
     -- Emote States
-    EMOTING = {
+    EMOTE = {
         category = "EMOTE",
         displayName = "Emoting",
         description = "Playing an emote animation",
         exclusive = true,
         transitions = {
-            ATTACKING = true,
-            ROLLING = true,
-            BLOCKING = true
+            ATTACK = true,
+            ROLL = true,
+            BLOCK = true
         }
     }
 }

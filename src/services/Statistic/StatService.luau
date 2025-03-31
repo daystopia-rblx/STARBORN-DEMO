@@ -2,8 +2,8 @@
     Comprehensive stat system with multipliers, regeneration, and progression.
     Manages player attributes, experience gains, and real-time stat updates.
     @author @Daystopia
-    @version 1.1.0
-    @date 2025-03-30
+    @version 1.1.1
+    @date 2025-03-31
 ]]
 local StatService = {}
 
@@ -19,7 +19,9 @@ StatService.Modules = {
 StatService.Events = {
     Set = { validate = true },
     Update = { validate = true },
-    Reset = { validate = true }
+    Reset = { validate = true },
+    Level = { validate = true },
+    Points = { validate = true }
 }
 
 local Services
@@ -28,7 +30,15 @@ local Modules
 --[[ State Management ]]--
 local State = {
     playerMultipliers = {},
-    regenTasks = setmetatable({}, {__mode = "k"})
+    regenTasks = setmetatable({}, {__mode = "k"}),
+    points = setmetatable({}, {
+        __index = function(self, key)
+            if not rawget(self, key) then
+                rawset(self, key, {})
+            end
+            return rawget(self, key)
+        end
+    })
 }
 
 -- [[ Core Functions ]]
@@ -42,6 +52,7 @@ end
 function StatService:Cleanup()
     table.clear(State.playerMultipliers)
     table.clear(State.regenTasks)
+    table.clear(State.points)
 end
 
 --[[ Progression Functions ]]--
@@ -69,11 +80,24 @@ function StatService:AddProgress(entity, amount, target, metadata)
         newProgress -= requiredProgress
         requiredProgress = self:CalculateProgress(currentLevel, 0, baseValue, multiplier)
         leveled = true
+
+        if target == "LEVEL" then
+            self:AddPoints(entity, "ATTRIBUTE", Modules.Stat.Constants.PROGRESSION.ATTRIBUTE_POINTS_PER_LEVEL)
+        end
     end
 
     entity:SetAttribute(target .. "_PROGRESS", newProgress)
     if leveled then
         entity:SetAttribute(target, currentLevel)
+
+        if target == "LEVEL" then
+            Services.Event:Fire("Stat.Level", {
+                entity = entity,
+                oldLevel = oldLevel,
+                newLevel = currentLevel,
+                points = self:GetPoints(entity, "ATTRIBUTE")
+            })
+        end
     end
 
     Services.Event:Fire("Stat.Update", {
@@ -108,6 +132,72 @@ end
 
 function StatService:CalculateProgress(level: number, progress: number, baseValue: number, multiplier: number)
     return math.floor(baseValue * (level ^ multiplier))
+end
+
+--[[ Points Functions ]]--
+function StatService:AddPoints(entity: any, pointType: string, amount: number)
+    if not (entity and pointType) then return end
+
+    local userId = entity.UserId
+    if not userId then return end
+
+    State.points[userId][pointType] = (State.points[userId][pointType] or 0) + amount
+
+    Services.Event:Fire("Stat.Points", {
+        entity = entity,
+        type = pointType,
+        points = State.points[userId][pointType],
+        added = amount
+    })
+end
+
+function StatService:GetPoints(entity: any, pointType: string): number
+    if not (entity and pointType) then return 0 end
+
+    local userId = entity.UserId
+    if not userId then return 0 end
+
+    return State.points[userId][pointType] or 0
+end
+
+function StatService:SpendPoints(entity: any, pointType: string, target: string, amount: number): boolean
+    if not (entity and pointType and target and amount > 0) then return false end
+
+    local userId = entity.UserId
+    if not userId then return false end
+
+    local availablePoints = State.points[userId][pointType] or 0
+    if availablePoints < amount then return false end
+
+    local template = Modules.Stat.Templates[target]
+    if not template then return false end
+
+    if pointType == "ATTRIBUTE" and template.category ~= "ATTRIBUTE" then
+        return false
+    end
+
+    local success = self:ModifyStat(entity, target, {
+        operation = "add",
+        value = amount,
+        metadata = { 
+            source = "points",
+            type = pointType
+        }
+    })
+
+    if success then
+        State.points[userId][pointType] -= amount
+
+        Services.Event:Fire("Stat.Points", {
+            entity = entity,
+            type = pointType,
+            points = State.points[userId][pointType],
+            spent = amount,
+            target = target
+        })
+    end
+
+    return success
 end
 
 --[[ Stat Functions ]]--

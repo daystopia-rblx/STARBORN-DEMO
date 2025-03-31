@@ -1,7 +1,7 @@
 --[[ StatModule
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-30
+    @version 1.0.1
+    @date 2025-03-31
 ]]
 local StatModule = {}
 
@@ -549,6 +549,28 @@ StatModule.Templates = {
             CRITICAL_MULTIPLIER = {
                 type = "MULTIPLY",
                 value = StatModule.Constants.WEAPON.MAX_SHARPNESS_CRIT_MULT
+            }
+        }
+    },
+
+    CRITICAL = {
+        baseValue = 5,
+        minValue = 0,
+        maxValue = 100,
+        category = "COMBAT",
+        displayName = "Critical",
+        description = "Chance to deal critical damage",
+        icon = "",
+        color = Color3.fromRGB(255, 0, 0),
+        format = "%.1f%%",
+        effects = {
+            CRITICAL_CHANCE = {
+                type = "PERCENT",
+                value = 1
+            },
+            CRITICAL_MULTIPLIER = {
+                type = "MULTIPLY",
+                value = 0.01
             }
         }
     }

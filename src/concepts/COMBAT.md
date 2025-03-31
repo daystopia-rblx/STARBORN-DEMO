@@ -178,3 +178,125 @@ Five primary indicators:
 - Top screen indicator
 - Active combat state display
 - Engagement feedback
+
+---
+
+## Weapon Classifications
+
+The combat system features three distinct weapon categories, each with unique characteristics and playstyles.
+
+### Light Weapons
+Fast, agile weapons focused on quick strikes and mobility.
+
+**Available Types:**
+- **Fists**
+  - Fastest attack speed
+  - Short range
+  - Special: Combo system
+  - Perfect for parrying
+
+- **Daggers**
+  - Quick strikes
+  - Critical hit focus
+  - Backstab specialists
+  - High mobility
+
+- **Guns**
+  - Rapid fire
+  - Ammo management
+  - Medium range
+  - Low posture damage
+
+- **Rapiers**
+  - Precise thrusts
+  - Counter-attack focused
+  - Perfect parry bonus
+  - Stance-based combat
+
+- **Nunchucks**
+  - Chain combos
+  - Stance variations
+  - Defensive capabilities
+  - Rhythm-based attacks
+
+- **Bow**
+  - Long range
+  - Charged shots
+  - Various arrow types
+  - Stealth capability
+
+### Medium Weapons
+Balanced weapons offering versatility in combat.
+
+**Available Types:**
+- **Long Swords**
+  - Balanced damage/speed
+  - Versatile moveset
+  - Good reach
+  - All-around performance
+
+- **Spears**
+  - Extended reach
+  - Thrust specialization
+  - Formation fighting
+  - Keep-away tactics
+
+- **Katanas**
+  - Swift strikes
+  - Stance system
+  - Bleeding effects
+  - Counter-attack focus
+
+- **Rifles**
+  - Long range
+  - High precision
+  - Slower rate of fire
+  - High single-target damage
+
+- **Tridents**
+  - Piercing damage
+  - Sweep attacks
+  - Water combat bonus
+  - Multiple hit points
+
+### Heavy Weapons
+Powerful weapons emphasizing high damage and posture breaking.
+
+**Available Types:**
+- **Great Axes**
+  - Highest raw damage
+  - Armor breaking
+  - Slow swing speed
+  - Devastating criticals
+
+- **Great Swords**
+  - Wide swing arc
+  - High posture damage
+  - Charged attacks
+  - Guard crush potential
+
+- **Scythes**
+  - Sweeping attacks
+  - Death effects
+  - Soul harvest mechanic
+  - Extended reach
+
+### Weapon Properties
+
+**Common Attributes:**
+- Durability
+- Sharpness
+- Weight
+- Base Damage
+- Special Effects
+
+**Category-Specific Traits:**
+- Light: Higher attack speed, lower stamina cost
+- Medium: Balanced stats, versatile movesets
+- Heavy: High damage, high stamina cost, posture break focus
+
+**Upgrade Paths:**
+- Physical enhancement
+- Magical infusion
+- Special effect augmentation
+- Unique weapon arts
