@@ -1,8 +1,8 @@
 --[[ MovementService
     Manages player movement states and speed modifications.
     @author @Daystopia
-    @version 1.1.0
-    @date 2025-03-31
+    @version 1.1.1
+    @date 2025-04-01
 ]]
 local MovementService = {}
 
@@ -103,6 +103,8 @@ end
 
 --[[ Movement Functions ]]
 function MovementService:InitializeMovement(player: Player)
+    player.DevEnableMouseLock = false
+
     state.players[player] = {
         isRunning = false,
         canJump = true,
@@ -157,7 +159,10 @@ function MovementService:ExecuteMovement(movementType: string, player: Player, d
         metadata = metadata
     })
 
-    if not success then return false, "Failed to enter movement state" end
+    if not success then
+        warn("Failed to enter movement state:", stateType)
+        return false, "Failed to enter movement state"
+    end
 
     self.activeMovement = handler:Execute(character, data)
 

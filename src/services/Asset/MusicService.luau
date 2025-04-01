@@ -2,8 +2,8 @@
     Dynamic music system with smooth transitions and layered playback.
     Manages background music, crossfading, and region-based music changes.
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-03-30
+    @version 1.0.3
+    @date 2025-04-01
 ]]
 local MusicService = {}
 
@@ -20,7 +20,8 @@ MusicService.Modules = {
 --[[ Events ]]
 MusicService.Events = {
     Play = true,
-    Stop = true
+    Stop = true,
+    State = true
 }
 
 --[[ Services & Modules ]]
@@ -32,17 +33,16 @@ local CONSTANTS = {
     DEFAULT_VOLUME = 0.5,
     DEFAULT_SPEED = 1,
     FADE_TIME = 0.3,
-    PLAYLIST_TRANSITION_TIME = 2,
     CATEGORY = "Music"
 }
 
 --[[ State ]]
 local state = {
     currentMusic = nil,
-    lastPlayed = nil,
     currentPlaylist = nil,
-    playlistIndex = 1,
     isPlaying = false,
+    activeLayers = {},
+    currentState = nil,
     shuffledTracks = {}
 }
 
@@ -54,12 +54,7 @@ function MusicService:Init(services, modules)
 end
 
 function MusicService:Cleanup()
-    if state.currentMusic then
-        Services.Audio:StopSound(state.currentMusic, CONSTANTS.FADE_TIME)
-    end
-
-    state.currentMusic = nil
-    state.lastPlayed = nil
+    self:StopPlaylist()
 end
 
 --[[ Music Functions ]]
@@ -83,19 +78,10 @@ function MusicService:PlayMusic(parent, id, options)
     local music = Services.Audio:PlaySound(parent, config)
     if music then
         state.currentMusic = music
-        state.lastPlayed = id
         Services.Event:Fire("Music.Play", id)
     end
 
     return music
-end
-
-function MusicService:StopMusic(instant)
-    if not state.currentMusic then return end
-
-    Services.Audio:StopSound(state.currentMusic, instant and 0 or CONSTANTS.FADE_TIME)
-    state.currentMusic = nil
-    Services.Event:Fire("Music.Stop")
 end
 
 --[[ Playlist Functions ]]
@@ -107,35 +93,106 @@ function MusicService:StartPlaylist(playlistName, parent, options)
 
     self:StopPlaylist()
 
-    local tracks = Modules.Music:GetTracks(playlistName)
-    state.shuffledTracks = playlist.shuffle and self:ShuffleTracks(tracks) or tracks
-
     state.currentPlaylist = playlistName
-    state.playlistIndex = 1
     state.isPlaying = true
+    state.currentState = nil
+    state.activeLayers = {}
 
-    local firstTrack = state.shuffledTracks[1]
-    if firstTrack then
-        self:PlayMusic(parent, firstTrack.id, {
-            volume = options.volume or playlist.defaultVolume or firstTrack.volume,
-            effects = playlist.effects
-        })
+    if playlist.dynamic then
+        local firstTrack = playlist.tracks[1]
+        if firstTrack then
+            self:PlayState(firstTrack, parent, options)
+        end
+    else
+        local tracks = Modules.Music:GetTracks(playlistName)
+        if #tracks > 0 then
+            state.shuffledTracks = playlist.shuffle and self:ShuffleTracks(tracks) or tracks
+            self:PlayMusic(parent, state.shuffledTracks[1].id, {
+                volume = playlist.defaultVolume or state.shuffledTracks[1].volume,
+                effects = playlist.effects
+            })
+
+            if not playlist.loop then
+                self:NextTrack(parent, playlist)
+            end
+        end
     end
-
-    self:NextTrack(parent)
 end
 
 function MusicService:StopPlaylist(instant)
     if not state.currentPlaylist then return end
 
-    state.isPlaying = false
+    for _, layer in pairs(state.activeLayers) do
+        Services.Audio:StopSound(layer, instant and 0 or CONSTANTS.FADE_TIME)
+    end
+
+    if state.currentMusic then
+        Services.Audio:StopSound(state.currentMusic, instant and 0 or CONSTANTS.FADE_TIME)
+    end
+
+    state.currentMusic = nil
     state.currentPlaylist = nil
-    state.playlistIndex = 1
+    state.isPlaying = false
+    state.activeLayers = {}
+    state.currentState = nil
     state.shuffledTracks = {}
 
-    self:StopMusic(instant)
+    Services.Event:Fire("Music.Stop")
 end
 
+function MusicService:PlayState(trackPath, parent, options)
+    options = options or {}
+
+    local playlist = Modules.Music.Playlists[state.currentPlaylist]
+    if not playlist then return end
+
+    local track = Modules.Music:GetPath(trackPath)
+    if not track then return end
+
+    if state.currentState and state.currentState ~= trackPath then
+        for _, layer in pairs(state.activeLayers) do
+            Services.Audio:StopSound(layer, CONSTANTS.FADE_TIME)
+        end
+    end
+
+    state.currentState = trackPath
+
+    if track.layers then
+        state.activeLayers = {}
+        for _, layer in ipairs(track.layers) do
+            local layerSound = Services.Audio:PlaySound(parent, {
+                id = layer.id,
+                volume = options.volume or playlist.defaultVolume or layer.volume,
+                speed = options.speed or CONSTANTS.DEFAULT_SPEED,
+                loop = track.loop,
+                category = CONSTANTS.CATEGORY,
+                fadeIn = CONSTANTS.FADE_TIME,
+                effects = options.effects
+            })
+
+            if layerSound then
+                state.activeLayers[layer.id] = layerSound
+
+                if not track.loop then
+                    local connection
+                    connection = layerSound.Ended:Connect(function()
+                        connection:Disconnect()
+                        self:CompleteTrack(track, layer.id)
+                    end)
+                end
+            end
+        end
+    else
+        self:PlayMusic(parent, track.id, {
+            volume = options.volume or playlist.defaultVolume or track.volume,
+            effects = options.effects
+        })
+    end
+
+    Services.Event:Fire("Music.State", trackPath, track.tag)
+end
+
+--[[ Track Functions ]]
 function MusicService:ShuffleTracks(tracks)
     local shuffled = table.clone(tracks)
     for i = #shuffled, 2, -1 do
@@ -145,40 +202,63 @@ function MusicService:ShuffleTracks(tracks)
     return shuffled
 end
 
-function MusicService:NextTrack(parent)
-    if not state.isPlaying or not state.currentPlaylist then return end
+function MusicService:NextTrack(parent, playlist)
+    if not state.currentMusic then return end
 
-    local playlist = Modules.Music.Playlists[state.currentPlaylist]
-    if not playlist then return end
+    local connection
+    connection = state.currentMusic.Ended:Connect(function()
+        connection:Disconnect()
 
-    if state.currentMusic then
-        local connection
-        connection = state.currentMusic.Ended:Connect(function()
-            connection:Disconnect()
+        if not state.isPlaying then return end
 
-            state.playlistIndex = state.playlistIndex % #state.shuffledTracks + 1
+        local currentIndex
+        for i, track in ipairs(state.shuffledTracks) do
+            if track.id == state.currentMusic.SoundId then
+                currentIndex = i
+                break
+            end
+        end
 
-            local nextTrack = state.shuffledTracks[state.playlistIndex]
-            if nextTrack and state.isPlaying then
+        if currentIndex then
+            local nextIndex = currentIndex % #state.shuffledTracks + 1
+            local nextTrack = state.shuffledTracks[nextIndex]
+            if nextTrack then
                 self:PlayMusic(parent, nextTrack.id, {
                     volume = playlist.defaultVolume or nextTrack.volume,
                     effects = playlist.effects
                 })
 
-                self:NextTrack(parent)
+                self:NextTrack(parent, playlist)
             end
-        end)
-    end
+        end
+    end)
 end
 
-function MusicService:GetPlaylist()
-    if not state.currentPlaylist then return nil end
+function MusicService:CompleteTrack(track, layerId)
+    if not track.strict then return end
 
-    return {
-        name = state.currentPlaylist,
-        currentTrack = state.shuffledTracks[state.playlistIndex],
-        isPlaying = state.isPlaying
-    }
+    state.activeLayers[layerId] = nil
+
+    if next(state.activeLayers) == nil then
+        local playlist = Modules.Music.Playlists[state.currentPlaylist]
+        if not playlist then return end
+
+        local currentIndex
+        for i, trackPath in ipairs(playlist.tracks) do
+            if trackPath == state.currentState then
+                currentIndex = i
+                break
+            end
+        end
+
+        if currentIndex then
+            local nextIndex = currentIndex % #playlist.tracks + 1
+            local nextTrack = playlist.tracks[nextIndex]
+            if nextTrack then
+                self:PlayState(nextTrack)
+            end
+        end
+    end
 end
 
 return MusicService

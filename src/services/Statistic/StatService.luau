@@ -2,8 +2,8 @@
     Comprehensive stat system with multipliers, regeneration, and progression.
     Manages player attributes, experience gains, and real-time stat updates.
     @author @Daystopia
-    @version 1.1.1
-    @date 2025-03-31
+    @version 1.1.2
+    @date 2025-04-01
 ]]
 local StatService = {}
 
@@ -17,20 +17,45 @@ StatService.Modules = {
 }
 
 StatService.Events = {
-    Set = { validate = true },
     Update = { validate = true },
     Reset = { validate = true },
     Level = { validate = true },
     Points = { validate = true }
 }
 
+local Players = game:GetService("Players")
 local Services
 local Modules
 
+StatService.Listeners = {
+    [workspace.DescendantAdded] = function(self, instance: Instance)
+        if instance:IsA("Model") then
+            self:RegisterEntity(instance)
+        end
+    end,
+
+    [workspace.DescendantRemoving] = function(self, instance: Instance)
+        if instance:IsA("Model") then
+            self:UnregisterEntity(instance)
+        end
+    end,
+
+    ["Player.Join"] = function(self, data)
+        local player = data.player
+        if player.Character then
+            self:RegisterEntity(player.Character)
+        end
+        player.CharacterAdded:Connect(function(character)
+            self:RegisterEntity(character)
+        end)
+    end
+}
+
 --[[ State Management ]]--
 local State = {
-    playerMultipliers = {},
-    regenTasks = setmetatable({}, {__mode = "k"}),
+    multipliers = {},
+    cycles = setmetatable({}, {__mode = "k"}),
+    connections = setmetatable({}, {__mode = "k"}),
     points = setmetatable({}, {
         __index = function(self, key)
             if not rawget(self, key) then
@@ -45,13 +70,43 @@ local State = {
 function StatService:Init(services, modules)
     Services = services
     Modules = modules
-    self:StartRegen()
+    return true
+end
+
+function StatService:Start()
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            self:RegisterEntity(player.Character)
+        end
+        player.CharacterAdded:Connect(function(character)
+            self:RegisterEntity(character)
+        end)
+    end
+
+    for _, instance in workspace:GetDescendants() do
+        if instance:IsA("Model") then
+            self:RegisterEntity(instance)
+        end
+    end
+
+    self:StartCycle()
     return true
 end
 
 function StatService:Cleanup()
-    table.clear(State.playerMultipliers)
-    table.clear(State.regenTasks)
+    table.clear(State.multipliers)
+    table.clear(State.cycles)
+
+    for entity, entityConnections in pairs(State.connections) do
+        for _, typeConnections in pairs(entityConnections) do
+            for _, handler in pairs(typeConnections) do
+                if handler.cleanup then
+                    handler.cleanup(handler.connections)
+                end
+            end
+        end
+    end
+    table.clear(State.connections)
     table.clear(State.points)
 end
 
@@ -240,14 +295,17 @@ function StatService:SetStat(entity: {GetAttribute: (string) -> any, SetAttribut
     entity:SetAttribute(attrName, value)
 
     if template.effects then
-        for effectType, effect in pairs(template.effects) do
-            local effectValue = effect.value
-            if effect.type == "MULTIPLY" then
-                effectValue = value * effect.value
-            elseif effect.type == "PERCENT" then
-                effectValue = value * (effect.value / 100)
+        for effectName, effect in pairs(template.effects) do
+            local targetStat, effectType = effectName:match("(.+)_(.+)")
+            if targetStat and effectType then
+                local effectValue = type(effect.value) == "function" and effect.value(entity) or effect.value
+                if effect.type == "MULTIPLY" then
+                    effectValue = value * effectValue
+                elseif effect.type == "PERCENT" then
+                    effectValue = value * (effectValue / 100)
+                end
+                entity:SetAttribute(targetStat .. "_" .. effectType, effectValue)
             end
-            entity:SetAttribute(attrName .. "_" .. effectType, effectValue)
         end
     end
 
@@ -260,14 +318,46 @@ function StatService:SetStat(entity: {GetAttribute: (string) -> any, SetAttribut
         end
     end
 
-    Services.Event:Fire("Stat.Set", {
+    if not (metadata and metadata.skipSync) then
+        if entity:IsA("Model") then
+            local humanoid = entity:FindFirstChild("Humanoid")
+            if humanoid then
+                if attrName == "HEALTH" then
+                    if metadata and metadata.operation == "max" then
+                        humanoid.MaxHealth = value
+                    else
+                        humanoid.Health = value
+                    end
+                elseif attrName == "SPEED" then
+                    humanoid.WalkSpeed = value
+                elseif attrName == "JUMP_POWER" then
+                    humanoid.JumpPower = value
+                end
+            end
+        end
+    end
+
+    local eventData = {
         entity = entity,
         stat = attrName,
         value = value,
         previousValue = oldValue,
         effects = template.effects,
         metadata = metadata
-    })
+    }
+
+    if attrName == "HEALTH" and entity:IsA("Model") then
+        local humanoid = entity:FindFirstChild("Humanoid")
+        if humanoid then
+            eventData.maxValue = humanoid.MaxHealth
+        else
+            eventData.maxValue = template.maxValue
+        end
+    else
+        eventData.maxValue = template.maxValue
+    end
+
+    Services.Event:Fire("Stat.Update", eventData)
 
     return true, value
 end
@@ -421,71 +511,337 @@ function StatService:ApplyEffects(entity: any, statName: string, baseValue: numb
     return finalValue
 end
 
---[[ Regen Functions ]]--
-function StatService:RegenStat(entity: {GetAttribute: (string) -> any}, statName: string): (boolean, any?)
+--[[ Modification Functions ]]--
+function StatService:CycleStat(entity: {GetAttribute: (string) -> any}, statName: string): (boolean, any?)
     if not entity then return false, nil end
+
+    if entity:IsA("Model") then
+        local humanoid = entity:FindFirstChild("Humanoid")
+        if humanoid and (humanoid.Health <= 0 or not humanoid:GetState() == Enum.HumanoidStateType.Dead) then
+            return false, nil
+        end
+    end
 
     local attrName = statName:upper()
     local template = Modules.Stat.Templates[attrName]
-    if not template or not template.regen then return false, nil end
+    if not template or (not template.regen and not template.decay) then return false, nil end
 
     local currentValue = entity:GetAttribute(attrName)
     if not currentValue then return false, nil end
 
-    local maxValue = template.maxValue
-    if maxValue and currentValue >= maxValue then return false, nil end
+    if template.regen then
+        local maxValue = template.maxValue
+        if not maxValue or currentValue < maxValue then
+            if not template.regen.condition or template.regen.condition(entity) then
+                local regenRate = template.regen.amount
+                local effects = self:CalculateEffects(entity, attrName, "REGEN")
+                for operation, value in pairs(effects.baseEffects) do
+                    if value ~= 0 then
+                        regenRate = StatOperations[operation](regenRate, value)
+                    end
+                end
 
-    if template.regen.condition and not template.regen.condition(entity) then
-        return false, nil
+                for operation, value in pairs(effects.chainedEffects) do
+                    if operation == "multiply" and value ~= 1 or
+                       operation ~= "multiply" and value ~= 0 then
+                        regenRate = StatOperations[operation](regenRate, value)
+                    end
+                end
+
+                self:ModifyStat(entity, statName, {
+                    value = regenRate,
+                    operation = "add",
+                    clamp = true,
+                    metadata = {
+                        type = "regen",
+                        baseAmount = template.regen.amount,
+                        finalAmount = regenRate,
+                        effects = effects.metadata.sources
+                    }
+                })
+            end
+        end
     end
 
-    local regenRate = template.regen.amount
+    if template.decay then
+        if not template.decay.condition or template.decay.condition(entity) then
+            local decayRate = template.decay.amount
+            self:ModifyStat(entity, statName, {
+                value = decayRate,
+                operation = "subtract",
+                clamp = true,
+                metadata = {
+                    type = "decay",
+                    baseAmount = template.decay.amount,
+                    finalAmount = decayRate
+                }
+            })
+        end
+    end
 
-    local effects = self:CalculateEffects(entity, attrName, "REGEN")
-    regenRate = (regenRate + effects.value) * effects.multiplier
-
-    return self:ModifyStat(entity, statName, {
-        value = regenRate,
-        operation = "add",
-        clamp = true,
-        metadata = {
-            type = "regen",
-            baseAmount = template.regen.amount,
-            finalAmount = regenRate,
-            effects = effects.metadata.sources
-        }
-    })
+    return true
 end
 
-function StatService:StartRegen()
+function StatService:StartCycle()
     task.spawn(function()
         while true do
             task.wait(1)
-            for entity, stats in pairs(State.regenTasks) do
+            for entity, stats in pairs(State.cycles) do
                 if entity:IsDescendantOf(game) then
-                    for statName in pairs(stats) do
-                        self:RegenStat(entity, statName)
+                    local shouldProcess = true
+                    if entity:IsA("Model") then
+                        local humanoid = entity:FindFirstChild("Humanoid")
+                        if humanoid and (humanoid.Health <= 0 or humanoid:GetState() == Enum.HumanoidStateType.Dead) then
+                            shouldProcess = false
+                        end
+                    end
+
+                    if shouldProcess then
+                        for statName, config in pairs(stats) do
+                            local currentTime = tick()
+                            local lastUpdate = config.lastUpdate or 0
+                            local interval = config.interval or 1
+
+                            if (currentTime - lastUpdate) >= interval then
+                                self:CycleStat(entity, statName)
+                                config.lastUpdate = currentTime
+                            end
+                        end
                     end
                 else
-                    State.regenTasks[entity] = nil
+                    State.cycles[entity] = nil
                 end
             end
         end
     end)
 end
 
-function StatService:EnableRegen(entity: {}, statName: string)
+function StatService:EnableCycle(entity: {}, statName: string)
     if not entity then return end
-    State.regenTasks[entity] = State.regenTasks[entity] or {}
-    State.regenTasks[entity][statName] = true
+
+    local template = Modules.Stat.Templates[statName:upper()]
+    if not template or (not template.regen and not template.decay) then
+        return
+    end
+
+    local interval = template.decay and template.decay.interval or template.regen and template.regen.interval or 1
+
+    State.cycles[entity] = State.cycles[entity] or {}
+    State.cycles[entity][statName] = {
+        interval = interval,
+        lastUpdate = tick()
+    }
 end
 
-function StatService:DisableRegen(entity: {}, statName: string)
-    if not entity or not State.regenTasks[entity] then return end
-    State.regenTasks[entity][statName] = nil
-    if not next(State.regenTasks[entity]) then
-        State.regenTasks[entity] = nil
+function StatService:DisableCycle(entity: {}, statName: string)
+    if not entity or not State.cycles[entity] then return end
+    State.cycles[entity][statName] = nil
+    if not next(State.cycles[entity]) then
+        State.cycles[entity] = nil
     end
 end
+
+--[[ Registration Fucntions ]]
+function StatService:RegisterEntity(entity: Instance): boolean
+    if not entity:IsA("Model") then return false end
+
+    local isEntity = entity:GetAttribute("ENTITY")
+    local isCharacter = Players:GetPlayerFromCharacter(entity) ~= nil
+
+    if not (isEntity or isCharacter) then return false end
+
+    if State.connections[entity] then
+        for _, typeConnections in pairs(State.connections[entity]) do
+            for _, handler in pairs(typeConnections) do
+                if handler.cleanup then
+                    handler.cleanup(handler.connections)
+                end
+            end
+        end
+    end
+
+    State.connections[entity] = {}
+
+    if isCharacter then
+        -- Vital Stats
+        self:SetStat(entity, "HEALTH", 100, { source = "init" })
+        self:SetStat(entity, "BLOOD", 100, { source = "init" })
+
+        -- Resource Stats
+        self:SetStat(entity, "MANA", 100, { source = "init" })
+        self:SetStat(entity, "STAMINA", 100, { source = "init" })
+
+        -- Combat Stats
+        self:SetStat(entity, "POSTURE", 100, { source = "init" })
+        self:SetStat(entity, "RESONANCE", 0, { source = "init" })
+
+        -- Movement Stats
+        self:SetStat(entity, "SPEED", Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED, { source = "init" })
+        self:SetStat(entity, "JUMP_POWER", 50, { source = "init" })
+
+        -- Survival Stats
+        self:SetStat(entity, "HUNGER", 100, { source = "init" })
+        self:SetStat(entity, "THIRST", 100, { source = "init" })
+
+        -- Regeneration/Decay
+        self:EnableCycle(entity, "HEALTH")
+        self:EnableCycle(entity, "BLOOD")
+        self:EnableCycle(entity, "MANA")
+        self:EnableCycle(entity, "STAMINA")
+        self:EnableCycle(entity, "POSTURE")
+        self:EnableCycle(entity, "HUNGER")
+        self:EnableCycle(entity, "THIRST")
+    end
+
+    local humanoid = entity:FindFirstChild("Humanoid")
+    if humanoid then
+        State.connections[entity].Humanoid = {}
+
+        for statName, handler in pairs(StatService.StatHandlers.Humanoid) do
+            local connections = handler.setup(self, entity, humanoid)
+            if connections then
+                State.connections[entity].Humanoid[statName] = {
+                    connections = connections,
+                    cleanup = handler.cleanup
+                }
+            end
+        end
+    end
+
+    return true
+end
+
+function StatService:UnregisterEntity(entity: Instance)
+    if not entity then return end
+
+    if State.connections[entity] then
+        for _, typeConnections in pairs(State.connections[entity]) do
+            for _, handler in pairs(typeConnections) do
+                if handler.cleanup then
+                    handler.cleanup(handler.connections)
+                end
+            end
+        end
+        State.connections[entity] = nil
+    end
+
+    if State.cycles[entity] then
+        State.cycles[entity] = nil
+    end
+end
+
+function StatService:SetupEntity(entity: Instance)
+    if State.connections[entity] then
+        for _, typeConnections in pairs(State.connections[entity]) do
+            for _, handler in pairs(typeConnections) do
+                if handler.cleanup then
+                    handler.cleanup(handler.connections)
+                end
+            end
+        end
+    end
+
+    State.connections[entity] = {}
+
+    local humanoid = entity:FindFirstChild("Humanoid")
+    if humanoid then
+        State.connections[entity].Humanoid = {}
+
+        for statName, handler in pairs(StatService.StatHandlers.Humanoid) do
+            local connections = handler.setup(self, entity, humanoid)
+            if connections then
+                State.connections[entity].Humanoid[statName] = {
+                    connections = connections,
+                    cleanup = handler.cleanup
+                }
+            end
+        end
+    end
+end
+
+--[[ Stat Handlers ]]--
+StatService.StatHandlers = {
+    Humanoid = {
+        health = {
+            setup = function(self, entity: Model, humanoid: Humanoid)
+                self:SetStat(entity, "HEALTH", humanoid.Health, {
+                    source = "humanoid",
+                    skipSync = true
+                })
+
+                self:SetStat(entity, "HEALTH", humanoid.MaxHealth, {
+                    source = "humanoid",
+                    skipSync = true,
+                    operation = "max"
+                })
+
+                return {
+                    healthChanged = humanoid.HealthChanged:Connect(function(health)
+                        self:SetStat(entity, "HEALTH", health, {
+                            source = "humanoid",
+                            skipSync = true
+                        })
+                    end),
+
+                    died = humanoid.Died:Connect(function()
+                        self:SetStat(entity, "HEALTH", 0, {
+                            source = "humanoid",
+                            skipSync = true
+                        })
+                    end)
+                }
+            end,
+
+            cleanup = function(connections)
+                for _, connection in pairs(connections) do
+                    connection:Disconnect()
+                end
+            end
+        },
+
+        speed = {
+            setup = function(self, entity: Model, humanoid: Humanoid)
+                self:SetStat(entity, "SPEED", humanoid.WalkSpeed, {
+                    source = "humanoid",
+                    skipSync = true
+                })
+
+                return {
+                    walkSpeedChanged = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
+                        self:SetStat(entity, "SPEED", humanoid.WalkSpeed, {
+                            source = "humanoid",
+                            skipSync = true
+                        })
+                    end),
+
+                    stateChanged = humanoid:GetPropertyChangedSignal("MoveDirection"):Connect(function()
+                        local isRunning = humanoid.MoveDirection.Magnitude > 0 and humanoid.WalkSpeed > Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED
+                        local isCrouching = humanoid.WalkSpeed < Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED
+
+                        if isRunning then
+                            self:SetStat(entity, "SPEED", humanoid.WalkSpeed * Modules.Stat.Constants.MOVEMENT.SPRINT_MULTIPLIER, {
+                                source = "humanoid",
+                                skipSync = true,
+                                metadata = { state = "RUNNING" }
+                            })
+                        elseif isCrouching then
+                            self:SetStat(entity, "SPEED", humanoid.WalkSpeed * Modules.Stat.Constants.MOVEMENT.CROUCH_MULTIPLIER, {
+                                source = "humanoid",
+                                skipSync = true,
+                                metadata = { state = "CROUCHING" }
+                            })
+                        end
+                    end)
+                }
+            end,
+
+            cleanup = function(connections)
+                for _, connection in pairs(connections) do
+                    connection:Disconnect()
+                end
+            end
+        }
+    },
+}
 
 return StatService

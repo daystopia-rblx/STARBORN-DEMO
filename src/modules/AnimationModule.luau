@@ -30,6 +30,7 @@ AnimationModule.Assets = {
         WALL_RUN_LEFT = { id = "rbxassetid://112704346655755", looped = true, priority = Enum.AnimationPriority.Action },
         WALL_RUN_RIGHT = { id = "rbxassetid://74903089680298", looped = true, priority = Enum.AnimationPriority.Action },
         WALL_CLIMB = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action },
+        WALL_HOLD = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action },
 
         -- Ledge Movement
         LEDGE_HOLD = { id = "", looped = true, priority = Enum.AnimationPriority.Action },
@@ -68,6 +69,13 @@ AnimationModule.Assets = {
 
         -- Miscellaneous
         SIT = { id = "", looped = true, priority = Enum.AnimationPriority.Core },
+
+        -- Emotes
+        CHALLENGE = { id = "", looped = false, priority = Enum.AnimationPriority.Core },
+        HYSTERICAL = { id = "rbxassetid://102180575245565", looped = false, priority = Enum.AnimationPriority.Core },
+        MEDITATE = { id = "", looped = false, priority = Enum.AnimationPriority.Core },
+        MOCKING = { id = "", looped = false, priority = Enum.AnimationPriority.Core },
+        WEEPING = { id = "", looped = false, priority = Enum.AnimationPriority.Core },
 
         -- Gloves Animations
         GLOVES_SWING_1 = { id = "rbxassetid://88649918878431", looped = false, priority = Enum.AnimationPriority.Action },

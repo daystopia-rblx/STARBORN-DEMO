@@ -1,8 +1,8 @@
 --[[ StateService
     Manages entity states, transitions, and cooldowns
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-03-31
+    @version 1.0.2
+    @date 2025-04-01
 ]]
 local StateService = {}
 
@@ -45,20 +45,28 @@ end
 
 --[[ State Functions ]]
 function StateService:ValidateState(entity: any, stateName: string): (boolean, string?)
-    if not entity then return false, "No entity provided" end
+    if not entity then
+        warn("No entity provided")
+        return false, "No entity provided"
+    end
 
     local template = Modules.State.Templates[stateName]
-    if not template then return false, "Invalid state" end
+    if not template then
+        warn("Invalid state", stateName)
+        return false, "Invalid state"
+    end
 
     local cooldownKey = entity:GetFullName() .. "_" .. stateName
     local cooldownEnd = State.cooldowns[cooldownKey]
     if cooldownEnd and os.clock() < cooldownEnd then
+        warn("State on cooldown", stateName)
         return false, "State on cooldown"
     end
 
     if template.conditions then
         for _, condition in ipairs(template.conditions) do
             if not condition(entity) then
+                warn("Conditions not met for state", stateName)
                 return false, "Conditions not met"
             end
         end
@@ -70,6 +78,7 @@ function StateService:ValidateState(entity: any, stateName: string): (boolean, s
             local currentTemplate = Modules.State.Templates[currentState]
             if currentTemplate and currentTemplate.category == template.category then
                 if not template.transitions or template.transitions[currentState] == false then
+                    warn("Cannot transition from", currentState, "to", stateName)
                     return false, "Cannot transition from " .. currentState
                 end
             end
@@ -127,7 +136,7 @@ function StateService:EnterState(entity: any, stateName: string, metadata: {[str
 
     local canEnter, error = self:ValidateState(entity, stateName)
     if not canEnter then
-        warn(" Failed to enter state:", error)
+        warn("Failed to enter state:", error)
         return false, error
     end
 

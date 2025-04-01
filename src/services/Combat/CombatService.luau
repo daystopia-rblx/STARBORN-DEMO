@@ -1,7 +1,7 @@
 --[[ CombatService
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-31
+    @version 1.0.1
+    @date 2025-04-01
 ]]
 local CombatService = {}
 
@@ -22,7 +22,11 @@ CombatService.Modules = {
 CombatService.Events = {
     Attack = { validate = true },
     Block = { validate = true },
+    Feint = { validate = true },
+    Dodge = { validate = true },
+    Tempo = { validate = true },
     Parry = { validate = true },
+    Cooldown = { validate = true },
     Damage = { validate = true },
     Death = { validate = true }
 }
@@ -85,35 +89,16 @@ function CombatService:CreateHitbox(attacker: Model, attackType: string): {[Mode
     if not attackProps then return {} end
 
     local attackerCF = attacker.PrimaryPart.CFrame
-    local hitboxSize = Vector3.new(
-        attackProps.width or 5,
-        attackProps.height or 5,
-        attackProps.range or 10
-    )
-    local hitboxPosition = attackerCF * CFrame.new(0, 0, -hitboxSize.Z / 2)
     local lookVector = attackerCF.LookVector
+    local attackRange = attackProps.range or 6
 
-    if DEBUG_HITBOX then
-        local debugPart = Instance.new("Part")
-        debugPart.Name = "DebugHitbox"
-        debugPart.Size = hitboxSize
-        debugPart.CFrame = hitboxPosition
-        debugPart.Transparency = 0.5
-        debugPart.Color = Color3.new(1, 0, 0)
-        debugPart.Material = Enum.Material.Neon
-        debugPart.Anchored = true
-        debugPart.CanCollide = false
-        debugPart.Parent = workspace.Extra
-        game.Debris:AddItem(debugPart, 0.2)
-    end
-
+    local hitTargets = {}
     local overlapParams = OverlapParams.new()
     overlapParams.FilterType = Enum.RaycastFilterType.Include
     overlapParams.FilterDescendantsInstances = {workspace.Humanoids}
     overlapParams.MaxParts = 20
 
-    local hitTargets = {}
-    local parts = workspace:GetPartBoundsInBox(hitboxPosition, hitboxSize, overlapParams)
+    local parts = workspace:GetPartBoundsInRadius(attackerCF.Position, attackRange, overlapParams)
     if not parts then return hitTargets end
 
     local processed = {}
@@ -124,8 +109,15 @@ function CombatService:CreateHitbox(attacker: Model, attackType: string): {[Mode
         end
         processed[target] = true
 
-        local hitState = self:DetermineHit(attacker, target, lookVector)
-        hitTargets[target] = hitState
+        local targetCF = target.PrimaryPart.CFrame
+        local directionToTarget = (targetCF.Position - attackerCF.Position).Unit
+        local dotProduct = lookVector:Dot(directionToTarget)
+
+        local attackAngle = math.cos(math.rad(attackProps.angle or 60))
+        if dotProduct > attackAngle then
+            local hitState = self:DetermineHit(attacker, target, lookVector)
+            hitTargets[target] = hitState
+        end
     end
 
     return hitTargets
@@ -217,6 +209,10 @@ function CombatService:AttackEntity(attacker: any, attackType: string, target: a
         damage = finalDamage
     })
 
+    if attackType == "FEINT" then
+        self:UpdateCooldown(attacker, "feint", Modules.State.Templates.FEINT.cooldown)
+    end
+
     return true
 end
 
@@ -234,6 +230,8 @@ function CombatService:BlockEntity(blocker: any)
 
     Services.State:EnterState(blocker, "BLOCKING")
 
+    self:UpdateCooldown(blocker, "block", Modules.State.Templates.BLOCK.cooldown)
+
     Services.Event:Fire("Combat.Block", {
         blocker = blocker,
         weapon = weapon.id
@@ -250,7 +248,7 @@ function CombatService:ParryEntity(parrier: any)
     end
 
     local weapon = Services.Weapon:GetWeapon(parrier)
-    if not (weapon and weapon.properties.can_parry) then
+    if not (weapon and weapon.properties.parry) then
         return false, "Cannot parry with current weapon"
     end
 
@@ -262,9 +260,29 @@ function CombatService:ParryEntity(parrier: any)
         duration = parryProps.window
     }
 
+    self:UpdateCooldown(parrier, "parry", Modules.State.Templates.PARRY.cooldown)
+
     Services.Event:Fire("Combat.Parry", {
         parrier = parrier,
         weapon = weapon.id
+    })
+
+    return true
+end
+
+function CombatService:RollEntity(entity: any)
+    if not entity then return false end
+
+    if not Services.State:ValidateState(entity, "ROLL") then
+        return false, "Cannot roll in current state"
+    end
+
+    Services.State:EnterState(entity, "ROLL")
+
+    self:UpdateCooldown(entity, "roll", Modules.State.Templates.ROLL.cooldown)
+
+    Services.Event:Fire("Combat.Dodge", {
+        entity = entity
     })
 
     return true
@@ -363,6 +381,61 @@ function CombatService:CalculateDamage(attacker: any, baseDamage: number): numbe
     end
 
     return damage, isCritical
+end
+
+--[[ Indicator Functions ]]
+function CombatService:UpdateCooldown(entity, ability, duration)
+    Services.Event:Fire("Combat.Cooldown", {
+        entity = entity,
+        ability = ability,
+        remaining = duration,
+        duration = duration
+    })
+
+    local startTime = os.clock()
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        local elapsed = os.clock() - startTime
+        local remaining = duration - elapsed
+
+        if remaining <= 0 then
+            Services.Event:Fire("Combat.Cooldown", {
+                entity = entity,
+                ability = ability,
+                remaining = 0,
+                duration = duration
+            })
+            connection:Disconnect()
+            return
+        end
+
+        Services.Event:Fire("Combat.Cooldown", {
+            entity = entity,
+            ability = ability,
+            remaining = remaining,
+            duration = duration
+        })
+    end)
+end
+
+function CombatService:UpdateTempo(entity: any, value: number)
+    if not entity then return false end
+
+    Services.Stat:ModifyStat(entity, "RESONANCE", {
+        operation = "add",
+        value = value,
+        metadata = { source = "tempo" }
+    })
+
+    local currentResonance = entity:GetAttribute("RESONANCE") or 0
+    Services.Event:Fire("Combat.Cooldown", {
+        entity = entity,
+        ability = "tempo",
+        remaining = currentResonance,
+        duration = 100
+    })
+
+    return true
 end
 
 return CombatService

@@ -196,7 +196,7 @@ MovementModule.Handlers = {
         end
     },
     Roll = {
-        Execute = function(self, character: Model)
+        Execute = function(self, character: Model, data: {direction: string}?)
             local humanoid = character:FindFirstChild("Humanoid")
 
             if humanoid.FloorMaterial == Enum.Material.Air then
@@ -214,13 +214,24 @@ MovementModule.Handlers = {
             local rootPart = character.PrimaryPart
             if not rootPart then return end
 
+            local rollDirection = rootPart.CFrame.LookVector
+            if data and data.direction then
+                if data.direction == "backward" then
+                    rollDirection = -rootPart.CFrame.LookVector
+                elseif data.direction == "left" then
+                    rollDirection = -rootPart.CFrame.RightVector
+                elseif data.direction == "right" then
+                    rollDirection = rootPart.CFrame.RightVector
+                end
+            end
+
             local bodyVelocity = Instance.new("BodyVelocity")
             bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
-            bodyVelocity.Velocity = rootPart.CFrame.LookVector * 30
+            bodyVelocity.Velocity = rollDirection * 30
             bodyVelocity.Parent = rootPart
             bodyVelocity.Name = "roll_force"
 
-            local cleanupTask = task.delay(0.8, function()
+            local cleanupTask = task.delay(0.6, function()
                 if bodyVelocity and bodyVelocity.Parent then
                     bodyVelocity:Destroy()
                 end
@@ -320,7 +331,7 @@ MovementModule.Handlers = {
 
             local bodyVelocity = Instance.new("BodyVelocity")
             bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
-            bodyVelocity.Velocity = rootPart.CFrame.LookVector * 55
+            bodyVelocity.Velocity = rootPart.CFrame.LookVector * 30
             bodyVelocity.Parent = rootPart
             bodyVelocity.Name = "slide_force"
 
@@ -339,8 +350,43 @@ MovementModule.Handlers = {
         end
     },
     WallClimb = {
-        Execute = function(self, character, data)
-            -- Wall climb implementation
+        Execute = function(self, character: Model, data)
+            local humanoid = character:FindFirstChild("Humanoid")
+            local rootPart = character.PrimaryPart
+            if not humanoid or not rootPart then return end
+
+            humanoid.WalkSpeed = 0
+
+            local moveDirection = Vector3.zero
+            if data and data.direction then
+                if data.direction == "up" then
+                    moveDirection = Vector3.new(0, 1, 0)
+                elseif data.direction == "down" then
+                    moveDirection = Vector3.new(0, -1, 0)
+                elseif data.direction == "left" then
+                    moveDirection = -rootPart.CFrame.RightVector
+                elseif data.direction == "right" then
+                    moveDirection = rootPart.CFrame.RightVector
+                end
+            end
+
+            local bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000)
+            bodyVelocity.Velocity = moveDirection * 16
+            bodyVelocity.Parent = rootPart
+            bodyVelocity.Name = "climb_force"
+
+            humanoid.AutoRotate = false
+
+            return {
+                cleanup = function()
+                    if bodyVelocity and bodyVelocity.Parent then
+                        bodyVelocity:Destroy()
+                    end
+                    humanoid.AutoRotate = true
+                    humanoid.WalkSpeed = 16
+                end
+            }
         end
     },
     Swing = {
@@ -464,65 +510,20 @@ MovementModule.Handlers = {
         Execute = function(self, character: Model)
             local rootPart = character.PrimaryPart
             local humanoid = character:FindFirstChild("Humanoid")
-            if not rootPart or not humanoid then return end
+            if not rootPart or not humanoid then
+                return nil, "Missing rootPart or humanoid"
+            end
 
+            humanoid:Move(Vector3.zero)
             humanoid.WalkSpeed = 0
             humanoid.JumpPower = 0
 
-            local raycastParams = RaycastParams.new()
-            raycastParams.FilterDescendantsInstances = {character}
-            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-            raycastParams.RespectCanCollide = true
-
-            local frontCheck = workspace:Raycast(
-                rootPart.Position + Vector3.new(0, 0.5, 0),
-                rootPart.CFrame.LookVector * 2.5,
-                raycastParams
-            )
-
-            if not frontCheck then return end
-
-            local obstacle = frontCheck.Instance
-            local obstacleSize = obstacle.Size
-            local obstaclePos = obstacle.Position
-
-            local landingPos = Vector3.new(
-                obstaclePos.X,
-                obstaclePos.Y + (obstacleSize.Y/2) + 3,
-                obstaclePos.Z
-            )
-
-            landingPos = landingPos + (rootPart.CFrame.LookVector * (obstacleSize.Z/2 + 1))
-
-            local startPos = rootPart.Position
-            local startRot = rootPart.CFrame.Rotation
-
-            rootPart.Anchored = true
-
-            local startTime = os.clock()
-            local duration = 0.3
-
-            local connection
-            if RunService:IsClient() then
-                connection = RunService.RenderStepped:Connect(function()
-                    local alpha = math.min((os.clock() - startTime) / duration, 1)
-                    if alpha < 1 then
-                        local progress = math.sin(alpha * math.pi/2)
-                        local newPos = startPos:Lerp(landingPos, progress)
-                        local arcHeight = math.sin(progress * math.pi) * 1
-                        newPos = newPos + Vector3.new(0, arcHeight, 0)
-                        rootPart.CFrame = CFrame.new(newPos) * startRot
-                    end
-                end)
-            end
-
-            local cleanupTask = task.delay(duration, function()
-                if connection then
-                    connection:Disconnect()
+            local cleanupTask = task.delay(0.3, function()
+                if humanoid then
+                    humanoid.WalkSpeed = 16
+                    humanoid.JumpPower = 50
+                    humanoid:Move(Vector3.zero)
                 end
-                rootPart.Anchored = false
-                humanoid.WalkSpeed = 16
-                humanoid.JumpPower = 50
             end)
 
             return {
@@ -530,18 +531,17 @@ MovementModule.Handlers = {
                     if cleanupTask then
                         task.cancel(cleanupTask)
                     end
-                    if connection then
-                        connection:Disconnect()
+                    if humanoid then
+                        humanoid.WalkSpeed = 16
+                        humanoid.JumpPower = 50
+                        humanoid:Move(Vector3.zero)
                     end
-                    rootPart.Anchored = false
-                    humanoid.WalkSpeed = 16
-                    humanoid.JumpPower = 50
                 end
             }
         end
     },
     Ragdoll = {
-        Execute = function(self, character: Model, enabled: boolean)
+        Execute = function(self, character: Model, enabled: boolean, data: {type: string?}?)
             if not character then
                 return nil, "Invalid character"
             end
@@ -555,21 +555,146 @@ MovementModule.Handlers = {
                 return nil, "Cannot ragdoll when dead"
             end
 
+            local attachmentCFrames = {
+                ["Neck"] = {CFrame.new(0, 1, 0, 0, -1, 0, 1, 0, -0, 0, 0, 1), CFrame.new(0, -0.5, 0, 0, -1, 0, 1, 0, -0, 0, 0, 1)},
+                ["Left Shoulder"] = {CFrame.new(-1.3, 0.75, 0, -1, 0, 0, 0, -1, 0, 0, 0, 1), CFrame.new(0.2, 0.75, 0, -1, 0, 0, 0, -1, 0, 0, 0, 1)},
+                ["Right Shoulder"] = {CFrame.new(1.3, 0.75, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1), CFrame.new(-0.2, 0.75, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
+                ["Left Hip"] = {CFrame.new(-0.5, -1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1), CFrame.new(0, 1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1)},
+                ["Right Hip"] = {CFrame.new(0.5, -1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1), CFrame.new(0, 1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1)},
+            }
+
+            local ragdollInstanceNames = {
+                ["RagdollAttachment"] = true,
+                ["RagdollConstraint"] = true,
+                ["ColliderPart"] = true,
+            }
+
             if enabled then
-                humanoid:ChangeState(Enum.HumanoidStateType.Ragdoll)
-                humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
+                character:SetAttribute("RAGDOLL", true)
+                character:SetAttribute("RAGDOLL_TYPE", data and data.type or "explode")
+
+                humanoid.AutoRotate = false
+
+                local function createColliderPart(part: BasePart)
+                    if not part then return end
+                    local rp = Instance.new("Part")
+                    rp.Name = "ColliderPart"
+                    rp.Size = part.Size/1.7
+                    rp.Massless = true
+                    rp.CFrame = part.CFrame
+                    rp.Transparency = 1
+
+                    local wc = Instance.new("WeldConstraint")
+                    wc.Part0 = rp
+                    wc.Part1 = part
+
+                    wc.Parent = rp
+                    rp.Parent = part
+                end
+
+                for _, motor: Motor6D in pairs(character:GetDescendants()) do
+                    if motor:IsA("Motor6D") then
+                        if not attachmentCFrames[motor.Name] then continue end
+                        motor.Enabled = false
+
+                        local a0, a1 = Instance.new("Attachment"), Instance.new("Attachment")
+                        a0.CFrame = attachmentCFrames[motor.Name][1]
+                        a1.CFrame = attachmentCFrames[motor.Name][2]
+
+                        a0.Name = "RagdollAttachment"
+                        a1.Name = "RagdollAttachment"
+
+                        createColliderPart(motor.Part1)
+
+                        local b = Instance.new("BallSocketConstraint")
+                        b.Attachment0 = a0
+                        b.Attachment1 = a1
+                        b.Name = "RagdollConstraint"
+                        
+                        b.Radius = 0.15
+                        b.LimitsEnabled = true
+                        b.TwistLimitsEnabled = false
+                        b.MaxFrictionTorque = 0
+                        b.Restitution = 0
+                        b.UpperAngle = 90
+                        b.TwistLowerAngle = -45
+                        b.TwistUpperAngle = 45
+
+                        if motor.Name == "Neck" then
+                            b.TwistLimitsEnabled = true
+                            b.UpperAngle = 45
+                            b.TwistLowerAngle = -70
+                            b.TwistUpperAngle = 70
+                        end
+
+                        a0.Parent = motor.Part0
+                        a1.Parent = motor.Part1
+                        b.Parent = motor.Parent
+                    end
+                end
 
                 local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
                 if torso then
-                    torso:ApplyImpulse(torso.CFrame.LookVector * 75)
+                    local randomDirection = Vector3.new(
+                        math.random(-1, 1),
+                        math.random(0, 0.5),
+                        math.random(-1, 1)
+                    ).Unit
+                    torso:ApplyImpulse(randomDirection * 25)
                 end
             else
-                humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                character:SetAttribute("RAGDOLL", false)
+                character:SetAttribute("RAGDOLL_TYPE", nil)
+
+                humanoid.AutoRotate = true
+
+                for _, instance in pairs(character:GetDescendants()) do
+                    if ragdollInstanceNames[instance.Name] then
+                        instance:Destroy()
+                    end
+
+                    if instance:IsA("Motor6D") then
+                        instance.Enabled = true
+                    end
+                end
             end
 
             return {
                 cleanup = function()
-                    humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    character:SetAttribute("RAGDOLL", false)
+                    character:SetAttribute("RAGDOLL_TYPE", nil)
+
+                    humanoid.AutoRotate = true
+
+                    for _, instance in pairs(character:GetDescendants()) do
+                        if ragdollInstanceNames[instance.Name] then
+                            instance:Destroy()
+                        end
+
+                        if instance:IsA("Motor6D") then
+                            instance.Enabled = true
+                        end
+                    end
+                end
+            }
+        end
+    },
+    Sit = {
+        Execute = function(self, character: Model, enabled: boolean)
+            local humanoid = character:FindFirstChild("Humanoid")
+            if not humanoid then return nil, "No humanoid found" end
+
+            if enabled then
+                humanoid:ChangeState(Enum.HumanoidStateType.Seated)
+            else
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+            end
+
+            return {
+                cleanup = function()
+                    if humanoid then
+                        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                    end
                 end
             }
         end

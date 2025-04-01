@@ -14,7 +14,46 @@ MusicModule.Assets = {
         },
         -- Menu Music
         Menu = {
-            Main = { id = "", volume = 0.4 }
+            Main = { id = "rbxassetid://77198630224489", volume = 0.4 }
+        },
+        -- Dynamic Songs
+        Dynamic = {
+            Conbat = {
+                Intro = {
+                    layers = {
+                        { id = "rbxassetid://76981835616483", volume = 1 },
+                        { id = "rbxassetid://108531401694427", volume = 1 }
+                    },
+                    tag = "INTRO",
+                    loop = false,
+                    strict = true
+                },
+                IntroLoop = {
+                    layers = {
+                        { id = "rbxassetid://96714951838451", volume = 1 },
+                        { id = "rbxassetid://122358701394913", volume = 1 }
+                    },
+                    tag = "INTRO_LOOP",
+                    loop = true,
+                    strict = true
+                },
+                Transition = {
+                    layers = {
+                        { id = "rbxassetid://81652112796628", volume = 1 }
+                    },
+                    tag = "TRANSITION",
+                    loop = false,
+                    strict = true
+                },
+                Main = {
+                    layers = {
+                        { id = "rbxassetid://70703650960120", volume = 1 }
+                    },
+                    tag = "MAIN",
+                    loop = true,
+                    strict = false
+                }
+            }
         }
     }
 }
@@ -38,6 +77,19 @@ MusicModule.Playlists = {
         shuffle = false,
         crossfade = true,
         defaultVolume = 0.35
+    },
+    Combat = {
+        name = "Combat Dynamic Theme",
+        tracks = {
+            "Dynamic.Combat.Intro",
+            "Dynamic.Combat.IntroLoop",
+            "Dynamic.Combat.Transition",
+            "Dynamic.Combat.Main"
+        },
+        shuffle = false,
+        crossfade = true,
+        defaultVolume = 0.5,
+        dynamic = true
     }
 }
 

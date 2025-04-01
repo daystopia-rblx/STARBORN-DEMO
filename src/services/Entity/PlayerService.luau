@@ -2,8 +2,8 @@
     Core player management system for lifecycle events and state tracking.
     Handles player joining, leaving, respawning, and persistent data synchronization.
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-01-16
+    @version 1.0.1
+    @date 2025-04-01
 ]]
 
 local PlayerService = {}
@@ -30,6 +30,11 @@ PlayerService.Listeners = {
             local healthScript = character:FindFirstChild("Health")
             if healthScript then
                 healthScript:Destroy()
+            end
+
+            local animateScript = character:FindFirstChild("Animate")
+            if animateScript then
+                animateScript:Destroy()
             end
         end)
     end,

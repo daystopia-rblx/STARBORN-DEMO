@@ -1,7 +1,7 @@
 --[[ CombatClient
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-31
+    @version 1.0.1
+    @date 2025-04-01
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -22,7 +22,8 @@ local UI_SETTINGS = {
         FADE_DURATION = 0.6,
         BACKGROUND_DURATION = 3,
         HOVER_SIZE = UDim2.new(0.263, 0, 0.416, 0),
-        HOVER_POSITION = UDim2.new(0.368, 0, 0.292, 0)
+        HOVER_POSITION = UDim2.new(0.368, 0, 0.292, 0),
+        DISPLAY_ORDER = 999999
     }
 }
 
@@ -31,17 +32,19 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local CombatGui = PlayerGui:WaitForChild("CombatGui")
 
+CombatGui.DisplayOrder = UI_SETTINGS.DEATH_SCREEN.DISPLAY_ORDER
+
 --[[ State ]]
 local State = {
     ui = {
         deathScreen = {
             enabled = false,
-            frame = CombatGui:WaitForChild("Frame"),
-            hover = CombatGui:WaitForChild("hover"),
+            frame = CombatGui:WaitForChild("Background"),
+            hover = CombatGui:WaitForChild("DeathOverlay"),
             d1 = CombatGui:WaitForChild("d1"),
             d2 = CombatGui:WaitForChild("d2"),
-            textLabel = CombatGui:WaitForChild("TextLabel"),
-            imageLabel = CombatGui:WaitForChild("ImageLabel")
+            textLabel = CombatGui:WaitForChild("DeathLabel"),
+            imageLabel = CombatGui:WaitForChild("DeathImage")
         }
     }
 }
@@ -101,13 +104,7 @@ local function CreateDeath()
                 Utility.Controller.Update({
                     instance = ui.imageLabel,
                     properties = { ImageTransparency = 1 },
-                    duration = UI_SETTINGS.DEATH_SCREEN.FADE_DURATION,
-                    onComplete = function()
-                        ui.enabled = false
-                        ui.d1.Visible = false
-                        ui.d2.Visible = false
-                        ui.hover.Visible = false
-                    end
+                    duration = UI_SETTINGS.DEATH_SCREEN.FADE_DURATION
                 })
             end
         })

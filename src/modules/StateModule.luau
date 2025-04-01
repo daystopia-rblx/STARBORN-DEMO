@@ -295,7 +295,10 @@ StateModule.Templates = {
         cooldown = 0.2,
         transitions = {
             RUN = true,
-            ROLL = true
+            ROLL = true,
+            IDLE = true,
+            WALK = true,
+            LAND = true
         }
     },
 
@@ -308,6 +311,18 @@ StateModule.Templates = {
             SLIDE = true,
             ROLL = true,
             RUN = true
+        }
+    },
+
+    SIT = {
+        category = "MOVEMENT",
+        displayName = "Sitting",
+        description = "In sitting position",
+        exclusive = true,
+        transitions = {
+            IDLE = true,
+            WALK = true,
+            ROLL = true
         }
     },
 
@@ -387,6 +402,24 @@ StateModule.Templates = {
             ATTACK = false,
             BLOCK = false,
             ROLL = false
+        }
+    },
+
+    RAGDOLL = {
+        category = "STATUS",
+        displayName = "Ragdoll",
+        description = "Character is in ragdoll state",
+        exclusive = true,
+        duration = 3,
+        transitions = {
+            ATTACK = false,
+            BLOCK = false,
+            ROLL = false,
+            RUN = false,
+            WALK = false,
+            JUMP = false,
+            DASH = false,
+            SLIDE = false
         }
     },
 

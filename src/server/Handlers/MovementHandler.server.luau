@@ -12,7 +12,15 @@ MovementHandler.Events = {
     ["Client.Movement.Execute"] = {
         validate = true,
         handler = function(player, data)
-            local originalType = data.type
+            local originalType = data and data.type
+            if not data or type(data) ~= "table" then
+                return {
+                    success = false,
+                    type = originalType,
+                    error = "Invalid movement data"
+                }
+            end
+
             if data.type then
                 data.type = string.upper(data.type)
             end

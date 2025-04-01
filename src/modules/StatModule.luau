@@ -169,7 +169,7 @@ StatModule.Constants = {
     MOVEMENT = {
         BASE_WALK_SPEED = 16,
         SPRINT_MULTIPLIER = 1.5,
-        CROUCH_MULTIPLIER = 0.6,
+        CROUCH_MULTIPLIER = 0.2,
         SWIM_MULTIPLIER = 0.8,
 
         -- Underwater
@@ -367,8 +367,7 @@ StatModule.Templates = {
         }
     },
 
-    -- Movement Stats
-    MOVEMENT = {
+    SPEED = {
         baseValue = StatModule.Constants.MOVEMENT.BASE_WALK_SPEED,
         minValue = StatModule.Constants.MOVEMENT.MIN_MOVEMENT_SPEED,
         maxValue = StatModule.Constants.MOVEMENT.MAX_MOVEMENT_SPEED,
@@ -392,6 +391,30 @@ StatModule.Templates = {
             SWIMMING = {
                 id = "SWIMMING",
                 value = StatModule.Constants.MOVEMENT.SWIM_MULTIPLIER,
+                type = "MULTIPLY"
+            }
+        }
+    },
+
+    JUMP_POWER = {
+        baseValue = 50,
+        minValue = 0,
+        maxValue = 100,
+        category = "ATTRIBUTE",
+        displayName = "Jump Power",
+        description = "Character's jumping ability",
+        icon = "",
+        color = Color3.fromRGB(135, 206, 235),
+        format = "%.1f",
+        modifiers = {
+            CROUCHING = {
+                id = "CROUCHING",
+                value = 0.5,
+                type = "MULTIPLY"
+            },
+            SWIMMING = {
+                id = "SWIMMING",
+                value = 0.25,
                 type = "MULTIPLY"
             }
         }
@@ -454,7 +477,7 @@ StatModule.Templates = {
         baseValue = 100,
         minValue = 0,
         maxValue = 100,
-        decay = { 
+        decay = {
             amount = StatModule.Constants.SURVIVAL.HUNGER_DECAY_RATE,
             interval = StatModule.Constants.SURVIVAL.HUNGER_DECAY_INTERVAL
         },
@@ -467,11 +490,23 @@ StatModule.Templates = {
         effects = {
             STAMINA_REGEN = {
                 type = "MULTIPLY",
-                value = StatModule.Constants.SURVIVAL.LOW_HUNGER_STAMINA_PENALTY
+                value = function(entity)
+                    local hunger = entity:GetAttribute("HUNGER") or 100
+                    if hunger <= StatModule.Constants.SURVIVAL.CRITICAL_HUNGER_THRESHOLD then
+                        return 1 - (0.5 * (1 - hunger/StatModule.Constants.SURVIVAL.CRITICAL_HUNGER_THRESHOLD))
+                    end
+                    return 1
+                end
             },
-            MOVEMENT = {
+            SPEED = {
                 type = "MULTIPLY",
-                value = StatModule.Constants.SURVIVAL.LOW_HUNGER_MOVEMENT_PENALTY
+                value = function(entity)
+                    local hunger = entity:GetAttribute("HUNGER") or 100
+                    if hunger <= StatModule.Constants.SURVIVAL.CRITICAL_HUNGER_THRESHOLD then
+                        return 1 - (0.25 * (1 - hunger/StatModule.Constants.SURVIVAL.CRITICAL_HUNGER_THRESHOLD))
+                    end
+                    return 1
+                end
             }
         }
     },
@@ -493,11 +528,23 @@ StatModule.Templates = {
         effects = {
             HEALTH_REGEN = {
                 type = "MULTIPLY",
-                value = StatModule.Constants.SURVIVAL.LOW_THIRST_HEALTH_PENALTY
+                value = function(entity)
+                    local thirst = entity:GetAttribute("THIRST") or 100
+                    if thirst <= StatModule.Constants.SURVIVAL.CRITICAL_THIRST_THRESHOLD then
+                        return 1 - (0.5 * (1 - thirst/StatModule.Constants.SURVIVAL.CRITICAL_THIRST_THRESHOLD))
+                    end
+                    return 1
+                end
             },
             STAMINA_REGEN = {
                 type = "MULTIPLY",
-                value = StatModule.Constants.SURVIVAL.LOW_THIRST_STAMINA_PENALTY
+                value = function(entity)
+                    local thirst = entity:GetAttribute("THIRST") or 100
+                    if thirst <= StatModule.Constants.SURVIVAL.CRITICAL_THIRST_THRESHOLD then
+                        return 1 - (0.5 * (1 - thirst/StatModule.Constants.SURVIVAL.CRITICAL_THIRST_THRESHOLD))
+                    end
+                    return 1
+                end
             }
         }
     },
