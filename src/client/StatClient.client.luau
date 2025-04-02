@@ -1,7 +1,7 @@
 --[[ StatClient
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-04-01
+    @version 1.0.1
+    @date 2025-04-02
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -70,16 +70,27 @@ local function UpdateBar(bar, value, maxValue)
     })
 end
 
-local function UpdateCooldown(indicator, remaining, duration)
-    if not indicator or not indicator:FindFirstChild("Cooldown") then return end
+local function UpdateCooldown(indicator, duration)
+    if not indicator then
+        return
+    end
 
-    local fillAmount = math.clamp(1 - (remaining / duration), 0, 1)
+    local cooldownBar = indicator:FindFirstChild("Cooldown")
+    if not cooldownBar then
+        return
+    end
+
+    cooldownBar.AnchorPoint = Vector2.new(0, 1)
+    cooldownBar.Position = UDim2.new(0, 0, 1, 0)
+    cooldownBar.Size = UDim2.new(1, 0, 1, 0)
+
     Utility.Controller.Update({
-        instance = indicator.Cooldown,
+        instance = cooldownBar,
         properties = {
-            Size = UDim2.new(1, 0, fillAmount, 0)
+            Size = UDim2.new(1, 0, 0, 0)
         },
-        duration = UPDATE_SETTINGS.COOLDOWN_DURATION
+        duration = duration,
+        easingStyle = Utility.Controller.Easing.Linear
     })
 end
 
@@ -110,23 +121,32 @@ local Events = {
         end
     },
 
-    ["Combat.Cooldown"] = {
-        handler = function(data)
-            if not data or not data.ability then return end
+    ["Client.Combat.Attack"] = {
+        handler = function(response)
+            if not response.success then return end
+            if not response.data or not response.data.ability then return end
 
-            print("Received cooldown data:", data)
-
-            local ability = data.ability:lower()
-            local remaining = data.remaining
-            local duration = data.duration
-
-            print(string.format("Processing cooldown for ability: %s (%.1f/%.1f)", ability, remaining, duration))
+            local ability = response.data.ability:lower()
+            local remaining = response.data.remaining
+            local duration = response.data.duration
 
             if State.ui.indicators[ability] then
-                print("Updating UI indicator for ability:", ability)
-                UpdateCooldown(State.ui.indicators[ability], remaining, duration)
-            else
-                print("No UI indicator found for ability:", ability)
+                UpdateCooldown(State.ui.indicators[ability], duration)
+            end
+        end
+    },
+
+    ["Client.Movement.Execute"] = {
+        handler = function(response)
+            if not response.success then return end
+            if not response.data or not response.data.ability then return end
+
+            local ability = response.data.ability:lower()
+            local remaining = response.data.remaining
+            local duration = response.data.duration
+
+            if State.ui.indicators[ability] then
+                UpdateCooldown(State.ui.indicators[ability], duration)
             end
         end
     },
@@ -159,8 +179,11 @@ local function Initialize()
         UpdateBar(bar, 100, 100)
     end
     for _, indicator in pairs(State.ui.indicators) do
-        if indicator:FindFirstChild("Cooldown") then
-            UpdateCooldown(indicator, 0, 0)
+        local cooldownBar = indicator:FindFirstChild("Cooldown")
+        if cooldownBar then
+            cooldownBar.AnchorPoint = Vector2.new(0, 1)
+            cooldownBar.Position = UDim2.new(0, 0, 1, 0)
+            cooldownBar.Size = UDim2.new(1, 0, 0, 0)
         end
     end
 end

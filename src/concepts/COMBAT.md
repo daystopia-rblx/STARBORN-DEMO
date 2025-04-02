@@ -26,8 +26,8 @@ The combat system is built around strategic engagement and skillful execution.
 
 ### Primary Systems
 - **180° Blocking System**
-  - Directional blocking mechanics
-  - Integrated guardbreak system
+  - 180° directional blocking with visual arc indicator and angle-based effectiveness
+  - Posture system that accumulates damage and breaks when overused
 - **Weapon Management**
   - Physical weapon carry system
   - Visible weapon placement on character

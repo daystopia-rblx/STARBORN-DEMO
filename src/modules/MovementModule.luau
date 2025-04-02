@@ -1,7 +1,7 @@
 --[[ MovementModule
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-31
+    @version 1.0.1
+    @date 2025-04-02
 ]]
 local MovementModule = {}
 
@@ -9,10 +9,14 @@ local MovementModule = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local Modules = {
+    Stat = require(ReplicatedStorage.Modules.StatModule),
+}
+
 --[[ Constants ]]
 MovementModule.Constants = {
     DASH = {
-        SPEED = 50,
+        SPEED = Modules.Stat.Constants.MOVEMENT.AIR_DASH_SPEED,
         PARTICLE_DURATION = 5,
         PARTICLE_EMIT_COUNT = 23
     }
@@ -79,7 +83,7 @@ MovementModule.Handlers = {
             end
 
             local bodyVelocity = Instance.new("BodyVelocity")
-            bodyVelocity.MaxForce = Vector3.new(50000, 0, 50000)
+            bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
             bodyVelocity.Parent = rootPart
             bodyVelocity.Name = "dash_force"
 
@@ -111,7 +115,7 @@ MovementModule.Handlers = {
                 end)
             end
 
-            local cleanupTask = task.delay(0.3, function()
+            local cleanupTask = task.delay(Modules.Stat.Constants.MOVEMENT.ROLL_DURATION_Z, function()
                 if connection then
                     connection:Disconnect()
                 end
@@ -214,26 +218,73 @@ MovementModule.Handlers = {
             local rootPart = character.PrimaryPart
             if not rootPart then return end
 
-            local rollDirection = rootPart.CFrame.LookVector
-            if data and data.direction then
+            local rollDirection
+            if not data or not data.direction then
+                rollDirection = rootPart.CFrame.LookVector
+            else
                 if data.direction == "backward" then
                     rollDirection = -rootPart.CFrame.LookVector
                 elseif data.direction == "left" then
                     rollDirection = -rootPart.CFrame.RightVector
                 elseif data.direction == "right" then
                     rollDirection = rootPart.CFrame.RightVector
+                else
+                    rollDirection = rootPart.CFrame.LookVector
                 end
             end
 
+            rollDirection = Vector3.new(rollDirection.X, 0, rollDirection.Z).Unit
+
             local bodyVelocity = Instance.new("BodyVelocity")
             bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
-            bodyVelocity.Velocity = rollDirection * 30
             bodyVelocity.Parent = rootPart
             bodyVelocity.Name = "roll_force"
 
-            local cleanupTask = task.delay(0.6, function()
+            local bodyGyro = Instance.new("BodyGyro")
+            bodyGyro.MaxTorque = Vector3.new(400000, 400000, 400000)
+            bodyGyro.P = 3000
+            bodyGyro.D = 500
+            bodyGyro.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + Vector3.new(rootPart.CFrame.LookVector.X, 0, rootPart.CFrame.LookVector.Z))
+            bodyGyro.Parent = rootPart
+            bodyGyro.Name = "roll_gyro"
+
+            local rollSpeed = if data.direction == "left" or data.direction == "right"
+                then Modules.Stat.Constants.MOVEMENT.ROLL_SPEED_X
+                else Modules.Stat.Constants.MOVEMENT.ROLL_SPEED_Z
+
+            bodyVelocity.Velocity = rollDirection * rollSpeed
+
+            local connection
+            local updateEvent = if RunService:IsClient()
+                then RunService.RenderStepped
+                else RunService.Heartbeat
+
+            connection = updateEvent:Connect(function()
+                if bodyVelocity and bodyVelocity.Parent then
+                    bodyVelocity.Velocity = rollDirection * rollSpeed
+                    if bodyGyro and bodyGyro.Parent then
+                        bodyGyro.CFrame = CFrame.lookAt(rootPart.Position, rootPart.Position + rootPart.CFrame.LookVector)
+                    end
+                else
+                    if connection then
+                        connection:Disconnect()
+                    end
+                end
+            end)
+
+            local duration = if data.direction == "left" or data.direction == "right"
+                then Modules.Stat.Constants.MOVEMENT.ROLL_DURATION_X
+                else Modules.Stat.Constants.MOVEMENT.ROLL_DURATION_Z
+
+            local cleanupTask = task.delay(duration, function()
+                if connection then
+                    connection:Disconnect()
+                end
                 if bodyVelocity and bodyVelocity.Parent then
                     bodyVelocity:Destroy()
+                end
+                if bodyGyro and bodyGyro.Parent then
+                    bodyGyro:Destroy()
                 end
             end)
 
@@ -242,8 +293,14 @@ MovementModule.Handlers = {
                     if cleanupTask then
                         task.cancel(cleanupTask)
                     end
+                    if connection then
+                        connection:Disconnect()
+                    end
                     if bodyVelocity and bodyVelocity.Parent then
                         bodyVelocity:Destroy()
+                    end
+                    if bodyGyro and bodyGyro.Parent then
+                        bodyGyro:Destroy()
                     end
                 end
             }
@@ -331,12 +388,21 @@ MovementModule.Handlers = {
 
             local bodyVelocity = Instance.new("BodyVelocity")
             bodyVelocity.MaxForce = Vector3.new(100000, 0, 100000)
-            bodyVelocity.Velocity = rootPart.CFrame.LookVector * 30
+            bodyVelocity.Velocity = rootPart.CFrame.LookVector * (Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED * Modules.Stat.Constants.MOVEMENT.SLIDE_SPEED_MULTIPLIER)
             bodyVelocity.Parent = rootPart
             bodyVelocity.Name = "slide_force"
 
+            local cleanupTask = task.delay(Modules.Stat.Constants.MOVEMENT.SLIDE_DURATION, function()
+                if bodyVelocity and bodyVelocity.Parent then
+                    bodyVelocity:Destroy()
+                end
+            end)
+
             return {
                 cleanup = function()
+                    if cleanupTask then
+                        task.cancel(cleanupTask)
+                    end
                     if bodyVelocity and bodyVelocity.Parent then
                         bodyVelocity:Destroy()
                     end
@@ -419,6 +485,62 @@ MovementModule.Handlers = {
             }
         end
     },
+    Swim = {
+        Execute = function(self, character: Model, data: {enabled: boolean})
+            local humanoid = character:FindFirstChild("Humanoid")
+            if not humanoid then return nil, "No humanoid found" end
+
+            if humanoid:GetState() == Enum.HumanoidStateType.Ragdoll then
+                return nil, "Cannot swim while ragdolled"
+            end
+
+            local enabled = if type(data) == "table" then data.enabled else false
+            character:SetAttribute("SUBMERGED", enabled)
+
+            local connection
+
+            if enabled then
+                humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+                connection = game:GetService("RunService").Heartbeat:Connect(function()
+                    local head = character:FindFirstChild("Head")
+                    if head then
+                        local rayOrigin = head.Position
+                        local rayDirection = Vector3.new(0, -2, 0)
+
+                        local raycastParams = RaycastParams.new()
+                        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+                        raycastParams.FilterDescendantsInstances = {character}
+
+                        local result = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+                        local isHeadUnderwater = result and result.Material == Enum.Material.Water
+
+                        character:SetAttribute("UNDERWATER", isHeadUnderwater)
+                    end
+                end)
+            else
+                humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                character:SetAttribute("UNDERWATER", false)
+            end
+
+            humanoid.WalkSpeed = 16
+            humanoid.JumpPower = 50
+
+            return {
+                cleanup = function()
+                    if connection then
+                        connection:Disconnect()
+                    end
+                    if humanoid then
+                        humanoid:ChangeState(Enum.HumanoidStateType.Running)
+                        humanoid.WalkSpeed = 16
+                        humanoid.JumpPower = 50
+                        character:SetAttribute("SUBMERGED", false)
+                        character:SetAttribute("UNDERWATER", false)
+                    end
+                end
+            }
+        end
+    },    
     Hang = {
         Execute = function(self, character: Model)
             local rootPart = character.PrimaryPart

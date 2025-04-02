@@ -1,8 +1,8 @@
 --[[ MovementService
     Manages player movement states and speed modifications.
     @author @Daystopia
-    @version 1.1.1
-    @date 2025-04-01
+    @version 1.1.2
+    @date 2025-04-02
 ]]
 local MovementService = {}
 
@@ -14,7 +14,8 @@ MovementService.Dependencies = {
 
 MovementService.Modules = {
     "State",
-    "Movement"
+    "Movement",
+    "Stat"
 }
 
 --[[ Services ]]
@@ -50,11 +51,7 @@ MovementService.Listeners = {
 }
 
 --[[ Constants ]]
-local CONTROL_SETTINGS = {
-    WALK_SPEED = 16,
-    RUN_SPEED = 24,
-    JUMP_POWER = 50
-}
+local CONTROL_SETTINGS = {}
 
 --[[ Types ]]
 type Modifier = {
@@ -86,6 +83,8 @@ function MovementService:Init(services, modules)
 end
 
 function MovementService:Start()
+    self:InitializeSettings()
+
     game.Players.PlayerAdded:Connect(function(player)
         self:InitializeMovement(player)
     end)
@@ -99,6 +98,49 @@ function MovementService:Start()
     end
 
     return true
+end
+
+--[[ Settings Functions ]]
+function MovementService:InitializeSettings()
+    CONTROL_SETTINGS = {
+        WALK_SPEED = Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED,
+        RUN_SPEED = Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED * Modules.Stat.Constants.MOVEMENT.SPRINT_MULTIPLIER,
+        CROUCH_SPEED = Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED * Modules.Stat.Constants.MOVEMENT.CROUCH_MULTIPLIER,
+        JUMP_POWER = Modules.Stat.Constants.MOVEMENT.JUMP_POWER,
+        JUMP_HEIGHT = Modules.Stat.Constants.MOVEMENT.JUMP_HEIGHT,
+
+        -- Camera Settings
+        WALK_FOV = Modules.Stat.Constants.MOVEMENT.WALK_CAMERA_FOV,
+        SPRINT_FOV = Modules.Stat.Constants.MOVEMENT.SPRINT_CAMERA_FOV,
+
+        -- Movement Timings
+        SPRINT_DOUBLE_TAP_DELAY = Modules.Stat.Constants.MOVEMENT.SPRINT_DOUBLE_TAP_DELAY,
+        JUMP_DURATION = Modules.Stat.Constants.MOVEMENT.JUMP_DURATION,
+        JUMP_FALL_SMOOTH_TIME = Modules.Stat.Constants.MOVEMENT.JUMP_FALL_SMOOTH_TIME,
+        JUMP_COMBAT_COOLDOWN = Modules.Stat.Constants.MOVEMENT.JUMP_COMBAT_COOLDOWN,
+
+        -- Movement Mechanics
+        SLIDE_DURATION = Modules.Stat.Constants.MOVEMENT.SLIDE_DURATION,
+        SLIDE_SPEED = Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED * Modules.Stat.Constants.MOVEMENT.SLIDE_SPEED_MULTIPLIER,
+        SLIDE_FRICTION = Modules.Stat.Constants.MOVEMENT.SLIDE_FRICTION,
+        SLIDE_COOLDOWN = Modules.Stat.Constants.MOVEMENT.SLIDE_COOLDOWN,
+
+        ROLL_DURATION = Modules.Stat.Constants.MOVEMENT.ROLL_DURATION_Z,
+        ROLL_SPEED = Modules.Stat.Constants.MOVEMENT.ROLL_SPEED_Z,
+        ROLL_FRICTION = Modules.Stat.Constants.MOVEMENT.ROLL_FRICTION_Z,
+        ROLL_COOLDOWN = Modules.Stat.Constants.MOVEMENT.ROLL_COOLDOWN_Z,
+
+        AIR_DASH_SPEED = Modules.Stat.Constants.MOVEMENT.AIR_DASH_SPEED,
+
+        -- Wall Movement
+        WALL_RUN_SPEED = Modules.Stat.Constants.MOVEMENT.WALL_RUN_SPEED,
+        WALL_RUN_DURATION = Modules.Stat.Constants.MOVEMENT.WALL_RUN_DURATION,
+        WALL_CLIMB_SPEED = Modules.Stat.Constants.MOVEMENT.WALL_CLIMB_SPEED,
+
+        -- Limits
+        MIN_SPEED = Modules.Stat.Constants.MOVEMENT.MIN_MOVEMENT_SPEED,
+        MAX_SPEED = Modules.Stat.Constants.MOVEMENT.MAX_MOVEMENT_SPEED
+    }
 end
 
 --[[ Movement Functions ]]

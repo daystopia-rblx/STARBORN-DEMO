@@ -1,7 +1,7 @@
 --[[ MovementClient
     @author @Daystopia
-    @version 1.1.1
-    @date 2025-04-01
+    @version 1.1.2
+    @date 2025-04-02
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -18,6 +18,7 @@ local Modules = {
     Animation = require(ReplicatedStorage.Modules.AnimationModule),
     Movement = require(ReplicatedStorage.Modules.MovementModule),
     State = require(ReplicatedStorage.Modules.StateModule),
+    Stat = require(ReplicatedStorage.Modules.StatModule),
 }
 
 local Tools = {
@@ -26,7 +27,10 @@ local Tools = {
 
 local Utility = {
     Sound = require(script.Parent.Utility.Sound),
-    Controller = require(script.Parent.Utility.Controller)
+    Controller = require(script.Parent.Utility.Controller),
+    Animation = require(script.Parent.Utility.Animation),
+    Camera = require(script.Parent.Utility.Camera),
+    Particle = require(script.Parent.Utility.Particle)
 }
 
 --[[ Types ]]
@@ -50,15 +54,15 @@ local CONTROL_BINDINGS = {
 }
 
 local CAMERA_SETTINGS = {
-    FOV = 70,
+    FOV = Modules.Stat.Constants.MOVEMENT.WALK_CAMERA_FOV,
     ZOOM = 10,
     TRANSITION_TIME = 0.3,
     MOTION_BLUR = {
-        ENABLED = false,
-        INTENSITY = 20,
+        ENABLED = Modules.Stat.Constants.MOVEMENT.SPRINT_CAMERA_MOTION_BLUR,
+        INTENSITY = Modules.Stat.Constants.MOVEMENT.SPRINT_CAMERA_MOTION_BLUR_AMOUNT,
         SMOOTHING = 0.5
     },
-    RUN_FOV = 90
+    RUN_FOV = Modules.Stat.Constants.MOVEMENT.SPRINT_CAMERA_FOV
 }
 
 local UI_SETTINGS = {
@@ -69,11 +73,11 @@ local UI_SETTINGS = {
 }
 
 local DEBOUNCE_TIMES = {
-    crouch = 0.15,
-    dash = 0.5,
-    roll = 0.8,
-    slide = 1.0,
-    vault = 0.5
+    crouch = Modules.Stat.Constants.MOVEMENT.CROUCH_SMOOTH_TIME,
+    dash = Modules.Stat.Constants.MOVEMENT.ROLL_DURATION_Z,
+    roll = Modules.Stat.Constants.MOVEMENT.ROLL_COOLDOWN_Z,
+    slide = Modules.Stat.Constants.MOVEMENT.SLIDE_COOLDOWN,
+    vault = Modules.Stat.Constants.MOVEMENT.WALL_CLIMB_LEDGE_DURATION
 }
 
 local CURSOR_CONFIG = {
@@ -104,14 +108,6 @@ local Animations = {}
 EmoteGui.DisplayOrder = UI_SETTINGS.EMOTE_MENU.DISPLAY_ORDER
 EmoteGui:WaitForChild("Background").Visible = false
 EmoteGui:WaitForChild("Background").ImageTransparency = 1
-
-local VALID_EMOTES = {
-    "CHALLENGE",
-    "HYSTERICAL",
-    "MEDITATE",
-    "MOCKING",
-    "WEEPING"
-}
 
 --[[ State ]]
 local State = {
@@ -168,41 +164,42 @@ local State = {
             roll = 0,
             slide = 0,
             vault = 0
+        },
+        effects = {
+            run = nil,
+            runCleanup = nil,
+            slide = nil,
+            slideCleanup = nil,
+            speedTrails = {},
+            speedTrailsCleanup = {}
         }
     }
 }
 
 --[[ Animation Functions ]]
-local function LoadAnimation(animationName)
-    local animationData = Modules.Animation.Assets.Animations[animationName]
-    if not animationData or animationData.id == "" then return nil end
-
-    local animation = Instance.new("Animation")
-    animation.AnimationId = animationData.id
-    local track = Animator:LoadAnimation(animation)
-    track.Priority = animationData.priority
-    track.Looped = animationData.looped
-    return track
+local function PlayAnimation(category: string, name: string?)
+    Utility.Animation.Play(Animations, category, name, Modules.Animation.Assets.Animations)
 end
 
-local function PlayAnimation(animationName)
-    if Animations[animationName] then
-        Animations[animationName]:Play()
-    else
-        warn("Attempted to play non-existent animation:", animationName)
-    end
-end
-
-local function StopAnimation(animationName)
-    if Animations[animationName] then
-        Animations[animationName]:Stop()
-    end
+local function StopAnimation(category: string, name: string?)
+    Utility.Animation.Stop(Animations, category, name, Modules.Animation.Assets.Animations)
 end
 
 local function InitializeAnimations()
-    for animationName in pairs(Modules.Animation.Assets.Animations) do
-        Animations[animationName] = LoadAnimation(animationName)
-    end
+    local categories = {
+        "LOCOMOTION",
+        "ROLL",
+        "SPECIAL",
+        "LANDING",
+        "WALL",
+        "LEDGE",
+        "STATUS",
+        "CARRY",
+        "COMBAT",
+        "EMOTES"
+    }
+
+    Animations = Utility.Animation.Categories(Animator, categories, Modules.Animation.Assets.Animations)
 end
 
 --[[ Ragdoll Functions ]]
@@ -353,7 +350,7 @@ local function CancelRagdoll(character)
     humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
     humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
 
-    PlayAnimation("IDLE")
+    PlayAnimation("LOCOMOTION", "IDLE")
 end
 
 local function ApplyRagdoll(character, duration)
@@ -388,23 +385,17 @@ end
 
 --[[ Camera Functions ]]
 local function LockCamera()
-    local camera = workspace.CurrentCamera
-    if not camera then return end
-
     if not State.camera.isLocked then
-        State.camera.previousCameraType = camera.CameraType
-        camera.CameraType = Enum.CameraType.Scriptable
+        State.camera.previousCameraType = workspace.CurrentCamera.CameraType
+        Utility.Camera.Lock(workspace.CurrentCamera)
         UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
         State.camera.isLocked = true
     end
 end
 
 local function UnlockCamera()
-    local camera = workspace.CurrentCamera
-    if not camera then return end
-
     if State.camera.isLocked then
-        camera.CameraType = State.camera.previousCameraType or Enum.CameraType.Custom
+        Utility.Camera.Unlock(workspace.CurrentCamera)
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
         State.camera.isLocked = false
     end
@@ -686,9 +677,9 @@ end
 local function CancelCrouch()
     if State.movement.isCrouching then
         State.movement.isCrouching = false
-        StopAnimation("CROUCH_IDLE")
-        StopAnimation("CROUCH_WALK")
-        PlayAnimation("IDLE")
+        StopAnimation("LOCOMOTION", "WALK")
+        StopAnimation("LOCOMOTION", "SPRINT")
+        PlayAnimation("LOCOMOTION", "IDLE")
         Services.Event:FireServer("Client.Movement.Execute", { type = "crouch", enabled = false })
 
         local humanoid = Character:FindFirstChild("Humanoid")
@@ -706,25 +697,77 @@ MovementHandlers = {
             if State.movement.isCrouching then return nil end
 
             local currentTime = os.clock()
-            if currentTime - State.movement.lastWTap < 0.3 then
+            if currentTime - State.movement.lastWTap < Modules.Stat.Constants.MOVEMENT.SPRINT_DOUBLE_TAP_DELAY then
                 State.movement.isRunning = true
                 State.movement.isWalking = false
-                StopAnimation("WALK")
-                PlayAnimation("SPRINT")
+                StopAnimation("LOCOMOTION", "SPRINT")
+                PlayAnimation("LOCOMOTION", "SPRINT")
+
+                if not State.movement.effects.run then
+                    local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
+                    if torso then
+                        local effect, cleanup = Utility.Particle.Play("Run", torso, {
+                            continuous = true,
+                            weld = true,
+                            offset = CFrame.new(0, 0, 0)
+                        })
+                        State.movement.effects.run = effect
+                        State.movement.effects.runCleanup = cleanup
+                    end
+
+                    local limbs = {
+                        ["Left Arm"] = Character:FindFirstChild("LeftUpperArm") or Character:FindFirstChild("Left Arm"),
+                        ["Right Arm"] = Character:FindFirstChild("RightUpperArm") or Character:FindFirstChild("Right Arm"),
+                        ["Left Leg"] = Character:FindFirstChild("LeftUpperLeg") or Character:FindFirstChild("Left Leg"),
+                        ["Right Leg"] = Character:FindFirstChild("RightUpperLeg") or Character:FindFirstChild("Right Leg")
+                    }
+
+                    for limbName, limbPart in pairs(limbs) do
+                        if limbPart then
+                            local effect, cleanup = Utility.Particle.Play("Speed Trails", limbPart, {
+                                continuous = true,
+                                weld = true,
+                                target = limbName
+                            })
+                            if effect then
+                                State.movement.effects.speedTrails[limbName] = effect
+                                State.movement.effects.speedTrailsCleanup[limbName] = cleanup
+                            end
+                        end
+                    end
+                end
+
+                Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.RUN_FOV, CAMERA_SETTINGS.TRANSITION_TIME)
+
                 return { type = "run", enabled = true }
             end
             State.movement.lastWTap = currentTime
             State.movement.isWalking = true
-            StopAnimation("SPRINT")
-            PlayAnimation("WALK")
+            StopAnimation("LOCOMOTION", "SPRINT")
+            PlayAnimation("LOCOMOTION", "WALK")
             return { type = "walk", enabled = true }
         else
             State.movement.isRunning = false
             State.movement.isWalking = true
-            StopAnimation("SPRINT")
+            StopAnimation("LOCOMOTION", "SPRINT")
             if not State.movement.isCrouching then
-                PlayAnimation("WALK")
+                PlayAnimation("LOCOMOTION", "WALK")
             end
+
+            if State.movement.effects.runCleanup then
+                State.movement.effects.runCleanup()
+                State.movement.effects.run = nil
+                State.movement.effects.runCleanup = nil
+            end
+
+            for limbName, cleanup in pairs(State.movement.effects.speedTrailsCleanup) do
+                cleanup()
+                State.movement.effects.speedTrails[limbName] = nil
+                State.movement.effects.speedTrailsCleanup[limbName] = nil
+            end
+
+            Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, CAMERA_SETTINGS.TRANSITION_TIME)
+
             return { type = "walk", enabled = true }
         end
     end,
@@ -752,14 +795,20 @@ MovementHandlers = {
             direction = "right"
         end
 
+        if direction == "backward" then
+            direction = "back"
+        end
+
+        Utility.Particle.Play("Dodge", Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso"))
+
         if direction == "left" then
-            PlayAnimation("ROLL_LEFT")
+            PlayAnimation("ROLL", "LEFT")
         elseif direction == "right" then
-            PlayAnimation("ROLL_RIGHT")
+            PlayAnimation("ROLL", "RIGHT")
         elseif direction == "backward" then
-            PlayAnimation("ROLL_BACK")
+            PlayAnimation("ROLL", "BACK")
         else
-            PlayAnimation("ROLL_FORWARD")
+            PlayAnimation("ROLL", "FORWARD")
         end
 
         return { type = "roll", direction = direction }
@@ -774,25 +823,25 @@ MovementHandlers = {
 
         State.movement.isCrouching = enabled
         if enabled then
-            StopAnimation("WALK")
-            StopAnimation("SPRINT")
-            StopAnimation("IDLE")
+            StopAnimation("LOCOMOTION", "WALK")
+            StopAnimation("LOCOMOTION", "SPRINT")
+            StopAnimation("LOCOMOTION", "IDLE")
 
             if State.movement.isWalking or State.movement.isRunning then
-                PlayAnimation("CROUCH_WALK")
+                PlayAnimation("LOCOMOTION", "CROUCH_WALK")
             else
-                PlayAnimation("CROUCH_IDLE")
+                PlayAnimation("LOCOMOTION", "CROUCH_IDLE")
             end
         else
-            StopAnimation("CROUCH_IDLE")
-            StopAnimation("CROUCH_WALK")
+            StopAnimation("LOCOMOTION", "CROUCH_IDLE")
+            StopAnimation("LOCOMOTION", "CROUCH_WALK")
 
             if State.movement.isWalking then
-                PlayAnimation("WALK")
+                PlayAnimation("LOCOMOTION", "WALK")
             elseif State.movement.isRunning then
-                PlayAnimation("SPRINT")
+                PlayAnimation("LOCOMOTION", "SPRINT")
             else
-                PlayAnimation("IDLE")
+                PlayAnimation("LOCOMOTION", "IDLE")
             end
         end
         return { type = "crouch", enabled = enabled }
@@ -802,23 +851,40 @@ MovementHandlers = {
         SetDebounce("slide")
 
         local humanoid = Character:FindFirstChild("Humanoid")
-        if not humanoid then return nil end
+        local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
+        if not humanoid or not torso then return nil end
 
         if not State.movement.isRunning or humanoid:GetState() ~= Enum.HumanoidStateType.Running then
             return nil
         end
 
         State.movement.isSliding = true
-        PlayAnimation("SLIDE")
+        PlayAnimation("SPECIAL", "SLIDE")
+
+        if not State.movement.effects.slide then
+            local effect, cleanup = Utility.Particle.Play("Slide", torso, {
+                continuous = true,
+                weld = true,
+                offset = CFrame.new(0, -2.5, 0) * CFrame.new(torso.CFrame.LookVector)
+            })
+            State.movement.effects.slide = effect
+            State.movement.effects.slideCleanup = cleanup
+        end
+
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 10, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
+
         return { type = "slide" }
     end,
     WallRun = function()
         State.movement.isWallRunning = true
         local direction = State.movement.currentDirection
+
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 15, 0.3)
+
         if direction == "left" then
-            PlayAnimation("WALL_RUN_LEFT")
+            PlayAnimation("WALL", "RUN_LEFT")
         else
-            PlayAnimation("WALL_RUN_RIGHT")
+            PlayAnimation("WALL", "RUN_RIGHT")
         end
         return { type = "wall_run" }
     end,
@@ -826,14 +892,14 @@ MovementHandlers = {
         if DetectWall() then
             CancelCrouch()
             State.movement.isClimbing = true
-            PlayAnimation("WALL_HOLD")
+            PlayAnimation("WALL", "HOLD")
             return { type = "wall_climb" }
         end
     end,
     Swing = function()
         if DetectSwing() then
             State.movement.isSwinging = true
-            PlayAnimation("SWING")
+            PlayAnimation("LEDGE", "HOLD")
             return { type = "swing" }
         end
         return nil
@@ -841,7 +907,7 @@ MovementHandlers = {
     Hang = function()
         if DetectLedge() then
             State.movement.isLedgeHolding = true
-            PlayAnimation("LEDGE_HOLD")
+            PlayAnimation("LEDGE", "HOLD")
             return { type = "hang" }
         end
         return nil
@@ -852,10 +918,10 @@ MovementHandlers = {
     Sit = function(enabled)
         State.movement.isSitting = enabled
         if enabled then
-            PlayAnimation("SIT")
+            PlayAnimation("LOCOMOTION", "SIT")
         else
-            StopAnimation("SIT")
-            PlayAnimation("IDLE")
+            StopAnimation("LOCOMOTION", "SIT")
+            PlayAnimation("LOCOMOTION", "IDLE")
         end
         return { type = "sit", enabled = enabled }
     end,
@@ -867,12 +933,14 @@ MovementHandlers = {
         if not vaultInfo or not vaultInfo.success then return nil end
 
         State.movement.isVaulting = true
-        PlayAnimation("VAULT")
+        PlayAnimation("SPECIAL", "VAULT")
         Utility.Sound.Play("SFX.Dash")
 
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 5, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
+
         local humanoid = Character:FindFirstChild("Humanoid")
-        local rootPart = Character:FindFirstChild("HumanoidRootPart")
-        if humanoid and rootPart then
+        local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
+        if humanoid and torso then
             local originalWalkSpeed = humanoid.WalkSpeed
             local originalJumpPower = humanoid.JumpPower
             local originalAutoRotate = humanoid.AutoRotate
@@ -883,8 +951,8 @@ MovementHandlers = {
 
             local targetPosition = vaultInfo.landingPosition + Vector3.new(0, humanoid.HipHeight, 0)
             local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local tween = game:GetService("TweenService"):Create(rootPart, tweenInfo, {
-                CFrame = CFrame.new(targetPosition, targetPosition + rootPart.CFrame.LookVector)
+            local tween = game:GetService("TweenService"):Create(torso, tweenInfo, {
+                CFrame = CFrame.new(targetPosition, targetPosition + torso.CFrame.LookVector)
             })
 
             local function cleanup()
@@ -896,8 +964,8 @@ MovementHandlers = {
 
                 State.movement.isVaulting = false
                 State.movement.isWalking = false
-                StopAnimation("VAULT")
-                PlayAnimation("IDLE")
+                StopAnimation("SPECIAL", "VAULT")
+                PlayAnimation("LOCOMOTION", "IDLE")
                 Services.Event:FireServer("Client.Movement.Execute", { type = "idle", enabled = true })
             end
 
@@ -918,10 +986,10 @@ MovementHandlers = {
     Swim = function(enabled)
         State.movement.isSwimming = enabled
         if enabled then
-            PlayAnimation("SWIM")
+            PlayAnimation("LOCOMOTION", "SWIM")
         else
-            StopAnimation("SWIM")
-            PlayAnimation("IDLE")
+            StopAnimation("LOCOMOTION", "SWIM")
+            PlayAnimation("LOCOMOTION", "IDLE")
         end
         return { type = "swim", enabled = enabled }
     end,
@@ -938,13 +1006,14 @@ MovementHandlers = {
         State.movement.isWalking = false
         State.movement.isRunning = false
 
-        StopAnimation("WALK")
-        StopAnimation("SPRINT")
-        StopAnimation("JUMP")
-        StopAnimation("FALL")
-        StopAnimation("IDLE")
+        StopAnimation("LOCOMOTION", "WALK")
+        StopAnimation("LOCOMOTION", "SPRINT")
+        StopAnimation("LOCOMOTION", "JUMP")
+        StopAnimation("LOCOMOTION", "FALL")
+        StopAnimation("LOCOMOTION", "IDLE")
 
-        PlayAnimation("AIR_DASH")
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 20, 0.1)
+        PlayAnimation("SPECIAL", "AIR_DASH")
         Utility.Sound.Play("SFX.Dash")
         return { type = "dash", direction = State.movement.currentDirection }
     end,
@@ -952,40 +1021,42 @@ MovementHandlers = {
         if enabled then
             CancelCrouch()
             State.movement.isJumping = true
-            PlayAnimation("JUMP")
+            PlayAnimation("LOCOMOTION", "JUMP")
             return { type = "jump" }
         end
         return nil
     end,
     Fall = function()
         State.movement.isFalling = true
-        PlayAnimation("FALL")
+        PlayAnimation("LOCOMOTION", "FALL")
         return { type = "fall" }
     end,
     CrouchWalk = function(enabled)
         State.movement.isCrouchWalking = enabled
         if enabled then
-            StopAnimation("WALK")
-            StopAnimation("SPRINT")
-            StopAnimation("CROUCH_IDLE")
-            PlayAnimation("CROUCH_WALK")
+            StopAnimation("LOCOMOTION", "WALK")
+            StopAnimation("LOCOMOTION", "SPRINT")
+            StopAnimation("LOCOMOTION", "CROUCH_IDLE")
+            PlayAnimation("LOCOMOTION", "CROUCH_WALK")
         else
-            StopAnimation("CROUCH_WALK")
+            StopAnimation("LOCOMOTION", "CROUCH_WALK")
             if State.movement.isWalking then
-                PlayAnimation("WALK")
+                PlayAnimation("LOCOMOTION", "WALK")
             elseif State.movement.isRunning then
-                PlayAnimation("SPRINT")
+                PlayAnimation("LOCOMOTION", "SPRINT")
             else
-                PlayAnimation("CROUCH_IDLE")
+                PlayAnimation("LOCOMOTION", "CROUCH_IDLE")
             end
         end
         return { type = "crouch_walk", enabled = enabled }
     end,
     Land = function(impactStrength)
         if impactStrength > 0.5 then
-            PlayAnimation("LAND_LARGE")
+            Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV - 5, 0.2)
+            PlayAnimation("LANDING", "LARGE")
         else
-            PlayAnimation("LAND_SMALL")
+            Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, 0.1)
+            PlayAnimation("LANDING", "SMALL")
         end
         return { type = "land", impact = impactStrength }
     end,
@@ -1009,11 +1080,11 @@ local MOVEMENT_HANDLERS = MovementHandlers
 local MOVEMENT_CLEANUP = {
     Roll = function()
         State.movement.isRolling = false
-        StopAnimation("ROLL_FORWARD")
-        StopAnimation("ROLL_BACK")
-        StopAnimation("ROLL_LEFT")
-        StopAnimation("ROLL_RIGHT")
-        PlayAnimation("LAND_SMALL")
+        StopAnimation("ROLL", "FORWARD")
+        StopAnimation("ROLL", "BACK")
+        StopAnimation("ROLL", "LEFT")
+        StopAnimation("ROLL", "RIGHT")
+        PlayAnimation("LANDING", "SMALL")
 
         local rootPart = Character:FindFirstChild("HumanoidRootPart")
         if rootPart then
@@ -1035,56 +1106,72 @@ local MOVEMENT_CLEANUP = {
     end,
     Slide = function()
         State.movement.isSliding = false
-        StopAnimation("SLIDE")
-        PlayAnimation("LAND_SMALL")
+        StopAnimation("SPECIAL", "SLIDE")
+        PlayAnimation("LANDING", "SMALL")
+
+        if State.movement.effects.slideCleanup then
+            State.movement.effects.slideCleanup()
+            State.movement.effects.slide = nil
+            State.movement.effects.slideCleanup = nil
+        end
+
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
+        Utility.Camera.StopShake(workspace.CurrentCamera)
     end,
     Dash = function()
         State.movement.isDashing = false
         State.movement.isWalking = false
-        StopAnimation("AIR_DASH")
-        StopAnimation("WALK")
-        PlayAnimation("LAND_SMALL")
+        StopAnimation("SPECIAL", "AIR_DASH")
+        StopAnimation("LOCOMOTION", "WALK")
+        PlayAnimation("LANDING", "SMALL")
+
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, 0.2)
         task.delay(0.2, function()
-            PlayAnimation("IDLE")
+            PlayAnimation("LOCOMOTION", "IDLE")
         end)
     end,
     WallRun = function()
         State.movement.isWallRunning = false
-        StopAnimation("WALL_RUN_LEFT")
-        StopAnimation("WALL_RUN_RIGHT")
+        StopAnimation("WALL", "RUN_LEFT")
+        StopAnimation("WALL", "RUN_RIGHT")
+
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, 0.3)
+        Utility.Camera.StopShake(workspace.CurrentCamera)
     end,
     WallClimb = function()
         State.movement.isWallClimbing = false
-        StopAnimation("WALL_CLIMB")
+        StopAnimation("WALL", "HOLD")
     end,
     Swing = function()
         State.movement.isSwinging = false
-        StopAnimation("SWING")
+        StopAnimation("LEDGE", "HOLD")
     end,
     Hang = function()
         State.movement.isLedgeHolding = false
-        StopAnimation("LEDGE_HOLD")
+        StopAnimation("LEDGE", "HOLD")
     end,
     Climb = function()
         State.movement.isClimbing = false
-        StopAnimation("WALL_HOLD")
+        StopAnimation("WALL", "HOLD")
     end,
     Sit = function()
         State.movement.isSitting = false
-        StopAnimation("SIT")
+        StopAnimation("LOCOMOTION", "SIT")
     end,
     Vault = function()
         State.movement.isVaulting = false
-        StopAnimation("VAULT")
-        PlayAnimation("LAND_SMALL")
+        StopAnimation("SPECIAL", "VAULT")
+        PlayAnimation("LANDING", "SMALL")
+
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
         task.delay(0.2, function()
-            PlayAnimation("IDLE")
+            PlayAnimation("LOCOMOTION", "IDLE")
         end)
     end,
     Run = function()
         State.movement.isRunning = false
         State.movement.isWalking = true
-        StopAnimation("SPRINT")
+        StopAnimation("LOCOMOTION", "SPRINT")
     end,
     Ragdoll = function()
         State.movement.isRagdoll = false
@@ -1114,6 +1201,7 @@ local function CanMove()
     )
 end
 
+--[[ Emote Functions ]]
 local function ToggleEmotes(show)
     if not State.ui.emoteMenu.frame then return end
 
@@ -1136,15 +1224,13 @@ local function ToggleEmotes(show)
         end
 
         local yOffset = 5
-        for _, emoteName in ipairs(VALID_EMOTES) do
-            if Modules.Animation.Assets.Animations[emoteName] then
-                local button = CreateEmote(emoteName)
-                button.Position = UDim2.new(0, 5, 0, yOffset)
-                button.Parent = scrollFrame
-                button.BackgroundTransparency = 1
-                button.TextTransparency = 1
-                yOffset = yOffset + 45
-            end
+        for emoteName, data in pairs(Modules.Animation.Assets.Animations.EMOTES) do
+            local button = CreateEmote("EMOTES", emoteName)
+            button.Position = UDim2.new(0, 5, 0, yOffset)
+            button.Parent = scrollFrame
+            button.BackgroundTransparency = 1
+            button.TextTransparency = 1
+            yOffset = yOffset + 45
         end
 
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
@@ -1200,7 +1286,7 @@ local function ToggleEmotes(show)
     end
 end
 
-CreateEmote = function(emoteName)
+function CreateEmote(category: string, emoteName: string)
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(1, -10, 0, 40)
     button.BackgroundTransparency = 0.5
@@ -1212,7 +1298,8 @@ CreateEmote = function(emoteName)
     button.AutoButtonColor = true
 
     button.MouseButton1Click:Connect(function()
-        if not Animations[emoteName] then
+        local animKey = category .. "_" .. emoteName
+        if not Animations[animKey] then
             local originalColor = button.BackgroundColor3
             button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
             task.delay(0.2, function()
@@ -1224,7 +1311,7 @@ CreateEmote = function(emoteName)
             return
         end
 
-        PlayAnimation(emoteName)
+        PlayAnimation(category, emoteName)
         ToggleEmotes(false)
     end)
 
@@ -1236,10 +1323,11 @@ local function ExecuteMovement(actionName, inputState, inputObject)
     if not humanoid then return Enum.ContextActionResult.Pass end
 
     if actionName == "Move" then
-        for _, emoteName in ipairs(VALID_EMOTES) do
-            if Animations[emoteName] and Animations[emoteName].IsPlaying then
-                StopAnimation(emoteName)
-                PlayAnimation("IDLE")
+        for emoteName, _ in pairs(Modules.Animation.Assets.Animations.EMOTES) do
+            local animKey = "EMOTES_" .. emoteName
+            if Animations[animKey] and Animations[animKey].IsPlaying then
+                StopAnimation("EMOTES", emoteName)
+                PlayAnimation("LOCOMOTION", "IDLE")
                 break
             end
         end
@@ -1250,12 +1338,15 @@ local function ExecuteMovement(actionName, inputState, inputObject)
         end
 
         if inputState == Enum.UserInputState.Begin then
-            if not State.movement.isWalking and not State.movement.isRunning then
+            if State.movement.isSwimming then
+                StopAnimation("LOCOMOTION", "SWIM_IDLE")
+                PlayAnimation("LOCOMOTION", "SWIM")
+            elseif not State.movement.isWalking and not State.movement.isRunning then
                 State.movement.isWalking = true
                 if State.movement.isCrouching then
-                    PlayAnimation("CROUCH_WALK")
+                    PlayAnimation("LOCOMOTION", "CROUCH_WALK")
                 else
-                    PlayAnimation("WALK")
+                    PlayAnimation("LOCOMOTION", "WALK")
                 end
             end
         elseif inputState == Enum.UserInputState.End then
@@ -1266,17 +1357,22 @@ local function ExecuteMovement(actionName, inputState, inputObject)
                 UserInputService:IsKeyDown(Enum.KeyCode.D)
 
             if not isAnyMovementKeyDown then
-                State.movement.isWalking = false
-                State.movement.isRunning = false
-                StopAnimation("WALK")
-                StopAnimation("SPRINT")
-                StopAnimation("CROUCH_WALK")
-                if State.movement.isCrouching then
-                    PlayAnimation("CROUCH_IDLE")
+                if State.movement.isSwimming then
+                    StopAnimation("LOCOMOTION", "SWIM")
+                    PlayAnimation("LOCOMOTION", "SWIM_IDLE")
                 else
-                    PlayAnimation("IDLE")
+                    State.movement.isWalking = false
+                    State.movement.isRunning = false
+                    StopAnimation("LOCOMOTION", "WALK")
+                    StopAnimation("LOCOMOTION", "SPRINT")
+                    StopAnimation("LOCOMOTION", "CROUCH_WALK")
+                    if State.movement.isCrouching then
+                        PlayAnimation("LOCOMOTION", "CROUCH_IDLE")
+                    else
+                        PlayAnimation("LOCOMOTION", "IDLE")
+                    end
+                    Services.Event:FireServer("Client.Movement.Execute", { type = "idle", enabled = true })
                 end
-                Services.Event:FireServer("Client.Movement.Execute", { type = "idle", enabled = true })
             end
             return Enum.ContextActionResult.Pass
         end
@@ -1305,6 +1401,9 @@ local function ExecuteMovement(actionName, inputState, inputObject)
             if handler then
                 local data = handler()
                 if data then
+                    data.ability = actionName:lower()
+                    data.remaining = DEBOUNCE_TIMES[actionName:lower()]
+                    data.duration = DEBOUNCE_TIMES[actionName:lower()]
                     Services.Event:FireServer("Client.Movement.Execute", data)
                 end
             end
@@ -1391,12 +1490,12 @@ local function TrackVelocity()
                     Services.Event:FireServer("Client.Movement.Execute", data)
 
                     if impactStrength > 0.5 then
-                        PlayAnimation("LAND_LARGE")
+                        PlayAnimation("LANDING", "LARGE")
                     else
-                        PlayAnimation("LAND_SMALL")
+                        PlayAnimation("LANDING", "SMALL")
                     end
                 elseif impactStrength > 0.1 then
-                    PlayAnimation("LAND_SMALL")
+                    PlayAnimation("LANDING", "SMALL")
                 end
 
                 State.movement.lastGroundedTime = os.clock()
@@ -1501,7 +1600,7 @@ local Events = {
             Animations = {}
             InitializeAnimations()
 
-            PlayAnimation("IDLE")
+            PlayAnimation("LOCOMOTION", "IDLE")
             Services.Event:FireServer("Client.Movement.Execute", { type = "idle", enabled = true })
 
             if workspace.CurrentCamera then
@@ -1537,22 +1636,22 @@ local Events = {
                     if not State.movement.isDashing then
                         State.movement.isJumping = true
                         State.movement.isFalling = false
-                        PlayAnimation("JUMP")
+                        PlayAnimation("LOCOMOTION", "JUMP")
                     end
                 elseif new == Enum.HumanoidStateType.Freefall then
                     if not State.movement.isRolling and not State.movement.isDashing then
                         State.movement.isJumping = false
                         State.movement.isFalling = true
-                        StopAnimation("JUMP")
-                        PlayAnimation("FALL")
+                        StopAnimation("LOCOMOTION", "JUMP")
+                        PlayAnimation("LOCOMOTION", "FALL")
                     end
                 elseif new == Enum.HumanoidStateType.Landed then
                     State.movement.isFalling = false
-                    StopAnimation("FALL")
+                    StopAnimation("LOCOMOTION", "FALL")
 
                     if State.movement.isDashing then
                         State.movement.isDashing = false
-                        StopAnimation("AIR_DASH")
+                        StopAnimation("SPECIAL", "AIR_DASH")
                     end
 
                     if not State.movement.isRolling and not State.movement.isDashing then
@@ -1563,9 +1662,9 @@ local Events = {
                         )
 
                         if impactStrength > 0.5 then
-                            PlayAnimation("LAND_LARGE")
+                            PlayAnimation("LANDING", "LARGE")
                         else
-                            PlayAnimation("LAND_SMALL")
+                            PlayAnimation("LANDING", "SMALL")
                         end
                     end
                 elseif new == Enum.HumanoidStateType.Running then
@@ -1573,35 +1672,52 @@ local Events = {
                         task.delay(0.3, function()
                             if not State.movement.isRolling and not State.movement.isDashing and
                                not State.movement.isSliding and not State.movement.isWallRunning then
-                                StopAnimation("LAND_LARGE")
-                                StopAnimation("LAND_SMALL")
+                                StopAnimation("LANDING", "LARGE")
+                                StopAnimation("LANDING", "SMALL")
 
                                 if State.movement.isRunning then
-                                    PlayAnimation("SPRINT")
+                                    PlayAnimation("LOCOMOTION", "SPRINT")
                                 elseif State.movement.isWalking then
-                                    PlayAnimation("WALK")
+                                    PlayAnimation("LOCOMOTION", "WALK")
                                 else
-                                    PlayAnimation("IDLE")
+                                    PlayAnimation("LOCOMOTION", "IDLE")
                                 end
                             end
                         end)
                     elseif not State.movement.isRolling and not State.movement.isDashing and
                            not State.movement.isSliding and not State.movement.isWallRunning then
                         if State.movement.isRunning then
-                            PlayAnimation("SPRINT")
+                            PlayAnimation("LOCOMOTION", "SPRINT")
                         elseif State.movement.isWalking then
-                            PlayAnimation("WALK")
+                            PlayAnimation("LOCOMOTION", "WALK")
                         else
-                            PlayAnimation("IDLE")
+                            PlayAnimation("LOCOMOTION", "IDLE")
                         end
                     end
                 elseif new == Enum.HumanoidStateType.Swimming then
                     State.movement.isFalling = false
-                    StopAnimation("FALL")
-                    PlayAnimation("SWIM")
+                    State.movement.isSwimming = true
+                    StopAnimation("LOCOMOTION", "FALL")
+
+                    local isMoving = Character:FindFirstChild("Humanoid") and Character.Humanoid.MoveDirection.Magnitude > 0
+                    if isMoving then
+                        StopAnimation("LOCOMOTION", "SWIM_IDLE")
+                        PlayAnimation("LOCOMOTION", "SWIM")
+                    else
+                        StopAnimation("LOCOMOTION", "SWIM")
+                        PlayAnimation("LOCOMOTION", "SWIM_IDLE")
+                    end
+
+                    Services.Event:FireServer("Client.Movement.Execute", { type = "swim", enabled = true })
+                elseif old == Enum.HumanoidStateType.Swimming and new ~= Enum.HumanoidStateType.Swimming then
+                    State.movement.isSwimming = false
+                    StopAnimation("LOCOMOTION", "SWIM")
+                    StopAnimation("LOCOMOTION", "SWIM_IDLE")
+                    PlayAnimation("LOCOMOTION", "IDLE")
+                    Services.Event:FireServer("Client.Movement.Execute", { type = "swim", enabled = false })
                 elseif new == Enum.HumanoidStateType.Dead then
                     State.movement.isFalling = false
-                    StopAnimation("FALL")
+                    StopAnimation("LOCOMOTION", "FALL")
                 end
             end)
 
@@ -1777,6 +1893,16 @@ local Events = {
                     CancelRagdoll(newCharacter)
                 end
             end)
+
+            if Humanoid then
+                Humanoid.StateChanged:Connect(function(oldState, newState)
+                    if newState == Enum.HumanoidStateType.FallingDown or newState == Enum.HumanoidStateType.Ragdoll then
+                        ApplyRagdoll(newCharacter)
+                    elseif oldState == Enum.HumanoidStateType.FallingDown or oldState == Enum.HumanoidStateType.Ragdoll then
+                        CancelRagdoll(newCharacter)
+                    end
+                end)
+            end
         end
     },
 
@@ -1893,18 +2019,10 @@ local function Initialize()
             else
                 if State.movement.isClimbing then
                     State.movement.isClimbing = false
-                    StopAnimation("WALL_HOLD")
-                    PlayAnimation("IDLE")
+                    StopAnimation("WALL", "HOLD")
+                    PlayAnimation("LOCOMOTION", "IDLE")
                 end
             end
-        end
-    end)
-
-    Character:GetAttributeChangedSignal("IsRagdoll"):Connect(function()
-        local isRagdoll = Character:GetAttribute("IsRagdoll")
-        if isRagdoll then
-        else
-            PlayAnimation("IDLE")
         end
     end)
 

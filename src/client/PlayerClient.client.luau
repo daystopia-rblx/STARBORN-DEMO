@@ -2,11 +2,12 @@
     Client-side player management with character customization and state tracking.
     Handles player UI, animations, and real-time state synchronization.
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-02-26
+    @version 1.0.3
+    @date 2025-04-02
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
+
 local Services = {
     Event = require(ReplicatedStorage.Services.Network.EventService)
 }
@@ -46,10 +47,28 @@ end
 
 local function DisableDefault()
     StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
-
     StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
-
     StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
+
+    local function DisableReset()
+        local success, error = pcall(function()
+            StarterGui:SetCore('ResetButtonCallback', false)
+        end)
+        return success
+    end
+
+    task.spawn(function()
+        local attempts = 0
+        local maxAttempts = 20
+
+        while attempts < maxAttempts do
+            if DisableReset() then
+                break
+            end
+            attempts += 1
+            task.wait(0.5)
+        end
+    end)
 end
 
 local function Initialize()

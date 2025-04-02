@@ -1,7 +1,7 @@
 --[[ StatModule
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-03-31
+    @version 1.0.2
+    @date 2025-04-02
 ]]
 local StatModule = {}
 
@@ -167,19 +167,82 @@ StatModule.Constants = {
 
     -- Movement Constants
     MOVEMENT = {
-        BASE_WALK_SPEED = 16,
-        SPRINT_MULTIPLIER = 1.5,
-        CROUCH_MULTIPLIER = 0.2,
-        SWIM_MULTIPLIER = 0.8,
+        -- Walking
+        BASE_WALK_SPEED = 10,
+        WALK_CAMERA_FOV = 68,
+
+        -- Sprinting
+        SPRINT_MULTIPLIER = 2.6,  -- 26/10
+        SPRINT_DOUBLE_TAP_DELAY = 0.2,
+        SPRINT_CAMERA_FOV = 76,
+        SPRINT_CAMERA_MOTION_BLUR = true,
+        SPRINT_CAMERA_MOTION_BLUR_AMOUNT = 4,
+
+        -- Jumping
+        JUMP_POWER = 50,
+        JUMP_HEIGHT = 6.5,
+        JUMP_DURATION = 0.25,
+        JUMP_FALL_SMOOTH_TIME = 0.25,
+        JUMP_COMBAT_COOLDOWN = 0.4,
+
+        -- Sliding
+        SLIDE_SMOOTH_TIME = 0.12,
+        SLIDE_DURATION = 0.6,
+        SLIDE_SPEED_MULTIPLIER = 6,
+        SLIDE_FRICTION = 1,
+        SLIDE_COOLDOWN = 1.5,
+
+        -- Rolling
+        AIR_DASH_SPEED = 40,
+        ROLL_SMOOTH_TIME = 0.1,
+        ROLL_DURATION_Z = 0.7,
+        ROLL_SPEED_Z = 25,
+        ROLL_FRICTION_Z = 0.75,
+        ROLL_COOLDOWN_Z = 0.4,
+        ROLL_DURATION_X = 0.7,
+        ROLL_SPEED_X = 25,
+        ROLL_FRICTION_X = 1,
+        ROLL_COOLDOWN_X = 0.4,
+        ROLL_CANCEL_SMOOTH_TIME = 0.25,
+        ROLL_CANCEL_DURATION = 0.25,
+
+        -- Crouching
+        CROUCH_SMOOTH_TIME = 0.15,
+        CROUCH_MULTIPLIER = 0.7,  -- 7/10
+
+        -- Wall Movement
+        WALL_RAYCAST_LENGTH = 3,
+        WALL_CLIMB_BIAS = 2,
+        WALL_CLIMB_JUMP_POWER = 2.5,
+        WALL_CLIMB_JUMP_HEIGHT = 16,
+        WALL_CLIMB_SPEED = 13,
+        WALL_CLIMB_FOV = 100,
+        WALL_CLIMB_LEDGE_REACH = 5,
+        WALL_CLIMB_LEDGE_DURATION = 0.25,
+        WALL_RUN_DURATION = 3,
+        WALL_RUN_SUSTAIN = 0.05,
+        WALL_RUN_SPEED = 36,
+        WALL_RUN_COOLDOWN = 1,
+
+        -- Vaulting
+        VAULT_SPEED_MULTIPLIER = 2,
+
+        -- Swinging
+        SWING_DETECT_ANGLE = 60,
+        SWING_DETECT_RANGE = 24,
+        SWING_INTERACT_RANGE = 12,
+        SWING_DURATION = 0.5,
+        SWING_COOLDOWN = 0.2,
+        SWING_FOV = 90,
+
+        -- Movement Penalties
+        MIN_MOVEMENT_SPEED = 4,
+        MAX_MOVEMENT_SPEED = 32,
 
         -- Underwater
         OXYGEN_DRAIN_RATE = 5,
         OXYGEN_REGEN_RATE = 10,
-        OXYGEN_CRITICAL_THRESHOLD = 25,
-
-        -- Movement Penalties
-        MIN_MOVEMENT_SPEED = 4,
-        MAX_MOVEMENT_SPEED = 32
+        OXYGEN_CRITICAL_THRESHOLD = 25
     },
 
     -- Weapon Constants
@@ -353,6 +416,16 @@ StatModule.Templates = {
                 value = function(entity)
                     local oxygen = entity:GetAttribute("OXYGEN") or 100
                     return 0.6 + (0.4 * (oxygen / 100))
+                end
+            },
+            HEALTH = {
+                type = "ADD",
+                value = function(entity)
+                    local oxygen = entity:GetAttribute("OXYGEN") or 100
+                    if oxygen <= 0 then
+                        return -10
+                    end
+                    return 0
                 end
             }
         },

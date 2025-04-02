@@ -666,6 +666,7 @@ function StatService:RegisterEntity(entity: Instance): boolean
         -- Vital Stats
         self:SetStat(entity, "HEALTH", 100, { source = "init" })
         self:SetStat(entity, "BLOOD", 100, { source = "init" })
+        self:SetStat(entity, "OXYGEN", 100, { source = "init" })
 
         -- Resource Stats
         self:SetStat(entity, "MANA", 100, { source = "init" })
@@ -691,6 +692,7 @@ function StatService:RegisterEntity(entity: Instance): boolean
         self:EnableCycle(entity, "POSTURE")
         self:EnableCycle(entity, "HUNGER")
         self:EnableCycle(entity, "THIRST")
+        self:EnableCycle(entity, "OXYGEN")
     end
 
     local humanoid = entity:FindFirstChild("Humanoid")

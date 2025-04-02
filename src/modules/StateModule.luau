@@ -337,17 +337,7 @@ StateModule.Templates = {
             ROLL = false,
             ATTACK = true,
             BLOCK = false
-        },
-        onEnter = function(entity)
-            if entity:GetAttribute("UNDERWATER") then
-                entity:SetAttribute("UNDERWATER", true)
-            end
-        end,
-        onExit = function(entity)
-            if entity:GetAttribute("UNDERWATER") then
-                entity:SetAttribute("UNDERWATER", false)
-            end
-        end
+        }
     },
 
     -- Status States
