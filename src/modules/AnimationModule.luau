@@ -44,7 +44,7 @@ AnimationModule.Assets = {
         },
 
         LEDGE = {
-            HOLD = { id = "", looped = true, priority = Enum.AnimationPriority.Action },
+            HOLD = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action },
             CLIMB = { id = "rbxassetid://89000907008779", looped = false, priority = Enum.AnimationPriority.Action }
         },
 

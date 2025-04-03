@@ -1,8 +1,7 @@
-
 --[[ SoundModule
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-04-02
+    @version 1.0.3
+    @date 2025-04-03
 ]]
 local SoundModule = {}
 
@@ -32,6 +31,35 @@ SoundModule.Assets = {
             Parry_1 = { id = "rbxassetid://95722991827031", volume = 0.5 },
             Parry_2 = { id = "rbxassetid://132886449936911", volume = 0.5 },
             Parry_3 = { id = "rbxassetid://77250810798467", volume = 0.5 },
+
+            -- Footstep Sounds
+            Footsteps = {
+                Brick = { id = "rbxassetid://178190837", volume = 0.3 },
+                Climb = { id = "rbxassetid://145180175", volume = 0.3 },
+                Cobblestone = { id = "rbxassetid://178190837", volume = 0.3 },
+                Concrete = { id = "rbxassetid://277067660", volume = 0.3 },
+                CorrodedMetal = { id = "rbxassetid://177940974", volume = 0.3 },
+                DiamondPlate = { id = "rbxassetid://177940974", volume = 0.3 },
+                Fabric = { id = "rbxassetid://133705377", volume = 0.3 },
+                Foil = { id = "rbxassetid://178190837", volume = 0.3 },
+                ForceField = { id = "rbxassetid://329997777", volume = 0.3 },
+                Glass = { id = "rbxassetid://178190837", volume = 0.3 },
+                Granite = { id = "rbxassetid://178054124", volume = 0.3 },
+                Grass = { id = "rbxassetid://177940963", volume = 0.3 },
+                Ice = { id = "rbxassetid://178190837", volume = 0.3 },
+                Marble = { id = "rbxassetid://178190837", volume = 0.3 },
+                Metal = { id = "rbxassetid://177940974", volume = 0.3 },
+                Neon = { id = "rbxassetid://177940974", volume = 0.3 },
+                Pebble = { id = "rbxassetid://178190837", volume = 0.3 },
+                Plastic = { id = "rbxassetid://177940974", volume = 0.3 },
+                Sand = { id = "rbxassetid://212011266", volume = 0.3 },
+                Slate = { id = "rbxassetid://178054124", volume = 0.3 },
+                SmoothPlastic = { id = "rbxassetid://178190837", volume = 0.3 },
+                Snow = { id = "rbxassetid://212011266", volume = 0.3 },
+                Wood = { id = "rbxassetid://177940988", volume = 0.3 },
+                WoodPlanks = { id = "rbxassetid://211987063", volume = 0.3 },
+                Air = { id = "rbxassetid://5113213873", volume = 0.3 }
+            }
         }
     }
 }

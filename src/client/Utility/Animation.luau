@@ -1,8 +1,14 @@
 --[[ Animation
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-04-02
+    @version 1.0.1
+    @date 2025-04-03
 ]]
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Modules = {
+    Animation = require(ReplicatedStorage.Modules.AnimationModule)
+}
+
 local Animation = {}
 
 function Animation.Animation(animator: Animator, animationData: {id: string, looped: boolean, priority: Enum.AnimationPriority})
@@ -27,10 +33,10 @@ function Animation.Category(animator: Animator, categoryData: {[string]: any}, p
     return animations
 end
 
-function Animation.Categories(animator: Animator, categories: {string}, animationData: {[string]: {[string]: any}}): {[string]: AnimationTrack}
+function Animation.Categories(animator: Animator, categories: {string}): {[string]: AnimationTrack}
     local animations = {}
     for _, category in ipairs(categories) do
-        local categoryData = animationData[category]
+        local categoryData = Modules.Animation.Assets.Animations[category]
         if categoryData then
             local categoryAnimations = Animation.Category(animator, categoryData, category)
             for key, track in pairs(categoryAnimations) do
@@ -43,20 +49,20 @@ function Animation.Categories(animator: Animator, categories: {string}, animatio
     return animations
 end
 
-function Animation.Play(animations: {[string]: AnimationTrack}, category: string, name: string, animationData: {[string]: {[string]: any}}): boolean
+function Animation.Play(animations: {[string]: AnimationTrack}, category: string, name: string, fadeTime: number?): boolean
     if not category or not name then
         warn("Both category and name must be provided")
         return false
     end
 
-    if not animationData[category] then
+    if not Modules.Animation.Assets.Animations[category] then
         warn("Invalid category:", category)
         return false
     end
 
     local animKey = category .. "_" .. name
     if animations[animKey] then
-        animations[animKey]:Play()
+        animations[animKey]:Play(fadeTime or 0.1)
         return true
     else
         warn("Attempted to play non-existent animation:", animKey)
@@ -64,20 +70,34 @@ function Animation.Play(animations: {[string]: AnimationTrack}, category: string
     end
 end
 
-function Animation.Stop(animations: {[string]: AnimationTrack}, category: string, name: string, animationData: {[string]: {[string]: any}}): boolean
+function Animation.Stop(animations: {[string]: AnimationTrack}, category: string, name: string, fadeTime: number?): boolean
     if not category or not name then
         warn("Both category and name must be provided")
         return false
     end
 
-    if not animationData[category] then
+    if not Modules.Animation.Assets.Animations[category] then
         warn("Invalid category:", category)
         return false
     end
 
     local animKey = category .. "_" .. name
     if animations[animKey] then
-        animations[animKey]:Stop()
+        animations[animKey]:Stop(fadeTime or 0.1)
+        return true
+    end
+    return false
+end
+
+function Animation.Fade(animations: {[string]: AnimationTrack}, fromCategory: string, fromName: string, toCategory: string, toName: string, fadeTime: number?): boolean
+    if not fromCategory or not fromName or not toCategory or not toName then return false end
+
+    local fromKey = fromCategory .. "_" .. fromName
+    local toKey = toCategory .. "_" .. toName
+
+    if animations[fromKey] and animations[toKey] then
+        animations[toKey]:Play(fadeTime or 0.1)
+        animations[fromKey]:Stop(fadeTime or 0.1)
         return true
     end
     return false

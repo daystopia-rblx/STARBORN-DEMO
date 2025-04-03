@@ -1,7 +1,7 @@
 --[[ MovementClient
     @author @Daystopia
-    @version 1.1.2
-    @date 2025-04-02
+    @version 1.1.3
+    @date 2025-04-03
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -50,7 +50,8 @@ local CONTROL_BINDINGS = {
     {action = "Crouch", key = Enum.KeyCode.C, description = "Crouch"},
     {action = "Slide", key = Enum.KeyCode.LeftControl, description = "Slide"},
     {action = "Emotes", key = Enum.KeyCode.T, description = "Emotes"},
-    {action = "Ragdoll", key = Enum.KeyCode.R, description = "Ragdoll"}
+    {action = "Ragdoll", key = Enum.KeyCode.R, description = "Ragdoll"},
+    {action = "Hang", key = Enum.KeyCode.Space, description = "Climb Ledge"}
 }
 
 local CAMERA_SETTINGS = {
@@ -70,14 +71,6 @@ local UI_SETTINGS = {
         FADE_DURATION = 0.3,
         DISPLAY_ORDER = 999998
     }
-}
-
-local DEBOUNCE_TIMES = {
-    crouch = Modules.Stat.Constants.MOVEMENT.CROUCH_SMOOTH_TIME,
-    dash = Modules.Stat.Constants.MOVEMENT.ROLL_DURATION_Z,
-    roll = Modules.Stat.Constants.MOVEMENT.ROLL_COOLDOWN_Z,
-    slide = Modules.Stat.Constants.MOVEMENT.SLIDE_COOLDOWN,
-    vault = Modules.Stat.Constants.MOVEMENT.WALL_CLIMB_LEDGE_DURATION
 }
 
 local CURSOR_CONFIG = {
@@ -139,7 +132,8 @@ local State = {
         isCrouchWalking = false,
         isSliding = false,
         isWallRunning = false,
-        isWallClimbing = false,
+        isScaling = false,
+        isHanging = false,
         isSwinging = false,
         isVaulting = false,
         isRolling = false,
@@ -148,7 +142,6 @@ local State = {
         isFalling = false,
         isStunned = false,
         isDashing = false,
-        isLedgeHolding = false,
         isClimbing = false,
         isSitting = false,
         isRagdoll = false,
@@ -158,6 +151,7 @@ local State = {
         maxSafeVelocity = -20,
         lastGroundedTime = 0,
         lastWTap = 0,
+        lastHangTime = 0,
         debounce = {
             crouch = 0,
             dash = 0,
@@ -172,17 +166,30 @@ local State = {
             slideCleanup = nil,
             speedTrails = {},
             speedTrailsCleanup = {}
-        }
+        },
+        canHang = true,
+        canLedge = true,
+        canScale = true
+    },
+    footsteps = {
+        isWalking = false,
+        lastMaterial = nil,
+        lastFootstepTime = 0,
+        currentSound = nil
     }
 }
 
 --[[ Animation Functions ]]
-local function PlayAnimation(category: string, name: string?)
-    Utility.Animation.Play(Animations, category, name, Modules.Animation.Assets.Animations)
+local function PlayAnimation(category: string, name: string?, fadeTime: number?)
+    Utility.Animation.Play(Animations, category, name, fadeTime)
 end
 
-local function StopAnimation(category: string, name: string?)
-    Utility.Animation.Stop(Animations, category, name, Modules.Animation.Assets.Animations)
+local function StopAnimation(category: string, name: string?, fadeTime: number?)
+    Utility.Animation.Stop(Animations, category, name, fadeTime)
+end
+
+local function FadeAnimation(fromCategory: string, fromName: string, toCategory: string, toName: string, fadeTime: number?)
+    Utility.Animation.Fade(Animations, fromCategory, fromName, toCategory, toName, fadeTime)
 end
 
 local function InitializeAnimations()
@@ -199,7 +206,7 @@ local function InitializeAnimations()
         "EMOTES"
     }
 
-    Animations = Utility.Animation.Categories(Animator, categories, Modules.Animation.Assets.Animations)
+    Animations = Utility.Animation.Categories(Animator, categories)
 end
 
 --[[ Ragdoll Functions ]]
@@ -224,7 +231,7 @@ local mainParts = {
     "Head"
 }
 
-local function createColliderPart(part: BasePart)
+local function CreateCollider(part: BasePart)
     if not part then return end
     local rp = Instance.new("Part")
     rp.Name = "ColliderPart"
@@ -275,7 +282,7 @@ local function SetupRagdoll(character)
             a1.Name = "RagdollAttachment"
 
             if table.find(mainParts, motor.Part1.Name) then
-                createColliderPart(motor.Part1)
+                CreateCollider(motor.Part1)
             end
 
             local b = Instance.new("BallSocketConstraint")
@@ -440,8 +447,10 @@ local function ToggleShift()
     local rootPart = Character:FindFirstChild("HumanoidRootPart")
     if not humanoid or humanoid.Health <= 0 or not rootPart then return end
 
-    if State.movement.isRagdoll and not State.camera.isShiftLocked then
-        return
+    if State.movement.isRagdoll or State.movement.isHanging then
+        if not State.camera.isShiftLocked then
+            return
+        end
     end
 
     State.camera.isShiftLocked = not State.camera.isShiftLocked
@@ -494,8 +503,8 @@ local function ToggleShift()
     end
 end
 
---[[ Detection Functions ]]
-local function DetectLedge()
+--[[ Ledge Functions ]]
+local function DetectHang()
     if not Character then return false end
 
     local rootPart = Character:FindFirstChild("HumanoidRootPart")
@@ -510,28 +519,129 @@ local function DetectLedge()
     local raycastParams = RaycastParams.new()
     raycastParams.FilterDescendantsInstances = {Character}
     raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+    raycastParams.RespectCanCollide = true
 
-    local ray = workspace:Raycast(
-        rootPart.Position,
-        rootPart.CFrame.LookVector * 5,
+    local rayStart = rootPart.Position
+    local rayDirection = rootPart.CFrame.LookVector * 2.5
+
+    local wallCheck = workspace:Raycast(
+        rayStart,
+        rayDirection,
         raycastParams
     )
 
-    if ray and ray.Instance then
-        local aboveCheck = workspace:Raycast(
-            ray.Position + Vector3.new(0, 1, 0),
-            Vector3.new(0, 3, 0),
-            raycastParams
-        )
+    if not wallCheck then return false end
 
-        if not aboveCheck then
-            return true
-        end
+    local ledgeCheck = workspace:Raycast(
+        wallCheck.Position + Vector3.new(0, 3, 0),
+        rootPart.CFrame.LookVector * 2,
+        raycastParams
+    )
+
+    if not ledgeCheck and wallCheck.Instance.Size.Y >= 5 then
+        return true
     end
 
     return false
 end
 
+local function StartHang()
+    if not Character then return nil end
+
+    local rootPart = Character:FindFirstChild("HumanoidRootPart")
+    local humanoid = Character:FindFirstChild("Humanoid")
+    if not rootPart or not humanoid then return nil end
+
+    local currentTime = os.clock()
+    if currentTime - State.movement.lastHangTime < 0.5 then
+        return nil
+    end
+    State.movement.lastHangTime = currentTime
+
+    if State.camera.isShiftLocked then
+        State.camera.isShiftLocked = false
+        State.camera.shiftLockOffset = Vector3.new(0, 0, 0)
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        local mouse = LocalPlayer:GetMouse()
+        mouse.Icon = CURSOR_CONFIG.ENABLED and CURSOR_CONFIG.OVERRIDE_DEFAULT and CURSOR_CONFIG.DEFAULT_CURSOR or ""
+    end
+
+    State.movement.isHanging = true
+    State.movement.canHang = false
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local wallCheck = workspace:Raycast(
+        rootPart.Position,
+        rootPart.CFrame.LookVector * 2.5,
+        raycastParams
+    )
+
+    if wallCheck then
+        local hangPosition = wallCheck.Position - (rootPart.CFrame.LookVector * 1) + Vector3.new(0, 1, 0)
+        rootPart.CFrame = CFrame.new(hangPosition, hangPosition + rootPart.CFrame.LookVector)
+    end
+
+    local bodyVelocity = rootPart:FindFirstChild("HangVelocity") or Instance.new("LinearVelocity")
+    bodyVelocity.Name = "HangVelocity"
+    local attachment = rootPart:FindFirstChild("HangAttachment") or Instance.new("Attachment")
+    attachment.Name = "HangAttachment"
+    bodyVelocity.Attachment0 = attachment
+    bodyVelocity.VectorVelocity = Vector3.zero
+    bodyVelocity.MaxForce = math.huge
+    bodyVelocity.Enabled = true
+    attachment.Parent = rootPart
+    bodyVelocity.Parent = rootPart
+
+    humanoid.AutoRotate = false
+    PlayAnimation("LEDGE", "HOLD")
+
+    return { type = "hang", enabled = true }
+end
+
+local function FinishHang()
+    if not Character then return end
+
+    local rootPart = Character:FindFirstChild("HumanoidRootPart")
+    local humanoid = Character:FindFirstChild("Humanoid")
+    if not rootPart or not humanoid then return end
+
+    State.movement.isHanging = false
+    humanoid.AutoRotate = true
+
+    if State.movement.hangMoveConnection then
+        State.movement.hangMoveConnection:Disconnect()
+        State.movement.hangMoveConnection = nil
+    end
+
+    local bodyVelocity = rootPart:FindFirstChild("HangVelocity")
+    local attachment = rootPart:FindFirstChild("HangAttachment")
+    if bodyVelocity then
+        bodyVelocity.Enabled = true
+        bodyVelocity.VectorVelocity = rootPart.CFrame.LookVector * 10 + Vector3.new(0, 30, 0)
+        task.delay(0.15, function()
+            if bodyVelocity and bodyVelocity.Parent then
+                bodyVelocity.Enabled = false
+                bodyVelocity:Destroy()
+            end
+        end)
+    end
+    if attachment then
+        attachment:Destroy()
+    end
+
+    StopAnimation("LEDGE", "HOLD")
+    PlayAnimation("LOCOMOTION", "JUMP")
+
+    task.delay(0.75, function()
+        State.movement.canHang = true
+        State.movement.canLedge = true
+    end)
+end
+
+--[[ Climb Functions ]]
 local function DetectWall()
     if not Character then return false end
 
@@ -565,6 +675,7 @@ local function DetectWall()
     return false
 end
 
+--[[ Vault Functions ]]
 local function DetectVault()
     if not Character then return false end
 
@@ -645,6 +756,7 @@ local function DetectVault()
     }
 end
 
+--[[ Swing Functions ]]
 local function DetectSwing()
     if not Character then return false end
 
@@ -664,29 +776,48 @@ local function DetectSwing()
     return ray and ray.Instance and ray.Instance:FindFirstChild("SwingPoint")
 end
 
---[[ Input Handling ]]
-local function ValidateAction(actionName)
-    local currentTime = os.clock()
-    return currentTime - State.movement.debounce[actionName] > DEBOUNCE_TIMES[actionName]
-end
-
-local function SetDebounce(actionName)
-    State.movement.debounce[actionName] = os.clock()
-end
-
+--[[ Utility ]]
 local function CancelCrouch()
     if State.movement.isCrouching then
-        State.movement.isCrouching = false
-        StopAnimation("LOCOMOTION", "WALK")
-        StopAnimation("LOCOMOTION", "SPRINT")
-        PlayAnimation("LOCOMOTION", "IDLE")
-        Services.Event:FireServer("Client.Movement.Execute", { type = "crouch", enabled = false })
-
-        local humanoid = Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = 16
+        local rootPart = Character.PrimaryPart
+        if rootPart then
+            rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, rootPart.Orientation.Y * math.pi/180, 0)
         end
+        StopAnimation("LOCOMOTION", "CROUCH")
+        PlayAnimation("LOCOMOTION", "IDLE")
+        State.movement.isCrouching = false
     end
+end
+
+local function CanMove()
+    if State.movement.isRagdoll then
+        return false
+    end
+
+    return not (
+        State.movement.isRolling or
+        State.movement.isDashing or
+        State.movement.isSliding or
+        State.movement.isWallRunning or
+        State.movement.isScaling or
+        State.movement.isSwinging or
+        State.movement.isVaulting or
+        State.movement.isHanging or
+        State.movement.isClimbing or
+        State.movement.isSitting or
+        State.movement.isStunned
+    )
+end
+
+local function CanRoll()
+    local humanoid = Character and Character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+
+    local onGround = humanoid:GetState() ~= Enum.HumanoidStateType.Freefall and
+                    humanoid:GetState() ~= Enum.HumanoidStateType.Jumping and
+                    humanoid.FloorMaterial ~= Enum.Material.Air
+
+    return CanMove() and onGround
 end
 
 --[[ Movement Handlers ]]
@@ -698,10 +829,16 @@ MovementHandlers = {
 
             local currentTime = os.clock()
             if currentTime - State.movement.lastWTap < Modules.Stat.Constants.MOVEMENT.SPRINT_DOUBLE_TAP_DELAY then
-                State.movement.isRunning = true
-                State.movement.isWalking = false
-                StopAnimation("LOCOMOTION", "SPRINT")
-                PlayAnimation("LOCOMOTION", "SPRINT")
+                if not State.movement.isRunning then
+                    State.movement.isRunning = true
+                    State.movement.isWalking = false
+
+                    if State.movement.isWalking then
+                        FadeAnimation("LOCOMOTION", "WALK", "LOCOMOTION", "SPRINT", 0.2)
+                    else
+                        PlayAnimation("LOCOMOTION", "SPRINT", 0.2)
+                    end
+                end
 
                 if not State.movement.effects.run then
                     local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
@@ -742,16 +879,26 @@ MovementHandlers = {
                 return { type = "run", enabled = true }
             end
             State.movement.lastWTap = currentTime
-            State.movement.isWalking = true
-            StopAnimation("LOCOMOTION", "SPRINT")
-            PlayAnimation("LOCOMOTION", "WALK")
+
+            if not State.movement.isWalking and not State.movement.isRunning then
+                State.movement.isWalking = true
+                if State.movement.isRunning then
+                    FadeAnimation("LOCOMOTION", "SPRINT", "LOCOMOTION", "WALK", 0.2)
+                else
+                    PlayAnimation("LOCOMOTION", "WALK", 0.2)
+                end
+            end
             return { type = "walk", enabled = true }
         else
             State.movement.isRunning = false
             State.movement.isWalking = true
-            StopAnimation("LOCOMOTION", "SPRINT")
-            if not State.movement.isCrouching then
-                PlayAnimation("LOCOMOTION", "WALK")
+
+            if Animations["LOCOMOTION_SPRINT"] and Animations["LOCOMOTION_SPRINT"].IsPlaying then
+                if not State.movement.isCrouching then
+                    FadeAnimation("LOCOMOTION", "SPRINT", "LOCOMOTION", "WALK", 0.2)
+                else
+                    StopAnimation("LOCOMOTION", "SPRINT", 0.2)
+                end
             end
 
             if State.movement.effects.runCleanup then
@@ -772,18 +919,21 @@ MovementHandlers = {
         end
     end,
     Roll = function()
-        if not ValidateAction("roll") then return nil end
-
-        local humanoid = Character:FindFirstChild("Humanoid")
-        if not humanoid then return nil end
+        if not CanRoll() then return false end
 
         CancelCrouch()
 
-        if humanoid.FloorMaterial == Enum.Material.Air then
+        local humanoid = Character:FindFirstChild("Humanoid")
+        if not humanoid then return false end
+
+        local humanoidState = humanoid:GetState()
+        if humanoid.FloorMaterial == Enum.Material.Air or
+           humanoidState == Enum.HumanoidStateType.Freefall or
+           humanoidState == Enum.HumanoidStateType.Jumping then
             return MovementHandlers.Dash()
         end
 
-        SetDebounce("roll")
+        State.movement.isRolling = true
         State.movement.isRolling = true
 
         local direction = "forward"
@@ -814,8 +964,7 @@ MovementHandlers = {
         return { type = "roll", direction = direction }
     end,
     Crouch = function(enabled)
-        if not ValidateAction("crouch") then return nil end
-        SetDebounce("crouch")
+        if not CanMove() then return false end
 
         if enabled and State.movement.isCrouching then
             enabled = false
@@ -847,15 +996,14 @@ MovementHandlers = {
         return { type = "crouch", enabled = enabled }
     end,
     Slide = function()
-        if not ValidateAction("slide") then return nil end
-        SetDebounce("slide")
+        if not CanMove() then return false end
 
         local humanoid = Character:FindFirstChild("Humanoid")
         local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
-        if not humanoid or not torso then return nil end
+        if not humanoid or not torso then return false end
 
         if not State.movement.isRunning or humanoid:GetState() ~= Enum.HumanoidStateType.Running then
-            return nil
+            return false
         end
 
         State.movement.isSliding = true
@@ -886,15 +1034,16 @@ MovementHandlers = {
         else
             PlayAnimation("WALL", "RUN_RIGHT")
         end
-        return { type = "wall_run" }
+        return { type = "wallrun" }
     end,
     WallClimb = function()
         if DetectWall() then
             CancelCrouch()
-            State.movement.isClimbing = true
+            State.movement.isWallClimbing = true
             PlayAnimation("WALL", "HOLD")
-            return { type = "wall_climb" }
+            return { type = "wallclimb" }
         end
+        return nil
     end,
     Swing = function()
         if DetectSwing() then
@@ -905,14 +1054,11 @@ MovementHandlers = {
         return nil
     end,
     Hang = function()
-        if DetectLedge() then
-            State.movement.isLedgeHolding = true
+        if DetectHang() then
+            State.movement.isHanging = true
             PlayAnimation("LEDGE", "HOLD")
             return { type = "hang" }
         end
-        return nil
-    end,
-    Climb = function()
         return nil
     end,
     Sit = function(enabled)
@@ -926,11 +1072,10 @@ MovementHandlers = {
         return { type = "sit", enabled = enabled }
     end,
     Vault = function()
-        if not ValidateAction("vault") then return nil end
-        SetDebounce("vault")
+        if not CanMove() then return false end
 
         local vaultInfo = DetectVault()
-        if not vaultInfo or not vaultInfo.success then return nil end
+        if not vaultInfo or not vaultInfo.success then return false end
 
         State.movement.isVaulting = true
         PlayAnimation("SPECIAL", "VAULT")
@@ -941,32 +1086,17 @@ MovementHandlers = {
         local humanoid = Character:FindFirstChild("Humanoid")
         local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
         if humanoid and torso then
-            local originalWalkSpeed = humanoid.WalkSpeed
-            local originalJumpPower = humanoid.JumpPower
-            local originalAutoRotate = humanoid.AutoRotate
-
-            humanoid.WalkSpeed = 0
-            humanoid.JumpPower = 0
-            humanoid.AutoRotate = false
-
             local targetPosition = vaultInfo.landingPosition + Vector3.new(0, humanoid.HipHeight, 0)
-            local tweenInfo = TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+            local vaultDuration = Modules.State.Templates.VAULT.duration or 0.5
+            local tweenInfo = TweenInfo.new(vaultDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
             local tween = game:GetService("TweenService"):Create(torso, tweenInfo, {
                 CFrame = CFrame.new(targetPosition, targetPosition + torso.CFrame.LookVector)
             })
 
             local function cleanup()
-                if humanoid then
-                    humanoid.WalkSpeed = originalWalkSpeed
-                    humanoid.JumpPower = originalJumpPower
-                    humanoid.AutoRotate = originalAutoRotate
-                end
-
                 State.movement.isVaulting = false
-                State.movement.isWalking = false
                 StopAnimation("SPECIAL", "VAULT")
                 PlayAnimation("LOCOMOTION", "IDLE")
-                Services.Event:FireServer("Client.Movement.Execute", { type = "idle", enabled = true })
             end
 
             tween:Play()
@@ -994,14 +1124,23 @@ MovementHandlers = {
         return { type = "swim", enabled = enabled }
     end,
     Dash = function()
-        if not ValidateAction("dash") then return nil end
-        SetDebounce("dash")
+        if not CanMove() then return false end
 
         CancelCrouch()
 
         local rootPart = Character:FindFirstChild("HumanoidRootPart")
-        if not rootPart then return nil end
+        if not rootPart then return false end
 
+        local direction = "forward"
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            direction = "backward"
+        elseif UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            direction = "left"
+        elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            direction = "right"
+        end
+
+        State.movement.currentDirection = direction
         State.movement.isDashing = true
         State.movement.isWalking = false
         State.movement.isRunning = false
@@ -1015,10 +1154,14 @@ MovementHandlers = {
         Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 20, 0.1)
         PlayAnimation("SPECIAL", "AIR_DASH")
         Utility.Sound.Play("SFX.Dash")
-        return { type = "dash", direction = State.movement.currentDirection }
+        return { type = "dash", direction = direction }
     end,
     Jump = function(enabled)
         if enabled then
+            if State.movement.isVaulting then
+                return false
+            end
+
             CancelCrouch()
             State.movement.isJumping = true
             PlayAnimation("LOCOMOTION", "JUMP")
@@ -1073,7 +1216,24 @@ MovementHandlers = {
         end
         State.movement.isRagdoll = enabled
         return { type = "ragdoll", enabled = enabled }
-    end
+    end,
+    Scale = function()
+        if DetectWall() then
+            CancelCrouch()
+            State.movement.isScaling = true
+            PlayAnimation("WALL", "HOLD")
+            return { type = "scale" }
+        end
+    end,
+    Climb = function()
+        if DetectWall() then
+            CancelCrouch()
+            State.movement.isClimbing = true
+            PlayAnimation("WALL", "HOLD")
+            return { type = "climb" }
+        end
+        return nil
+    end,
 }
 local MOVEMENT_HANDLERS = MovementHandlers
 
@@ -1104,6 +1264,21 @@ local MOVEMENT_CLEANUP = {
             humanoid.AutoRotate = true
         end
     end,
+    Dash = function()
+        State.movement.isDashing = false
+        StopAnimation("SPECIAL", "AIR_DASH")
+        PlayAnimation("LANDING", "SMALL")
+
+        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, 0.2)
+
+        local rootPart = Character:FindFirstChild("HumanoidRootPart")
+        if rootPart then
+            local dashForce = rootPart:FindFirstChild("dash_force")
+            if dashForce then
+                dashForce:Destroy()
+            end
+        end
+    end,
     Slide = function()
         State.movement.isSliding = false
         StopAnimation("SPECIAL", "SLIDE")
@@ -1117,18 +1292,6 @@ local MOVEMENT_CLEANUP = {
 
         Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
         Utility.Camera.StopShake(workspace.CurrentCamera)
-    end,
-    Dash = function()
-        State.movement.isDashing = false
-        State.movement.isWalking = false
-        StopAnimation("SPECIAL", "AIR_DASH")
-        StopAnimation("LOCOMOTION", "WALK")
-        PlayAnimation("LANDING", "SMALL")
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, 0.2)
-        task.delay(0.2, function()
-            PlayAnimation("LOCOMOTION", "IDLE")
-        end)
     end,
     WallRun = function()
         State.movement.isWallRunning = false
@@ -1144,10 +1307,6 @@ local MOVEMENT_CLEANUP = {
     end,
     Swing = function()
         State.movement.isSwinging = false
-        StopAnimation("LEDGE", "HOLD")
-    end,
-    Hang = function()
-        State.movement.isLedgeHolding = false
         StopAnimation("LEDGE", "HOLD")
     end,
     Climb = function()
@@ -1178,28 +1337,17 @@ local MOVEMENT_CLEANUP = {
         if Character then
             Character:SetAttribute("RAGDOLL", false)
         end
-    end
+    end,
+    Hang = function()
+        if State.movement.isHanging then
+            FinishHang()
+        end
+    end,
+    Scale = function()
+        State.movement.isScaling = false
+        StopAnimation("WALL", "HOLD")
+    end,
 }
-
-local function CanMove()
-    if State.movement.isRagdoll then
-        return false
-    end
-
-    return not (
-        State.movement.isRolling or
-        State.movement.isDashing or
-        State.movement.isSliding or
-        State.movement.isWallRunning or
-        State.movement.isWallClimbing or
-        State.movement.isSwinging or
-        State.movement.isVaulting or
-        State.movement.isLedgeHolding or
-        State.movement.isClimbing or
-        State.movement.isSitting or
-        State.movement.isStunned
-    )
-end
 
 --[[ Emote Functions ]]
 local function ToggleEmotes(show)
@@ -1337,11 +1485,17 @@ local function ExecuteMovement(actionName, inputState, inputObject)
             return Enum.ContextActionResult.Sink
         end
 
+        local isAnyMovementKeyDown =
+            UserInputService:IsKeyDown(Enum.KeyCode.W) or
+            UserInputService:IsKeyDown(Enum.KeyCode.A) or
+            UserInputService:IsKeyDown(Enum.KeyCode.S) or
+            UserInputService:IsKeyDown(Enum.KeyCode.D)
+
         if inputState == Enum.UserInputState.Begin then
             if State.movement.isSwimming then
                 StopAnimation("LOCOMOTION", "SWIM_IDLE")
                 PlayAnimation("LOCOMOTION", "SWIM")
-            elseif not State.movement.isWalking and not State.movement.isRunning then
+            elseif not State.movement.isWalking and not State.movement.isRunning and isAnyMovementKeyDown then
                 State.movement.isWalking = true
                 if State.movement.isCrouching then
                     PlayAnimation("LOCOMOTION", "CROUCH_WALK")
@@ -1350,12 +1504,6 @@ local function ExecuteMovement(actionName, inputState, inputObject)
                 end
             end
         elseif inputState == Enum.UserInputState.End then
-            local isAnyMovementKeyDown =
-                UserInputService:IsKeyDown(Enum.KeyCode.W) or
-                UserInputService:IsKeyDown(Enum.KeyCode.A) or
-                UserInputService:IsKeyDown(Enum.KeyCode.S) or
-                UserInputService:IsKeyDown(Enum.KeyCode.D)
-
             if not isAnyMovementKeyDown then
                 if State.movement.isSwimming then
                     StopAnimation("LOCOMOTION", "SWIM")
@@ -1363,14 +1511,21 @@ local function ExecuteMovement(actionName, inputState, inputObject)
                 else
                     State.movement.isWalking = false
                     State.movement.isRunning = false
-                    StopAnimation("LOCOMOTION", "WALK")
-                    StopAnimation("LOCOMOTION", "SPRINT")
-                    StopAnimation("LOCOMOTION", "CROUCH_WALK")
+
                     if State.movement.isCrouching then
-                        PlayAnimation("LOCOMOTION", "CROUCH_IDLE")
+                        if Animations["LOCOMOTION_CROUCH_WALK"] and Animations["LOCOMOTION_CROUCH_WALK"].IsPlaying then
+                            FadeAnimation("LOCOMOTION", "CROUCH_WALK", "LOCOMOTION", "CROUCH_IDLE", 0.2)
+                        end
                     else
-                        PlayAnimation("LOCOMOTION", "IDLE")
+                        if Animations["LOCOMOTION_WALK"] and Animations["LOCOMOTION_WALK"].IsPlaying then
+                            FadeAnimation("LOCOMOTION", "WALK", "LOCOMOTION", "IDLE", 0.2)
+                        elseif Animations["LOCOMOTION_SPRINT"] and Animations["LOCOMOTION_SPRINT"].IsPlaying then
+                            FadeAnimation("LOCOMOTION", "SPRINT", "LOCOMOTION", "IDLE", 0.2)
+                        else
+                            PlayAnimation("LOCOMOTION", "IDLE", 0.2)
+                        end
                     end
+
                     Services.Event:FireServer("Client.Movement.Execute", { type = "idle", enabled = true })
                 end
             end
@@ -1402,8 +1557,11 @@ local function ExecuteMovement(actionName, inputState, inputObject)
                 local data = handler()
                 if data then
                     data.ability = actionName:lower()
-                    data.remaining = DEBOUNCE_TIMES[actionName:lower()]
-                    data.duration = DEBOUNCE_TIMES[actionName:lower()]
+                    local stateTemplate = Modules.State.Templates[actionName:upper()]
+                    if stateTemplate then
+                        data.remaining = stateTemplate.duration
+                        data.duration = stateTemplate.duration
+                    end
                     Services.Event:FireServer("Client.Movement.Execute", data)
                 end
             end
@@ -1482,7 +1640,7 @@ local function TrackVelocity()
                     1
                 )
 
-                if impactStrength > 0.3 then
+                if impactStrength > 0.3 and CanMove() then
                     local data = {
                         type = "land",
                         impact = impactStrength - 0.3
@@ -1494,7 +1652,7 @@ local function TrackVelocity()
                     else
                         PlayAnimation("LANDING", "SMALL")
                     end
-                elseif impactStrength > 0.1 then
+                elseif impactStrength > 0.1 and CanMove() then
                     PlayAnimation("LANDING", "SMALL")
                 end
 
@@ -1549,21 +1707,23 @@ local function SetupKeybindings()
     )
 
     for _, binding in ipairs(CONTROL_BINDINGS) do
-        if binding.gamepadKey then
-            ContextActionService:BindAction(
-                binding.action,
-                ExecuteMovement,
-                false,
-                binding.key,
-                binding.gamepadKey
-            )
-        else
-            ContextActionService:BindAction(
-                binding.action,
-                ExecuteMovement,
-                false,
-                binding.key
-            )
+        if binding.action ~= "Hang" then
+            if binding.gamepadKey then
+                ContextActionService:BindAction(
+                    binding.action,
+                    ExecuteMovement,
+                    false,
+                    binding.key,
+                    binding.gamepadKey
+                )
+            else
+                ContextActionService:BindAction(
+                    binding.action,
+                    ExecuteMovement,
+                    false,
+                    binding.key
+                )
+            end
         end
     end
 end
@@ -1574,11 +1734,125 @@ local function CleanupKeybindings()
     end
 end
 
+--[[ Direction Functions ]]
+local function TrackDirection()
+    local function UpdateDirection()
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            State.movement.currentDirection = "backward"
+        elseif UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            State.movement.currentDirection = "left"
+        elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            State.movement.currentDirection = "right"
+        else
+            State.movement.currentDirection = "forward"
+        end
+    end
+
+    UserInputService.InputBegan:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.W or
+           input.KeyCode == Enum.KeyCode.A or
+           input.KeyCode == Enum.KeyCode.S or
+           input.KeyCode == Enum.KeyCode.D then
+            UpdateDirection()
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.KeyCode == Enum.KeyCode.W or
+           input.KeyCode == Enum.KeyCode.A or
+           input.KeyCode == Enum.KeyCode.S or
+           input.KeyCode == Enum.KeyCode.D then
+            UpdateDirection()
+        end
+    end)
+end
+
+--[[ Footstep Functions ]]
+local function GetFloor()
+    if not Character then return "Air" end
+
+    local humanoid = Character:FindFirstChild("Humanoid")
+    if not humanoid then return "Air" end
+
+    local floorMaterial = humanoid.FloorMaterial
+    if not floorMaterial then return "Air" end
+
+    return tostring(floorMaterial):gsub("Enum.Material.", "")
+end
+
+local function PlayFootstep(material: string, speedMultiplier: number)
+    if os.clock() - State.footsteps.lastFootstepTime < 0.2 then return end
+
+    if State.footsteps.currentSound then
+        State.footsteps.currentSound:Stop()
+        State.footsteps.currentSound = nil
+    end
+
+    State.footsteps.currentSound = Utility.Sound.Play("SFX.Footsteps." .. material, Character)
+    if State.footsteps.currentSound then
+        State.footsteps.currentSound.PlaybackSpeed = math.clamp(speedMultiplier, 0.8, 1.5)
+    end
+
+    State.footsteps.lastFootstepTime = os.clock()
+    State.footsteps.lastMaterial = material
+end
+
+local function UpdateFootsteps()
+    if not Character then return end
+
+    local humanoid = Character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+
+    local shouldPlayFootsteps = humanoid.MoveDirection.Magnitude > 0
+        and (humanoid:GetState() == Enum.HumanoidStateType.Running or State.movement.isCrouching)
+        and not State.movement.isSliding
+        and not State.movement.isRolling
+        and not State.movement.isDashing
+        and not State.movement.isSwimming
+        and not State.movement.isRagdoll
+
+    if shouldPlayFootsteps then
+        local material = GetFloor()
+        local speedMultiplier = 0.2
+        if State.movement.isRunning then
+            speedMultiplier = 1.0
+        elseif State.movement.isCrouching then
+            speedMultiplier = 0.05
+            if not State.movement.isWalking then
+                return
+            end
+        end
+
+        local currentTime = os.clock()
+        local stepInterval = 0.3 / speedMultiplier
+        if currentTime - State.footsteps.lastFootstepTime >= stepInterval then
+            PlayFootstep(material, speedMultiplier)
+        end
+    else
+        if State.footsteps.currentSound then
+            State.footsteps.currentSound:Stop()
+            State.footsteps.currentSound = nil
+        end
+        State.footsteps.lastMaterial = nil
+    end
+end
+
 --[[ Events ]]
 local Events = {
     ["Character.Added"] = {
         handler = function(newCharacter)
             Character = newCharacter
+
+            CancelRagdoll(Character)
+            Character:SetAttribute("RAGDOLL", false)
+
+            local humanoidRootPart = Character:WaitForChild("HumanoidRootPart")
+            if humanoidRootPart then
+                local runningSound = humanoidRootPart:WaitForChild("Running")
+                if runningSound then
+                    runningSound.Volume = 0
+                end
+            end
 
             for key, _ in pairs(State.movement) do
                 if type(State.movement[key]) == "boolean" then
@@ -1594,6 +1868,11 @@ local Events = {
                     track:Stop()
                 end
             end
+
+            State.movement.canHang = true
+            State.movement.canLedge = true
+            State.movement.isHanging = false
+            State.movement.lastHangTime = 0
 
             Humanoid = Character:WaitForChild("Humanoid")
             Animator = Humanoid:WaitForChild("Animator")
@@ -1956,16 +2235,11 @@ local Events = {
                 return
             end
 
-            local movementTypes = {
-                roll = DEBOUNCE_TIMES.roll,
-                slide = DEBOUNCE_TIMES.slide,
-                dash = DEBOUNCE_TIMES.dash
-            }
-
-            local duration = movementTypes[response.type]
-            if duration then
-                task.delay(duration, function()
-                    local cleanup = MOVEMENT_CLEANUP[response.type == "dash" and "Dash" or response.type:sub(1,1):upper() .. response.type:sub(2)]
+            local stateTemplate = Modules.State.Templates[response.type:upper()]
+            if stateTemplate and stateTemplate.duration then
+                task.delay(stateTemplate.duration, function()
+                    local cleanupKey = response.type:sub(1,1):upper() .. response.type:sub(2)
+                    local cleanup = MOVEMENT_CLEANUP[cleanupKey]
                     if cleanup then
                         cleanup()
                     end
@@ -1989,6 +2263,7 @@ local Events = {
 local function Initialize()
     InitializeAnimations()
     TrackVelocity()
+    TrackDirection()
 
     if CURSOR_CONFIG.ENABLED and CURSOR_CONFIG.OVERRIDE_DEFAULT then
         local mouse = LocalPlayer:GetMouse()
@@ -2001,24 +2276,51 @@ local function Initialize()
         local humanoid = Character:FindFirstChild("Humanoid")
         if not humanoid then return end
 
+        UpdateFootsteps()
+
+        if CanMove() and not State.movement.isHanging then
+            if DetectHang() and State.movement.canHang and State.movement.canLedge then
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                    local data = StartHang()
+                    if data then
+                        Services.Event:FireServer("Client.Movement.Execute", data)
+                    end
+                end
+            end
+        end
+
+        if State.movement.isHanging then
+            if not UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+                FinishHang()
+                Services.Event:FireServer("Client.Movement.Execute", { type = "hang", enabled = false })
+            end
+        end
+
         if CanMove() and (State.movement.isWalking or State.movement.isRunning) then
             if DetectVault() then
-                local data = MOVEMENT_HANDLERS.Vault()
-                if data then
-                    Services.Event:FireServer("Client.Movement.Execute", data)
+                local vaultTemplate = Modules.State.Templates.VAULT
+                local lastVaultTime = State.movement.lastVaultTime or 0
+                local currentTime = os.clock()
+
+                if currentTime - lastVaultTime >= (vaultTemplate.cooldown or 0) then
+                    local data = MOVEMENT_HANDLERS.Vault()
+                    if data then
+                        State.movement.lastVaultTime = currentTime
+                        Services.Event:FireServer("Client.Movement.Execute", data)
+                    end
                 end
             end
         end
 
         if CanMove() then
             if DetectWall() then
-                local data = MOVEMENT_HANDLERS.Climb()
-                if data and data.direction ~= "none" then
+                local data = MOVEMENT_HANDLERS.WallClimb()
+                if data then
                     Services.Event:FireServer("Client.Movement.Execute", data)
                 end
             else
-                if State.movement.isClimbing then
-                    State.movement.isClimbing = false
+                if State.movement.isWallClimbing then
+                    State.movement.isWallClimbing = false
                     StopAnimation("WALL", "HOLD")
                     PlayAnimation("LOCOMOTION", "IDLE")
                 end
@@ -2040,6 +2342,8 @@ local function Initialize()
     end
 
     SetupKeybindings()
+
+    return true
 end
 
 Initialize()

@@ -1,7 +1,7 @@
 --[[ StatModule
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-04-02
+    @version 1.0.3
+    @date 2025-04-03
 ]]
 local StatModule = {}
 
@@ -195,14 +195,14 @@ StatModule.Constants = {
         -- Rolling
         AIR_DASH_SPEED = 40,
         ROLL_SMOOTH_TIME = 0.1,
-        ROLL_DURATION_Z = 0.7,
-        ROLL_SPEED_Z = 25,
-        ROLL_FRICTION_Z = 0.75,
-        ROLL_COOLDOWN_Z = 0.4,
-        ROLL_DURATION_X = 0.7,
-        ROLL_SPEED_X = 25,
-        ROLL_FRICTION_X = 1,
-        ROLL_COOLDOWN_X = 0.4,
+        ROLL_DURATION_Z = 0.4,
+        ROLL_SPEED_Z = 45,
+        ROLL_FRICTION_Z = 0.15,
+        ROLL_COOLDOWN_Z = 0.2,
+        ROLL_DURATION_X = 0.35,
+        ROLL_SPEED_X = 20,
+        ROLL_FRICTION_X = 0.15,
+        ROLL_COOLDOWN_X = 0.2,
         ROLL_CANCEL_SMOOTH_TIME = 0.25,
         ROLL_CANCEL_DURATION = 0.25,
 

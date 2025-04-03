@@ -28,6 +28,11 @@ MovementService.Events = {
     Camera = true
 }
 
+--[[ State ]]
+local state = {
+    players = {} :: {[Player]: MovementState}
+}
+
 MovementService.Listeners = {
     ["State.Enter"] = function(self, data)
         if not data or not data.entity or not data.state then return end
@@ -43,10 +48,24 @@ MovementService.Listeners = {
     ["State.Exit"] = function(self, data)
         if not data or not data.entity or not data.state then return end
 
-        local stateTemplate = Modules.State.Templates[data.state]
-        if not stateTemplate then return end
+        local player = game.Players:GetPlayerFromCharacter(data.entity)
+        if not player then return end
 
-        self:RemoveModifier(data.entity, data.state)
+        local playerState = state.players[player]
+        if not playerState then return end
+
+        if playerState.cleanups and playerState.cleanups[data.state] then
+            local cleanupFunc = playerState.cleanups[data.state]
+            if type(cleanupFunc) == "function" then
+                task.spawn(cleanupFunc)
+            end
+            playerState.cleanups[data.state] = nil
+        end
+
+        local stateTemplate = Modules.State.Templates[data.state]
+        if stateTemplate and stateTemplate.metadata and stateTemplate.metadata.speedModifier then
+            self:RemoveModifier(player, data.state)
+        end
     end
 }
 
@@ -67,12 +86,8 @@ type MovementState = {
     canJump: boolean,
     lastUpdate: number,
     baseSpeed: number?,
-    modifiers: {[string]: Modifier}
-}
-
---[[ State ]]
-local state = {
-    players = {} :: {[Player]: MovementState}
+    modifiers: {[string]: Modifier},
+    cleanups: {[string]: () -> ()}?
 }
 
 --[[ Core Functions ]]
@@ -152,7 +167,8 @@ function MovementService:InitializeMovement(player: Player)
         canJump = true,
         lastUpdate = 0,
         baseSpeed = nil,
-        modifiers = {}
+        modifiers = {},
+        cleanups = {}
     }
 end
 
@@ -171,6 +187,17 @@ function MovementService:ExecuteMovement(movementType: string, player: Player, d
     if not rootPart then return false, "No primary part found" end
 
     if movementType:upper() == "MOVE" then
+        local currentStates = Services.State:GetStates(character)
+        for stateName, _ in pairs(currentStates) do
+            local currentTemplate = Modules.State.Templates[stateName]
+            if currentTemplate and currentTemplate.exclusive then
+                if not currentTemplate.transitions or currentTemplate.transitions.MOVE ~= true then
+                   humanoid:Move(Vector3.zero)
+                   return false, "Cannot MOVE while in exclusive state: " .. stateName
+                end
+            end
+        end
+
         if data and data.direction then
             humanoid:Move(data.direction, true)
             return true, "Movement executed successfully"
@@ -182,17 +209,21 @@ function MovementService:ExecuteMovement(movementType: string, player: Player, d
     local stateTemplate = Modules.State.Templates[stateType]
     if not stateTemplate then return false, "Invalid movement type" end
 
+    local currentStates = Services.State:GetStates(character)
+    for stateName, _ in pairs(currentStates) do
+        local currentTemplate = Modules.State.Templates[stateName]
+        if currentTemplate and currentTemplate.exclusive then
+            if not currentTemplate.transitions or currentTemplate.transitions[stateType] ~= true then
+               return false, "Cannot transition to " .. stateType .. " from exclusive state: " .. stateName
+            end
+        end
+    end
+
     local handlerName = movementType:sub(1,1):upper() .. movementType:sub(2):lower()
     local handler = Modules.Movement.Handlers[handlerName]
     if not handler then return false, "No handler found for movement type: " .. handlerName end
 
     local metadata = data or {}
-    metadata.cleanup = function()
-        if self.activeMovement and self.activeMovement.cleanup then
-            self.activeMovement.cleanup()
-            self.activeMovement = nil
-        end
-    end
 
     local success = Services.State:EnterState(character, stateType, {
         category = "MOVEMENT",
@@ -206,7 +237,14 @@ function MovementService:ExecuteMovement(movementType: string, player: Player, d
         return false, "Failed to enter movement state"
     end
 
-    self.activeMovement = handler:Execute(character, data)
+    local executionResult = handler:Execute(character, data)
+    if executionResult and executionResult.cleanup then
+        local playerState = state.players[player]
+        if playerState then
+            if not playerState.cleanups then playerState.cleanups = {} end
+            playerState.cleanups[stateType] = executionResult.cleanup
+        end
+    end
 
     if stateTemplate.metadata and stateTemplate.metadata.speedModifier then
         self:SetSpeed(player)
@@ -322,6 +360,14 @@ end
 function MovementService:CleanupPlayer(player: Player)
     local playerState = state.players[player]
     if not playerState then return end
+
+    if playerState.cleanups then
+        for stateName, cleanupFunc in pairs(playerState.cleanups) do
+             if type(cleanupFunc) == "function" then
+                task.spawn(cleanupFunc)
+            end
+        end
+    end
 
     for _, modifier in pairs(playerState.modifiers) do
         if modifier.cleanupTask then

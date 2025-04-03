@@ -1,5 +1,13 @@
+--[[ Input
+    @author @Daystopia
+    @version 1.0.2
+    @date 2025-04-03
+]]
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local DataService = require(ReplicatedStorage.Services.Network.DataService)
 
 local Input = {}
 
@@ -38,48 +46,17 @@ export type InputConfig = {
     ignoreProcessed: boolean?
 }
 
-export type CameraConfig = {
-    camera: Camera,
-    sensitivity: {
-        x: number?,
-        y: number?,
-        aim: number?,
-        normal: number?
-    }?,
-    limits: {
-        minY: number?,
-        maxY: number?,
-        minX: number?,
-        maxX: number?
-    }?,
-    smoothing: {
-        enabled: boolean?,
-        speed: number?
-    }?,
-    shake: {
-        trauma: number?,
-        decay: number?,
-        frequency: number?,
-        amplitude: number?
-    }?,
-    recoil: {
-        pattern: {Vector2}?,
-        index: number?,
-        strength: number?,
-        recovery: number?,
-        smoothing: number?
-    }?
-}
-
---[[ State ]]
+--[[ State Variables ]]
 local activeInputs = {}
 local currentAxes = {}
 local lastAxisValues = {}
 local inputConnections = {}
 local clientConfigs = {}
+local keybinds = {}
+local defaultKeybinds = {}
 
---[[ Helper Functions ]]
-local function isInputActive(action: InputAction): boolean
+--[[ Action/Axis Functions ]]
+function Input.CheckActive(action: InputAction): boolean
     if not action or not action.keys then
         return false
     end
@@ -94,7 +71,7 @@ local function isInputActive(action: InputAction): boolean
     return false
 end
 
-local function canTriggerAction(action: InputAction): boolean
+function Input.ValidateAction(action: InputAction): boolean
     if action.condition and not action.condition() then
         return false
     end
@@ -110,7 +87,42 @@ local function canTriggerAction(action: InputAction): boolean
     return true
 end
 
-local function updateAxis(axis: InputAxis)
+function Input.CreateAction(name: string, keys: {any}, callback: (boolean) -> (), options: {[string]: any}?): InputAction
+    options = options or {}
+
+    if not keybinds[name] then
+        keybinds[name] = table.clone(keys)
+    end
+
+    local actionKeys = keybinds[name] or keys
+
+    return {
+        name = name,
+        keys = actionKeys,
+        callback = callback,
+        condition = options.condition,
+        throttle = options.throttle,
+        lastTrigger = nil,
+        requiresProcessed = options.requiresProcessed,
+        requiresGameFocus = options.requiresGameFocus
+    }
+end
+
+function Input.CreateAxis(name: string, keys: {[any]: number}, callback: (number) -> (), options: {[string]: any}?): InputAxis
+    options = options or {}
+
+    return {
+        name = name,
+        keys = keys,
+        callback = callback,
+        deadzone = options.deadzone,
+        condition = options.condition,
+        smooth = options.smooth,
+        smoothValue = options.smoothValue
+    }
+end
+
+function Input.UpdateAxis(axis: InputAxis)
     local value = 0
     for input, scale in pairs(axis.keys) do
         if activeInputs[input] then
@@ -132,7 +144,7 @@ local function updateAxis(axis: InputAxis)
     axis.callback(value)
 end
 
---[[ Core Functions ]]
+--[[ Input Management ]]
 function Input.HandleInput(config: InputConfig)
     if not config.id then
         config.id = "default"
@@ -143,6 +155,7 @@ function Input.HandleInput(config: InputConfig)
             connection:Disconnect()
         end
     end
+
     inputConnections[config.id] = {}
     clientConfigs[config.id] = config
 
@@ -170,7 +183,7 @@ function Input.HandleInput(config: InputConfig)
         if config.actions then
             for _, action in ipairs(config.actions) do
                 if (not action.requiresProcessed or not gameProcessed) and
-                   isInputActive(action) and canTriggerAction(action) then
+                   Input.CheckActive(action) and Input.ValidateAction(action) then
                     action.callback(true)
                 end
             end
@@ -188,7 +201,7 @@ function Input.HandleInput(config: InputConfig)
 
         if config.actions then
             for _, action in ipairs(config.actions) do
-                if isInputActive(action) and canTriggerAction(action) then
+                if Input.CheckActive(action) and Input.ValidateAction(action) then
                     action.callback(false)
                 end
             end
@@ -199,7 +212,7 @@ function Input.HandleInput(config: InputConfig)
         if config.axes then
             for _, axis in ipairs(config.axes) do
                 if not axis.condition or axis.condition() then
-                    updateAxis(axis)
+                    Input.UpdateAxis(axis)
                 end
             end
         end
@@ -218,87 +231,181 @@ function Input.HandleInput(config: InputConfig)
             end
             inputConnections[config.id] = nil
             clientConfigs[config.id] = nil
+        end,
+
+        GetActiveInputs = function()
+            return activeInputs
+        end,
+
+        GetCurrentAxis = function(axisName)
+            return currentAxes[axisName]
         end
     }
 end
 
---[[ Camera Control ]]
-function Input.CreateCameraController(config: CameraConfig)
-    local camera = config.camera
-    local currentRotation = Vector2.new()
-    local targetRotation = Vector2.new()
-    local currentShakeOffset = Vector3.new()
-    local trauma = 0
-
-    local function updateCamera(deltaTime: number)
-        if config.smoothing and config.smoothing.enabled then
-            currentRotation = currentRotation:Lerp(
-                targetRotation,
-                (config.smoothing.speed or 0.2) * deltaTime
-            )
-        else
-            currentRotation = targetRotation
-        end
-
-        if config.limits then
-            currentRotation = Vector2.new(
-                math.clamp(currentRotation.X, config.limits.minX or -math.huge, config.limits.maxX or math.huge),
-                math.clamp(currentRotation.Y, config.limits.minY or -math.huge, config.limits.maxY or math.huge)
-            )
-        end
-
-        local cf = CFrame.new(camera.CFrame.Position) *
-            CFrame.Angles(
-                math.rad(currentRotation.Y),
-                math.rad(currentRotation.X),
-                0
-            )
-
-        if config.shake and trauma > 0 then
-            trauma = math.max(0, trauma - (config.shake.decay or 1) * deltaTime)
-
-            local shake = trauma * trauma
-            local freq = config.shake.frequency or 1
-            local amp = config.shake.amplitude or 1
-            local time = os.clock()
-
-            currentShakeOffset = Vector3.new(
-                math.noise(time * freq) * shake * amp,
-                math.noise(time * freq + 100) * shake * amp,
-                0
-            )
-
-            cf *= CFrame.new(currentShakeOffset)
-        end
-
-        camera.CFrame = cf
-    end
-
-    local connection = RunService.RenderStepped:Connect(updateCamera)
-
-    return {
-        AddRotation = function(delta: Vector2)
-            local sens = config.sensitivity or {}
-            targetRotation += Vector2.new(
-                delta.X * (sens.x or 1),
-                delta.Y * (sens.y or 1)
-            )
-        end,
-
-        SetRotation = function(rotation: Vector2)
-            targetRotation = rotation
-        end,
-
-        AddTrauma = function(amount: number)
-            if config.shake then
-                trauma = math.min(1, trauma + amount)
-            end
-        end,
-
-        Cleanup = function()
+function Input.CleanupAllInputs()
+    for id, connections in pairs(inputConnections) do
+        for _, connection in pairs(connections) do
             connection:Disconnect()
         end
-    }
+        inputConnections[id] = nil
+        clientConfigs[id] = nil
+    end
+
+    table.clear(activeInputs)
+    table.clear(currentAxes)
+    table.clear(lastAxisValues)
+end
+
+--[[ Keybind Management ]]
+function Input.ImportKeybinds(actionKeybinds: {[string]: {Enum.KeyCode | Enum.UserInputType}})
+    for action, keys in pairs(actionKeybinds) do
+        if not defaultKeybinds[action] then
+            defaultKeybinds[action] = table.clone(keys)
+        end
+        keybinds[action] = table.clone(keys)
+    end
+end
+
+function Input.SetKeybind(action: string, keys: {Enum.KeyCode | Enum.UserInputType})
+    keybinds[action] = table.clone(keys)
+
+    if not Input.CheckDefault(action) then
+        Input.SaveKeybinds()
+    end
+
+    for _, config in pairs(clientConfigs) do
+        if config.actions then
+            for _, actionObj in ipairs(config.actions) do
+                if actionObj.name == action then
+                    actionObj.keys = keys
+                end
+            end
+        end
+    end
+
+    return true
+end
+
+function Input.GetKeybind(action: string): {Enum.KeyCode | Enum.UserInputType}?
+    return keybinds[action]
+end
+
+function Input.GetAllKeybinds(): {[string]: {Enum.KeyCode | Enum.UserInputType}}
+    return table.clone(keybinds)
+end
+
+function Input.ResetKeybind(action: string): boolean
+    local default = defaultKeybinds[action]
+    if default then
+        Input.SetKeybind(action, default)
+        Input.SaveKeybinds()
+        return true
+    end
+    return false
+end
+
+function Input.ResetAllKeybinds()
+    keybinds = table.clone(defaultKeybinds)
+    Input.SaveKeybinds()
+
+    for _, config in pairs(clientConfigs) do
+        if config.actions then
+            for _, action in ipairs(config.actions) do
+                local default = defaultKeybinds[action.name]
+                if default then
+                    action.keys = default
+                end
+            end
+        end
+    end
+end
+
+function Input.CheckDefault(action: string): boolean
+    local current = keybinds[action]
+    local default = defaultKeybinds[action]
+
+    if not current or not default then return true end
+    if #current ~= #default then return false end
+
+    for i, key in ipairs(current) do
+        if key ~= default[i] then
+            return false
+        end
+    end
+
+    return true
+end
+
+--[[ Keybind Functions ]]
+function Input.SerializeKeybinds(): {[string]: {string}}
+    local serialized = {}
+
+    for action, keys in pairs(keybinds) do
+        if not Input.CheckDefault(action) then
+            serialized[action] = {}
+            for i, key in ipairs(keys) do
+                if typeof(key) == "EnumItem" then
+                    if key.EnumType == Enum.KeyCode then
+                        table.insert(serialized[action], "KeyCode:" .. key.Name)
+                    elseif key.EnumType == Enum.UserInputType then
+                        table.insert(serialized[action], "UserInputType:" .. key.Name)
+                    end
+                end
+            end
+        end
+    end
+
+    return serialized
+end
+
+function Input.DeserializeKeybinds(data: {[string]: {string}})
+    if not data then return end
+
+    for action, serializedKeys in pairs(data) do
+        local keys = {}
+        for _, serialized in ipairs(serializedKeys) do
+            local enumType, enumName = string.match(serialized, "(.+):(.+)")
+            if enumType == "KeyCode" then
+                local keyCode = Enum.KeyCode[enumName]
+                if keyCode then
+                    table.insert(keys, keyCode)
+                end
+            elseif enumType == "UserInputType" then
+                local inputType = Enum.UserInputType[enumName]
+                if inputType then
+                    table.insert(keys, inputType)
+                end
+            end
+        end
+
+        if #keys > 0 then
+            Input.SetKeybind(action, keys)
+        end
+    end
+end
+
+function Input.SaveKeybinds()
+    local player = game.Players.LocalPlayer
+    if not player then return end
+
+    local serialized = Input.SerializeKeybinds()
+    local playerData = DataService:GetData(tostring(player.UserId), "PlayerData")
+
+    if playerData and playerData.settings then
+        playerData.settings.keybinds = serialized
+        DataService:SetData(tostring(player.UserId), playerData, "PlayerData")
+    end
+end
+
+function Input.LoadKeybinds()
+    local player = game.Players.LocalPlayer
+    if not player then return end
+
+    local playerData = DataService:GetData(tostring(player.UserId), "PlayerData")
+    if playerData and playerData.settings and playerData.settings.keybinds then
+        Input.DeserializeKeybinds(playerData.settings.keybinds)
+    end
 end
 
 return Input

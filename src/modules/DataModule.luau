@@ -48,6 +48,9 @@ DataModule.Templates = {
             level = 1,
             experience = 0
         },
+        settings = {
+            keybinds = {}
+        },
         checkpoint = {
             type = nil,
             position = nil,

@@ -40,7 +40,7 @@ StateModule.Templates = {
         exclusive = true,
         cooldown = 0.2,
         transitions = {
-            ROLL = false,
+            ROLL = true,
             ATTACK = false,
             PARRY = true
         }
@@ -140,7 +140,7 @@ StateModule.Templates = {
         category = "MOVEMENT",
         displayName = "Walking",
         description = "Moving at normal speed",
-        exclusive = true,
+        exclusive = false,
         transitions = {
             RUN = true,
             BLOCK = true,
@@ -157,7 +157,7 @@ StateModule.Templates = {
         category = "MOVEMENT",
         displayName = "Idle",
         description = "Standing still",
-        exclusive = true,
+        exclusive = false,
         transitions = {
             WALK = true,
             RUN = true,
@@ -180,7 +180,8 @@ StateModule.Templates = {
             BLOCK = true,
             ROLL = true,
             SLIDE = true,
-            DASH = true
+            DASH = true,
+            VAULT = true
         }
     },
 
@@ -198,25 +199,25 @@ StateModule.Templates = {
         }
     },
 
-    WALL_RUN = {
+    WALLRUN = {
         category = "MOVEMENT",
         displayName = "Wall Running",
         description = "Running along a wall",
         exclusive = true,
         transitions = {
-            WALL_CLIMB = true,
+            WALLCLIMB = true,
             JUMP = true,
             HANG = true
         }
     },
 
-    WALL_CLIMB = {
+    WALLCLIMB = {
         category = "MOVEMENT",
         displayName = "Wall Climbing",
         description = "Climbing a wall",
         exclusive = true,
         transitions = {
-            WALL_RUN = true,
+            WALLRUN = true,
             HANG = true
         }
     },
@@ -227,8 +228,10 @@ StateModule.Templates = {
         description = "Hanging from a ledge",
         exclusive = true,
         transitions = {
-            WALL_CLIMB = true,
-            JUMP = true
+            WALLCLIMB = true,
+            JUMP = true,
+            HANG = true,
+            MOVE = true
         }
     },
 
@@ -236,12 +239,14 @@ StateModule.Templates = {
         category = "MOVEMENT",
         displayName = "Jumping",
         description = "In mid-air jump",
-        exclusive = true,
+        exclusive = false,
         duration = 0.5,
         transitions = {
-            WALL_RUN = true,
+            WALLRUN = true,
             HANG = true,
-            ROLL = true
+            ROLL = true,
+            DASH = true,
+            LAND = true
         }
     },
 
@@ -250,14 +255,17 @@ StateModule.Templates = {
         displayName = "Landing",
         description = "Landing from a jump or fall",
         exclusive = true,
-        duration = 0.5,
+        duration = 0.15,
         cooldown = 0.1,
         transitions = {
             WALK = true,
             RUN = true,
             ROLL = true,
             CROUCH = true,
-            IDLE = true
+            IDLE = true,
+            JUMP = true,
+            VAULT = true,
+            MOVE = true
         }
     },
 
@@ -280,9 +288,11 @@ StateModule.Templates = {
         duration = 0.3,
         cooldown = 0.2,
         transitions = {
-            RUN = true,
+            WALK = false,
+            RUN = false,
             ROLL = true,
-            SLIDE = true
+            JUMP = true,
+            MOVE = false
         }
     },
 
@@ -294,10 +304,8 @@ StateModule.Templates = {
         duration = 0.5,
         cooldown = 0.2,
         transitions = {
-            RUN = true,
             ROLL = true,
             IDLE = true,
-            WALK = true,
             LAND = true
         }
     },
@@ -310,7 +318,11 @@ StateModule.Templates = {
         transitions = {
             SLIDE = true,
             ROLL = true,
-            RUN = true
+            RUN = true,
+            WALK = true,
+            IDLE = true,
+            JUMP = true,
+            MOVE = true
         }
     },
 
@@ -431,7 +443,7 @@ StateModule.Templates = {
         category = "STANCE",
         displayName = "Normal Stance",
         description = "Default combat stance",
-        exclusive = true,
+        exclusive = false,
         transitions = {
             STANCE_DEFENSIVE = true,
             STANCE_AGGRESSIVE = true
@@ -446,7 +458,7 @@ StateModule.Templates = {
         category = "STANCE",
         displayName = "Defensive Stance",
         description = "Defense-focused stance",
-        exclusive = true,
+        exclusive = false,
         transitions = {
             STANCE_NORMAL = true,
             STANCE_AGGRESSIVE = true
@@ -465,7 +477,7 @@ StateModule.Templates = {
         category = "STANCE",
         displayName = "Aggressive Stance",
         description = "Attack-focused stance",
-        exclusive = true,
+        exclusive = false,
         transitions = {
             STANCE_NORMAL = true,
             STANCE_DEFENSIVE = true

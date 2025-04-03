@@ -73,13 +73,15 @@ CombatModule.Constants = {
             damage_reduction = 0.8,
             stamina_cost = 5,
             posture_damage = 10,
-            angle = 180
+            angle = 180,
+            cooldown = 0.2
         },
         PARRY = {
             window = 0.2,
             recovery = 0.5,
             posture_damage = 30,
-            stamina_restore = 20
+            stamina_restore = 20,
+            cooldown = 0.2
         }
     },
 

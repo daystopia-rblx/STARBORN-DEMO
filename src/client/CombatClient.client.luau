@@ -21,7 +21,8 @@ local Utility = {
     Sound = require(script.Parent.Utility.Sound),
     Controller = require(script.Parent.Utility.Controller),
     Animation = require(script.Parent.Utility.Animation),
-    Particle = require(script.Parent.Utility.Particle)
+    Particle = require(script.Parent.Utility.Particle),
+    Input = require(script.Parent.Utility.Input)
 }
 
 --[[ Variables ]]
@@ -30,19 +31,6 @@ local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local Animator = Humanoid:WaitForChild("Animator")
 local Animations = {}
-
---[[ Constants ]]
-local CONTROL_BINDINGS = {
-    {action = "LightAttack", key = Enum.UserInputType.MouseButton1, description = "Light Attack"},
-    {action = "CancelAction", key = Enum.UserInputType.MouseButton2, description = "Cancel Action"},
-    {action = "CriticalAttack", key = Enum.UserInputType.MouseButton3, description = "Critical Attack"},
-    {action = "CriticalAttackAlt", key = Enum.KeyCode.R, description = "Critical Attack (Alternative)"},
-    {action = "Parry", key = Enum.KeyCode.F, description = "Parry"},
-    {action = "Block", key = Enum.KeyCode.F, description = "Block", holdAction = true},
-    {action = "Execute", key = Enum.KeyCode.B, description = "Execute KO'ed Enemy"},
-    {action = "Carry", key = Enum.KeyCode.V, description = "Carry KO'ed Enemy"},
-    {action = "SwitchStance", key = Enum.KeyCode.Y, description = "Switch Stance"}
-}
 
 --[[ State ]]
 local State = {
@@ -62,6 +50,9 @@ local State = {
         maxCombo = 3,
         target = nil,
         isStunned = false
+    },
+    input = {
+        connection = nil
     }
 }
 
@@ -279,92 +270,109 @@ local CombatHandlers = {
     end
 }
 
---[[ Combat Input Handling ]]
-local function ExecuteCombat(actionName, inputState, inputObject)
-    local humanoid = Character:FindFirstChild("Humanoid")
-    if not humanoid then return Enum.ContextActionResult.Pass end
-
-    if State.combat.isStunned then return Enum.ContextActionResult.Sink end
-
-    if actionName == "LightAttack" then
-        if inputState == Enum.UserInputState.Begin then
-            CombatHandlers.ATTACK({type = "LIGHT"})
-        end
-        return Enum.ContextActionResult.Sink
+--[[ Input Setup ]]
+local function SetupInput()
+    if State.input.connection then
+        State.input.connection.Disconnect()
+        State.input.connection = nil
     end
 
-    if actionName == "CancelAction" or actionName == "CriticalAttack" or actionName == "CriticalAttackAlt" then
-        if inputState == Enum.UserInputState.Begin then
-            if actionName == "CancelAction" then
-                CombatHandlers.FEINT({})
-            else
-                CombatHandlers.ATTACK({type = "CRITICAL"})
-            end
-        end
-        return Enum.ContextActionResult.Sink
+    local function notStunned()
+        return not State.combat.isStunned
     end
 
-    if actionName == "Parry" then
-        if inputState == Enum.UserInputState.Begin and not UserInputService:IsKeyDown(Enum.KeyCode.F) then
-            CombatHandlers.PARRY({})
-        end
-        return Enum.ContextActionResult.Sink
-    end
+    local combatActions = {
+        Utility.Input.CreateAction("LightAttack",
+            {Enum.UserInputType.MouseButton1},
+            function(state)
+                if state then CombatHandlers.ATTACK({type = "LIGHT"}) end
+            end, 
+            {condition = notStunned}
+        ),
 
-    if actionName == "Block" then
-        if inputState == Enum.UserInputState.Begin then
-            CombatHandlers.BLOCK({})
-        elseif inputState == Enum.UserInputState.End then
-            State.combat.isBlocking = false
-            local weaponType = State.combat.equippedWeapon or "GLOVES"
-            StopAnimation("WEAPONS", weaponType .. "_BLOCK_POSE")
-            Services.Event:FireServer("Client.Combat.Attack", {
-                type = "BLOCK",
-                enabled = false
-            })
-        end
-        return Enum.ContextActionResult.Sink
-    end
+        Utility.Input.CreateAction("CancelAction",
+            {Enum.UserInputType.MouseButton2},
+            function(state)
+                if state then CombatHandlers.FEINT({}) end
+            end, 
+            {condition = notStunned}
+        ),
 
-    if actionName == "Execute" then
-        if inputState == Enum.UserInputState.Begin then
-            CombatHandlers.EXECUTE({})
-        end
-        return Enum.ContextActionResult.Sink
-    end
+        Utility.Input.CreateAction("CriticalAttack",
+            {Enum.UserInputType.MouseButton3, Enum.KeyCode.R},
+            function(state)
+                if state then CombatHandlers.ATTACK({type = "CRITICAL"}) end
+            end, 
+            {condition = notStunned}
+        ),
 
-    if actionName == "Carry" then
-        if inputState == Enum.UserInputState.Begin then
-            CombatHandlers.CARRY({})
-        end
-        return Enum.ContextActionResult.Sink
-    end
+        Utility.Input.CreateAction("Parry",
+            {Enum.KeyCode.F},
+            function(state)
+                if state and not UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
+                    CombatHandlers.PARRY({})
+                end
+            end, 
+            {condition = notStunned, throttle = 0.1}
+        ),
 
-    if actionName == "SwitchStance" then
-        if inputState == Enum.UserInputState.Begin then
-            CombatHandlers.SWITCH_STANCE({})
-        end
-        return Enum.ContextActionResult.Sink
-    end
+        Utility.Input.CreateAction("Block",
+            {Enum.KeyCode.LeftShift},
+            function(state)
+                if state then
+                    CombatHandlers.BLOCK({})
+                else
+                    State.combat.isBlocking = false
+                    local weaponType = State.combat.equippedWeapon or "GLOVES"
+                    StopAnimation("WEAPONS", weaponType .. "_BLOCK_POSE")
+                    Services.Event:FireServer("Client.Combat.Attack", {
+                        type = "BLOCK",
+                        enabled = false
+                    })
+                end
+            end,
+            {condition = notStunned}
+        ),
 
-    return Enum.ContextActionResult.Pass
-end
+        Utility.Input.CreateAction("Execute",
+            {Enum.KeyCode.B},
+            function(state)
+                if state then CombatHandlers.EXECUTE({}) end
+            end, 
+            {condition = notStunned}
+        ),
 
-local function SetupKeybindings()
-    for _, binding in ipairs(CONTROL_BINDINGS) do
-        ContextActionService:BindAction(
-            binding.action,
-            ExecuteCombat,
-            false,
-            binding.key
+        Utility.Input.CreateAction("Carry",
+            {Enum.KeyCode.V},
+            function(state)
+                if state then CombatHandlers.CARRY({}) end
+            end, 
+            {condition = notStunned}
+        ),
+
+        Utility.Input.CreateAction("SwitchStance",
+            {Enum.KeyCode.Y}, 
+            function(state)
+                if state then CombatHandlers.SWITCH_STANCE({}) end
+            end, 
+            {condition = notStunned}
         )
-    end
-end
+    }
 
-local function CleanupKeybindings()
-    for _, binding in ipairs(CONTROL_BINDINGS) do
-        ContextActionService:UnbindAction(binding.action)
-    end
+    local inputConfig = {
+        id = "Combat",
+        actions = combatActions,
+        keyboardEnabled = true,
+        mouseEnabled = true,
+        gamepadEnabled = true,
+        touchEnabled = false,
+        ignoreProcessed = false,
+        requireGameFocus = true
+    }
+
+    State.input.connection = Utility.Input.HandleInput(inputConfig)
+
+    return State.input.connection
 end
 
 --[[ Events ]]
@@ -388,13 +396,16 @@ local Events = {
             Animations = {}
             InitializeAnimations()
 
-            SetupKeybindings()
+            SetupInput()
         end
     },
 
     ["Character.Removing"] = {
         handler = function()
-            CleanupKeybindings()
+            if State.input.connection then
+                State.input.connection.Disconnect()
+                State.input.connection = nil
+            end
         end
     },
 
@@ -520,7 +531,7 @@ local function Initialize()
         end
     end
 
-    SetupKeybindings()
+    SetupInput()
 end
 
 Initialize()

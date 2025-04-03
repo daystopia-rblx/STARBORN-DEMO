@@ -1,7 +1,7 @@
 --[[ MovementModule
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-04-02
+    @version 1.0.2
+    @date 2025-04-03
 ]]
 local MovementModule = {}
 
@@ -151,15 +151,8 @@ MovementModule.Handlers = {
                 return nil, "Invalid character"
             end
 
-            if enabled then
-                humanoid.WalkSpeed = 26
-            else
-                humanoid.WalkSpeed = 16
-            end
-
             return {
                 cleanup = function()
-                    humanoid.WalkSpeed = 16
                 end
             }
         end
@@ -176,11 +169,8 @@ MovementModule.Handlers = {
                 return nil, "Invalid character"
             end
 
-            humanoid.WalkSpeed = 16
-
             return {
                 cleanup = function()
-                    humanoid.WalkSpeed = 16
                 end
             }
         end
@@ -193,8 +183,23 @@ MovementModule.Handlers = {
                 return nil, "Invalid character"
             end
 
+            if humanoid then
+                humanoid:Move(Vector3.zero)
+                local rootPart = character.PrimaryPart
+                if rootPart then
+                    rootPart.AssemblyLinearVelocity = Vector3.zero
+                end
+            end
+
             return {
                 cleanup = function()
+                    if humanoid then
+                         humanoid:Move(Vector3.zero)
+                         local rootPart = character.PrimaryPart
+                         if rootPart then
+                             rootPart.AssemblyLinearVelocity = Vector3.zero
+                         end
+                    end
                 end
             }
         end
@@ -363,8 +368,17 @@ MovementModule.Handlers = {
         end
     },
     Crouch = {
-        Execute = function(self, character, data)
-            -- Crouch implementation
+        Execute = function(self, character: Model, data: {[string]: any}?)
+            local humanoid = character:FindFirstChild("Humanoid")
+            if not humanoid then return nil, "Missing humanoid" end
+
+            local enabled = data and data.enabled
+            if enabled == nil then return nil, "Missing enabled state" end
+
+            return {
+                cleanup = function()
+                end
+            }
         end
     },
     Slide = {
@@ -421,24 +435,9 @@ MovementModule.Handlers = {
             local rootPart = character.PrimaryPart
             if not humanoid or not rootPart then return end
 
-            humanoid.WalkSpeed = 0
-
-            local moveDirection = Vector3.zero
-            if data and data.direction then
-                if data.direction == "up" then
-                    moveDirection = Vector3.new(0, 1, 0)
-                elseif data.direction == "down" then
-                    moveDirection = Vector3.new(0, -1, 0)
-                elseif data.direction == "left" then
-                    moveDirection = -rootPart.CFrame.RightVector
-                elseif data.direction == "right" then
-                    moveDirection = rootPart.CFrame.RightVector
-                end
-            end
-
             local bodyVelocity = Instance.new("BodyVelocity")
             bodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000)
-            bodyVelocity.Velocity = moveDirection * 16
+            bodyVelocity.Velocity = Vector3.zero
             bodyVelocity.Parent = rootPart
             bodyVelocity.Name = "climb_force"
 
@@ -450,7 +449,75 @@ MovementModule.Handlers = {
                         bodyVelocity:Destroy()
                     end
                     humanoid.AutoRotate = true
-                    humanoid.WalkSpeed = 16
+                end
+            }
+        end
+    },
+    Hang = {
+        Execute = function(self, character: Model, data: {direction: string?})
+            local humanoid = character:FindFirstChild("Humanoid")
+            local rootPart = character.PrimaryPart
+            if not humanoid or not rootPart then return end
+
+            humanoid.AutoRotate = false
+
+            local bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+            bodyVelocity.Velocity = Vector3.zero
+            bodyVelocity.Parent = rootPart
+            bodyVelocity.Name = "hang_force"
+
+            if data and data.direction then
+                local moveSpeed = 4
+                local moveVector = Vector3.zero
+
+                if data.direction == "left" then
+                    moveVector = -rootPart.CFrame.RightVector
+                elseif data.direction == "right" then
+                    moveVector = rootPart.CFrame.RightVector
+                end
+
+                bodyVelocity.Velocity = moveVector * moveSpeed
+            end
+
+            return {
+                cleanup = function()
+                    if bodyVelocity and bodyVelocity.Parent then
+                        bodyVelocity:Destroy()
+                    end
+                    humanoid.AutoRotate = true
+                end
+            }
+        end
+    },
+    HangClimb = {
+        Execute = function(self, character: Model)
+            local humanoid = character:FindFirstChild("Humanoid")
+            local rootPart = character.PrimaryPart
+            if not humanoid or not rootPart then return end
+
+            humanoid.AutoRotate = true
+
+            local bodyVelocity = Instance.new("BodyVelocity")
+            bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
+            bodyVelocity.Velocity = rootPart.CFrame.LookVector * 10 + Vector3.new(0, 30, 0)
+            bodyVelocity.Parent = rootPart
+            bodyVelocity.Name = "hang_climb_force"
+
+            local cleanupTask = task.delay(0.75, function()
+                if bodyVelocity and bodyVelocity.Parent then
+                    bodyVelocity:Destroy()
+                end
+            end)
+
+            return {
+                cleanup = function()
+                    if cleanupTask then
+                        task.cancel(cleanupTask)
+                    end
+                    if bodyVelocity and bodyVelocity.Parent then
+                        bodyVelocity:Destroy()
+                    end
                 end
             }
         end
@@ -522,8 +589,6 @@ MovementModule.Handlers = {
                 character:SetAttribute("UNDERWATER", false)
             end
 
-            humanoid.WalkSpeed = 16
-            humanoid.JumpPower = 50
 
             return {
                 cleanup = function()
@@ -532,35 +597,8 @@ MovementModule.Handlers = {
                     end
                     if humanoid then
                         humanoid:ChangeState(Enum.HumanoidStateType.Running)
-                        humanoid.WalkSpeed = 16
-                        humanoid.JumpPower = 50
                         character:SetAttribute("SUBMERGED", false)
                         character:SetAttribute("UNDERWATER", false)
-                    end
-                end
-            }
-        end
-    },    
-    Hang = {
-        Execute = function(self, character: Model)
-            local rootPart = character.PrimaryPart
-            if not rootPart then return end
-
-            rootPart.Anchored = true
-            local humanoid = character:FindFirstChild("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = false
-                humanoid:ChangeState(Enum.HumanoidStateType.Seated)
-            end
-
-            return {
-                cleanup = function()
-                    if rootPart then
-                        rootPart.Anchored = false
-                    end
-                    if humanoid then
-                        humanoid.AutoRotate = true
-                        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
                     end
                 end
             }
@@ -637,13 +675,9 @@ MovementModule.Handlers = {
             end
 
             humanoid:Move(Vector3.zero)
-            humanoid.WalkSpeed = 0
-            humanoid.JumpPower = 0
 
             local cleanupTask = task.delay(0.3, function()
                 if humanoid then
-                    humanoid.WalkSpeed = 16
-                    humanoid.JumpPower = 50
                     humanoid:Move(Vector3.zero)
                 end
             end)
@@ -654,8 +688,6 @@ MovementModule.Handlers = {
                         task.cancel(cleanupTask)
                     end
                     if humanoid then
-                        humanoid.WalkSpeed = 16
-                        humanoid.JumpPower = 50
                         humanoid:Move(Vector3.zero)
                     end
                 end
@@ -732,7 +764,7 @@ MovementModule.Handlers = {
                         b.Attachment0 = a0
                         b.Attachment1 = a1
                         b.Name = "RagdollConstraint"
-                        
+
                         b.Radius = 0.15
                         b.LimitsEnabled = true
                         b.TwistLimitsEnabled = false
