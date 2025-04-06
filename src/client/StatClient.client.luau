@@ -46,7 +46,9 @@ local State = {
             parry = HUD.Indicators.Parry,
             feint = HUD.Indicators.Feint,
             tempo = HUD.Indicators.Tempo,
-            block = HUD.Indicators.Block
+            block = HUD.Indicators.Block,
+            dash = HUD.Indicators.Roll,
+            slide = HUD.Indicators.Roll
         }
     },
     stats = {}
@@ -136,17 +138,23 @@ local Events = {
         end
     },
 
-    ["Client.Movement.Execute"] = {
+    ["Movement.State"] = {
         handler = function(response)
-            if not response.success then return end
-            if not response.data or not response.data.ability then return end
+            if not response or not response.state then return end
 
-            local ability = response.data.ability:lower()
-            local remaining = response.data.remaining
-            local duration = response.data.duration
+            local state = response.state:lower()
+            local value = response.value
 
-            if State.ui.indicators[ability] then
-                UpdateCooldown(State.ui.indicators[ability], duration)
+            if value == true then
+                if state == "roll" then
+                    local duration = UPDATE_SETTINGS.COOLDOWN_DURATION
+
+                    if State.ui.indicators.roll then
+                        UpdateCooldown(State.ui.indicators.roll, duration)
+                    else
+                        warn("No indicator found for state:", state)
+                    end
+                end
             end
         end
     },

@@ -1,7 +1,7 @@
 --[[ CombatService
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-04-02
+    @version 1.0.3
+    @date 2025-04-05
 ]]
 local CombatService = {}
 
@@ -9,14 +9,11 @@ CombatService.Dependencies = {
     "Data",
     "Event",
     "Stat",
-    "State",
     "Weapon"
 }
 
 CombatService.Modules = {
-    "Combat",
-    "State"
-}
+    "Combat"}
 
 CombatService.Events = {
     Attack = { validate = true },
@@ -61,7 +58,6 @@ CombatService.Listeners = {
                 end)
             end
 
-            Services.State:EnterState(character, "STANCE_NORMAL")
             State.combos[character] = 0
         end)
     end,
@@ -138,17 +134,12 @@ function CombatService:CreateHitbox(attacker: Model, attackType: string): {[Mode
 end
 
 function CombatService:DetermineHit(attacker: Model, target: Model, lookVector: Vector3): string | {result: string, angle: number}
-    if Services.State:GetCategory(target, "STATUS")["INVINCIBLE"] then
+    if target:GetAttribute("INVINCIBLE") then
         return "INVINCIBLE"
     end
 
-    if Services.State:GetStates(target) then
-        local statusStates = Services.State:GetCategory(target, "STATUS")
-        for _, state in ipairs(statusStates) do
-            if state == "DEAD" or state == "KNOCKED" or state == "GRIPPED" then
-                return "IGNORE"
-            end
-        end
+    if target:GetAttribute("DEAD") or target:GetAttribute("KNOCKED") or target:GetAttribute("GRIPPED") then
+        return "IGNORE"
     end
 
     if target:GetAttribute("PARRYING") then
@@ -215,7 +206,7 @@ CombatService.CombatHandlers = {
         if comboCount > 3 then return false, "Invalid combo count" end
         State.combos[character] = comboCount
 
-        local stance = Services.State:GetCategory(character, "STANCE")[1] or "STANCE_NORMAL"
+        local stance = character:GetAttribute("STANCE") or "STANCE_NORMAL"
         local damageMultiplier = 1
         if stance == "STANCE_AGGRESSIVE" then
             damageMultiplier = 1.2
@@ -273,10 +264,10 @@ CombatService.CombatHandlers = {
             metadata = { source = "attack" }
         })
 
-        Services.State:EnterState(character, attackType .. "_ATTACK", {
-            duration = attackProps.duration,
-            combo = comboCount
-        })
+        character:SetAttribute(attackType .. "_ATTACK", true)
+        task.delay(attackProps.duration, function()
+            character:SetAttribute(attackType .. "_ATTACK", false)
+        end)
 
         return true
     end,
@@ -287,7 +278,6 @@ CombatService.CombatHandlers = {
 
         if data.enabled == false then
             character:SetAttribute("BLOCKING", false)
-            Services.State:ExitState(character, "BLOCK")
             return true
         end
 
@@ -296,11 +286,6 @@ CombatService.CombatHandlers = {
         end
 
         character:SetAttribute("BLOCKING", true)
-        Services.State:EnterState(character, "BLOCK", {
-            cleanup = function()
-                character:SetAttribute("BLOCKING", false)
-            end
-        })
 
         Services.Stat:ModifyStat(character, "STAMINA", {
             operation = "subtract",
@@ -321,13 +306,10 @@ CombatService.CombatHandlers = {
 
         character:SetAttribute("PARRYING", true)
 
-        Services.State:EnterState(character, "PARRY", {
-            duration = parryProps.window,
-            cleanup = function()
-                character:SetAttribute("PARRYING", false)
-                State.parryWindows[character] = nil
-            end
-        })
+        task.delay(parryProps.window, function()
+            character:SetAttribute("PARRYING", false)
+            State.parryWindows[character] = nil
+        end)
 
         State.parryWindows[character] = {
             start = os.clock(),
@@ -347,9 +329,10 @@ CombatService.CombatHandlers = {
         local stamina = character:GetAttribute("STAMINA")
         if stamina < 10 then return false, "Not enough stamina" end
 
-        Services.State:EnterState(character, "FEINT", {
-            duration = 0.2
-        })
+        character:SetAttribute("FEINT", true)
+        task.delay(0.2, function()
+            character:SetAttribute("FEINT", false)
+        end)
 
         Services.Stat:ModifyStat(character, "STAMINA", {
             operation = "subtract",
@@ -365,18 +348,17 @@ CombatService.CombatHandlers = {
         if not data.target then return false, "No target specified" end
 
         local target = data.target
-        local targetStates = Services.State:GetCategory(target, "STATUS")
-        if not (table.find(targetStates, "KNOCK") or table.find(targetStates, "DEAD")) then
+        if not (target:GetAttribute("KNOCKED") or target:GetAttribute("DEAD")) then
             return false, "Invalid target state"
         end
 
         local distance = (character.PrimaryPart.Position - target.PrimaryPart.Position).Magnitude
         if distance > 5 then return false, "Target too far" end
 
-        Services.State:EnterState(character, "EXECUTE", {
-            target = target,
-            duration = 2
-        })
+        character:SetAttribute("EXECUTING", true)
+        task.delay(2, function()
+            character:SetAttribute("EXECUTING", false)
+        end)
 
         self:ApplyDamage(character, target, {
             amount = 999999,
@@ -393,8 +375,7 @@ CombatService.CombatHandlers = {
         if not data.target then return false, "No target specified" end
 
         local target = data.target
-        local targetStates = Services.State:GetCategory(target, "STATUS")
-        if not (table.find(targetStates, "KNOCK") or table.find(targetStates, "DEAD")) then
+        if not (target:GetAttribute("KNOCKED") or target:GetAttribute("DEAD")) then
             return false, "Invalid target state"
         end
 
@@ -418,10 +399,8 @@ CombatService.CombatHandlers = {
                 alignPos = alignPos
             }
 
-            Services.State:EnterState(character, "CARRY", {
-                target = target
-            })
-            Services.State:EnterState(target, "GRIP")
+            character:SetAttribute("CARRYING", true)
+            target:SetAttribute("GRIPPED", true)
         else
             local carried = State.carriedTargets[character]
             if carried then
@@ -430,9 +409,9 @@ CombatService.CombatHandlers = {
                 State.carriedTargets[character] = nil
             end
 
-            Services.State:ExitState(character, "CARRY")
+            character:SetAttribute("CARRYING", false)
             if target then
-                Services.State:ExitState(target, "GRIP")
+                target:SetAttribute("GRIPPED", false)
             end
         end
 
@@ -452,12 +431,13 @@ CombatService.CombatHandlers = {
             return false, "Invalid stance"
         end
 
-        local currentStance = Services.State:GetCategory(character, "STANCE")[1]
+        local currentStance = character:GetAttribute("STANCE")
         if currentStance then
-            Services.State:ExitState(character, currentStance)
+            character:SetAttribute(currentStance, false)
         end
 
-        Services.State:EnterState(character, data.stance)
+        character:SetAttribute("STANCE", data.stance)
+        character:SetAttribute(data.stance, true)
         return true
     end
 }

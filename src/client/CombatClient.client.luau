@@ -34,6 +34,7 @@ local Animations = {}
 
 --[[ State ]]
 local State = {
+    initialized = false,
     combat = {
         isAttacking = false,
         isBlocking = false,
@@ -395,17 +396,19 @@ local Events = {
             Animator = Humanoid:WaitForChild("Animator")
             Animations = {}
             InitializeAnimations()
-
-            SetupInput()
         end
     },
 
     ["Character.Removing"] = {
         handler = function()
-            if State.input.connection then
-                State.input.connection.Disconnect()
-                State.input.connection = nil
+            for key, _ in pairs(State.combat) do
+                if type(State.combat[key]) == "boolean" then
+                    State.combat[key] = false
+                end
             end
+            State.combat.comboCount = 0
+            State.combat.currentStance = "NORMAL"
+            State.combat.target = nil
         end
     },
 
@@ -516,7 +519,12 @@ local Events = {
 
 --[[ Initialize ]]
 local function Initialize()
+    if State.initialized then return end
+    State.initialized = true
+
     InitializeAnimations()
+
+    SetupInput()
 
     for eventName, handler in pairs(Events) do
         if eventName == "Character.Added" then
@@ -530,8 +538,4 @@ local function Initialize()
             Services.Event:OnClientEvent(eventName, handler.handler)
         end
     end
-
-    SetupInput()
 end
-
-Initialize()

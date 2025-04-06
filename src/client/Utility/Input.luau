@@ -1,7 +1,7 @@
 --[[ Input
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-04-03
+    @version 1.0.3
+    @date 2025-04-05
 ]]
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
@@ -55,23 +55,7 @@ local clientConfigs = {}
 local keybinds = {}
 local defaultKeybinds = {}
 
---[[ Action/Axis Functions ]]
-function Input.CheckActive(action: InputAction): boolean
-    if not action or not action.keys then
-        return false
-    end
-
-    for input, _ in pairs(activeInputs) do
-        for _, key in ipairs(action.keys) do
-            if input == key then
-                return true
-            end
-        end
-    end
-    return false
-end
-
-function Input.ValidateAction(action: InputAction): boolean
+local function ValidateAction(action: InputAction): boolean
     if action.condition and not action.condition() then
         return false
     end
@@ -85,6 +69,117 @@ function Input.ValidateAction(action: InputAction): boolean
     end
 
     return true
+end
+
+local function BeginInput(input: InputObject, gameProcessed: boolean)
+    local inputType = input.UserInputType
+    local keyCode = input.KeyCode
+
+    activeInputs[inputType] = true
+    if inputType == Enum.UserInputType.Keyboard then
+        activeInputs[keyCode] = true
+    end
+
+    for configId, config in pairs(clientConfigs) do
+        if not config then continue end
+
+        if config.ignoreProcessed and gameProcessed then 
+            continue
+        end
+
+        if not config.mouseEnabled and (
+            inputType == Enum.UserInputType.MouseButton1 or
+            inputType == Enum.UserInputType.MouseButton2 or
+            inputType == Enum.UserInputType.MouseButton3
+        ) then 
+            continue
+        end
+
+        if not config.keyboardEnabled and inputType == Enum.UserInputType.Keyboard then 
+            continue
+        end
+        if not config.gamepadEnabled and inputType == Enum.UserInputType.Gamepad1 then 
+            continue
+        end
+        if not config.touchEnabled and inputType == Enum.UserInputType.Touch then 
+            continue
+        end
+
+        if config.actions and type(config.actions) == "table" and #config.actions > 0 then
+            for i, action in ipairs(config.actions) do
+                if not action then continue end
+
+                local hasMatchingKey = false
+                if action.keys and type(action.keys) == "table" then
+                    for _, key in ipairs(action.keys) do
+                        if key == keyCode or key == inputType then
+                            hasMatchingKey = true
+                            break
+                        end
+                    end
+
+                    if hasMatchingKey and ValidateAction(action) then
+                        if not action.requiresProcessed or not gameProcessed then
+                            action.callback(true)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function EndInput(input: InputObject)
+    local inputType = input.UserInputType
+    local keyCode = input.KeyCode
+
+    activeInputs[inputType] = nil
+    if inputType == Enum.UserInputType.Keyboard then
+        activeInputs[keyCode] = nil
+    end
+
+    for configId, config in pairs(clientConfigs) do
+        if config and config.actions and type(config.actions) == "table" and #config.actions > 0 then
+            for _, action in ipairs(config.actions) do
+                local hasMatchingKey = false
+                if action and action.keys and type(action.keys) == "table" then
+                    for _, key in ipairs(action.keys) do
+                        if key == keyCode or key == inputType then
+                            hasMatchingKey = true
+                            break
+                        end
+                    end
+
+                    if hasMatchingKey and ValidateAction(action) then
+                        action.callback(false)
+                    end
+                end
+            end
+        end
+    end
+end
+
+--[[ Action/Axis Functions ]]
+function Input.CheckActive(action: InputAction): boolean
+    if not action or not action.keys or type(action.keys) ~= "table" or #action.keys == 0 then
+        return false
+    end
+
+    if not action.name then return false end
+
+    if not activeInputs or type(activeInputs) ~= "table" then
+        return false
+    end
+
+    for input, _ in pairs(activeInputs) do
+        for _, key in ipairs(action.keys) do
+            if input == key then
+                return true
+            end
+        end
+    end
+
+    return false
 end
 
 function Input.CreateAction(name: string, keys: {any}, callback: (boolean) -> (), options: {[string]: any}?): InputAction
@@ -123,6 +218,10 @@ function Input.CreateAxis(name: string, keys: {[any]: number}, callback: (number
 end
 
 function Input.UpdateAxis(axis: InputAxis)
+    if not axis or not axis.keys or type(axis.keys) ~= "table" then
+        return
+    end
+
     local value = 0
     for input, scale in pairs(axis.keys) do
         if activeInputs[input] then
@@ -140,8 +239,13 @@ function Input.UpdateAxis(axis: InputAxis)
         lastAxisValues[axis.name] = value
     end
 
-    currentAxes[axis.name] = value
-    axis.callback(value)
+    if axis.name then
+        currentAxes[axis.name] = value
+    end
+
+    if typeof(axis.callback) == "function" then
+        axis.callback(value)
+    end
 end
 
 --[[ Input Management ]]
@@ -156,72 +260,29 @@ function Input.HandleInput(config: InputConfig)
         end
     end
 
-    inputConnections[config.id] = {}
+    if not inputConnections[config.id] then
+        inputConnections[config.id] = {}
+    end
+
     clientConfigs[config.id] = config
 
-    local function handleInputBegan(input: InputObject, gameProcessed: boolean)
-        if config.ignoreProcessed and gameProcessed then return end
+    if not inputConnections.global then
+        inputConnections.global = {}
 
-        local inputType = input.UserInputType
-        local keyCode = input.KeyCode
+        table.insert(inputConnections.global, UserInputService.InputBegan:Connect(BeginInput))
+        table.insert(inputConnections.global, UserInputService.InputEnded:Connect(EndInput))
 
-        if not config.mouseEnabled and (
-            inputType == Enum.UserInputType.MouseButton1 or
-            inputType == Enum.UserInputType.MouseButton2 or
-            inputType == Enum.UserInputType.MouseButton3
-        ) then return end
-
-        if not config.keyboardEnabled and inputType == Enum.UserInputType.Keyboard then return end
-        if not config.gamepadEnabled and inputType == Enum.UserInputType.Gamepad1 then return end
-        if not config.touchEnabled and inputType == Enum.UserInputType.Touch then return end
-
-        activeInputs[inputType] = true
-        if inputType == Enum.UserInputType.Keyboard then
-            activeInputs[keyCode] = true
-        end
-
-        if config.actions then
-            for _, action in ipairs(config.actions) do
-                if (not action.requiresProcessed or not gameProcessed) and
-                   Input.CheckActive(action) and Input.ValidateAction(action) then
-                    action.callback(true)
+        table.insert(inputConnections.global, RunService.RenderStepped:Connect(function()
+            for _, axisConfig in pairs(clientConfigs) do
+                if axisConfig and axisConfig.axes and type(axisConfig.axes) == "table" and #axisConfig.axes > 0 then
+                    for _, axis in ipairs(axisConfig.axes) do
+                        if axis and (not axis.condition or axis.condition()) then
+                            Input.UpdateAxis(axis)
+                        end
+                    end
                 end
             end
-        end
-    end
-
-    local function handleInputEnded(input: InputObject)
-        local inputType = input.UserInputType
-        local keyCode = input.KeyCode
-
-        activeInputs[inputType] = nil
-        if inputType == Enum.UserInputType.Keyboard then
-            activeInputs[keyCode] = nil
-        end
-
-        if config.actions then
-            for _, action in ipairs(config.actions) do
-                if Input.CheckActive(action) and Input.ValidateAction(action) then
-                    action.callback(false)
-                end
-            end
-        end
-    end
-
-    local function updateAxes()
-        if config.axes then
-            for _, axis in ipairs(config.axes) do
-                if not axis.condition or axis.condition() then
-                    Input.UpdateAxis(axis)
-                end
-            end
-        end
-    end
-
-    table.insert(inputConnections[config.id], UserInputService.InputBegan:Connect(handleInputBegan))
-    table.insert(inputConnections[config.id], UserInputService.InputEnded:Connect(handleInputEnded))
-    if config.axes then
-        table.insert(inputConnections[config.id], RunService.RenderStepped:Connect(updateAxes))
+        end))
     end
 
     return {

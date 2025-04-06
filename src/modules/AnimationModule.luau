@@ -1,7 +1,7 @@
 --[[ AnimationModule
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-04-02
+    @version 1.0.2
+    @date 2025-04-05
 ]]
 local AnimationModule = {}
 
@@ -24,8 +24,8 @@ AnimationModule.Assets = {
         LANDING = {
             SMALL = { id = "rbxassetid://126155617121254", looped = false, priority = Enum.AnimationPriority.Action },
             LARGE = { id = "rbxassetid://129602897503230", looped = false, priority = Enum.AnimationPriority.Action },
-            HURT = { id = "rbxassetid://119142751536548", looped = false, priority = Enum.AnimationPriority.Action },
-            HURT_LOTS = { id = "rbxassetid://138041867901848", looped = false, priority = Enum.AnimationPriority.Action }
+            HURT = { id = "rbxassetid://129602897503230", looped = false, priority = Enum.AnimationPriority.Action },
+            HURT_LOTS = { id = "rbxassetid://129602897503230", looped = false, priority = Enum.AnimationPriority.Action }
         },
 
         ROLL = {
@@ -40,12 +40,15 @@ AnimationModule.Assets = {
             RUN_LEFT = { id = "rbxassetid://112704346655755", looped = true, priority = Enum.AnimationPriority.Action },
             RUN_RIGHT = { id = "rbxassetid://74903089680298", looped = true, priority = Enum.AnimationPriority.Action },
             CLIMB = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action },
-            HOLD = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action }
+            HOLD = { id = "rbxassetid://115086722054003", looped = true, priority = Enum.AnimationPriority.Action }
         },
 
         LEDGE = {
-            HOLD = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action },
-            CLIMB = { id = "rbxassetid://89000907008779", looped = false, priority = Enum.AnimationPriority.Action }
+            GRAB = { id = "rbxassetid://138462721425923", looped = false, priority = Enum.AnimationPriority.Action },
+            HOLD = { id = "rbxassetid://133756585356209", looped = true, priority = Enum.AnimationPriority.Action },
+            CLIMB = { id = "rbxassetid://89000907008779", looped = false, priority = Enum.AnimationPriority.Action },
+            SHUFFLE_LEFT = { id = "rbxassetid://133756585356209", looped = true, priority = Enum.AnimationPriority.Action },
+            SHUFFLE_RIGHT = { id = "rbxassetid://133756585356209", looped = true, priority = Enum.AnimationPriority.Action }
         },
 
         SPECIAL = {

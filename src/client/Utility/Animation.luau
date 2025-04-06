@@ -49,37 +49,23 @@ function Animation.Categories(animator: Animator, categories: {string}): {[strin
     return animations
 end
 
-function Animation.Play(animations: {[string]: AnimationTrack}, category: string, name: string, fadeTime: number?): boolean
-    if not category or not name then
-        warn("Both category and name must be provided")
-        return false
-    end
-
-    if not Modules.Animation.Assets.Animations[category] then
-        warn("Invalid category:", category)
-        return false
-    end
+function Animation.Play(animations: {[string]: AnimationTrack}, category: string, name: string, fadeTime: number?, speed: number?): boolean
+    if not category or not name then return false end
+    if not Modules.Animation.Assets.Animations[category] then return false end
 
     local animKey = category .. "_" .. name
-    if animations[animKey] then
-        animations[animKey]:Play(fadeTime or 0.1)
+    local track = animations[animKey]
+    if track then
+        track:AdjustSpeed(speed or 1)
+        track:Play(fadeTime or 0.1)
         return true
-    else
-        warn("Attempted to play non-existent animation:", animKey)
-        return false
     end
+    return false
 end
 
 function Animation.Stop(animations: {[string]: AnimationTrack}, category: string, name: string, fadeTime: number?): boolean
-    if not category or not name then
-        warn("Both category and name must be provided")
-        return false
-    end
-
-    if not Modules.Animation.Assets.Animations[category] then
-        warn("Invalid category:", category)
-        return false
-    end
+    if not category or not name then return false end
+    if not Modules.Animation.Assets.Animations[category] then return false end
 
     local animKey = category .. "_" .. name
     if animations[animKey] then

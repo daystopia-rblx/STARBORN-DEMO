@@ -51,7 +51,7 @@ StatService.Listeners = {
     end
 }
 
---[[ State Management ]]--
+--[[ State Management ]]
 local State = {
     multipliers = {},
     cycles = setmetatable({}, {__mode = "k"}),
@@ -817,20 +817,17 @@ StatService.StatHandlers = {
                     end),
 
                     stateChanged = humanoid:GetPropertyChangedSignal("MoveDirection"):Connect(function()
-                        local isRunning = humanoid.MoveDirection.Magnitude > 0 and humanoid.WalkSpeed > Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED
-                        local isCrouching = humanoid.WalkSpeed < Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED
-
-                        if isRunning then
-                            self:SetStat(entity, "SPEED", humanoid.WalkSpeed * Modules.Stat.Constants.MOVEMENT.SPRINT_MULTIPLIER, {
+                        local isMoving = humanoid.MoveDirection.Magnitude > 0
+                        if isMoving then
+                            self:SetStat(entity, "SPEED", humanoid.WalkSpeed, {
                                 source = "humanoid",
                                 skipSync = true,
-                                metadata = { state = "RUNNING" }
+                                metadata = { state = "MOVING" }
                             })
-                        elseif isCrouching then
-                            self:SetStat(entity, "SPEED", humanoid.WalkSpeed * Modules.Stat.Constants.MOVEMENT.CROUCH_MULTIPLIER, {
+                        else
+                            self:SetStat(entity, "SPEED", humanoid.WalkSpeed, {
                                 source = "humanoid",
-                                skipSync = true,
-                                metadata = { state = "CROUCHING" }
+                                skipSync = true
                             })
                         end
                     end)

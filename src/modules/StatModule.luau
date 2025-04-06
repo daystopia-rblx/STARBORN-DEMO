@@ -178,66 +178,12 @@ StatModule.Constants = {
         SPRINT_CAMERA_MOTION_BLUR = true,
         SPRINT_CAMERA_MOTION_BLUR_AMOUNT = 4,
 
-        -- Jumping
-        JUMP_POWER = 50,
-        JUMP_HEIGHT = 6.5,
-        JUMP_DURATION = 0.25,
-        JUMP_FALL_SMOOTH_TIME = 0.25,
-        JUMP_COMBAT_COOLDOWN = 0.4,
-
-        -- Sliding
-        SLIDE_SMOOTH_TIME = 0.12,
-        SLIDE_DURATION = 0.6,
-        SLIDE_SPEED_MULTIPLIER = 6,
-        SLIDE_FRICTION = 1,
-        SLIDE_COOLDOWN = 1.5,
-
-        -- Rolling
-        AIR_DASH_SPEED = 40,
-        ROLL_SMOOTH_TIME = 0.1,
-        ROLL_DURATION_Z = 0.4,
-        ROLL_SPEED_Z = 45,
-        ROLL_FRICTION_Z = 0.15,
-        ROLL_COOLDOWN_Z = 0.2,
-        ROLL_DURATION_X = 0.35,
-        ROLL_SPEED_X = 20,
-        ROLL_FRICTION_X = 0.15,
-        ROLL_COOLDOWN_X = 0.2,
-        ROLL_CANCEL_SMOOTH_TIME = 0.25,
-        ROLL_CANCEL_DURATION = 0.25,
-
         -- Crouching
-        CROUCH_SMOOTH_TIME = 0.15,
         CROUCH_MULTIPLIER = 0.7,  -- 7/10
 
-        -- Wall Movement
-        WALL_RAYCAST_LENGTH = 3,
-        WALL_CLIMB_BIAS = 2,
-        WALL_CLIMB_JUMP_POWER = 2.5,
-        WALL_CLIMB_JUMP_HEIGHT = 16,
-        WALL_CLIMB_SPEED = 13,
-        WALL_CLIMB_FOV = 100,
-        WALL_CLIMB_LEDGE_REACH = 5,
-        WALL_CLIMB_LEDGE_DURATION = 0.25,
-        WALL_RUN_DURATION = 3,
-        WALL_RUN_SUSTAIN = 0.05,
-        WALL_RUN_SPEED = 36,
-        WALL_RUN_COOLDOWN = 1,
-
-        -- Vaulting
-        VAULT_SPEED_MULTIPLIER = 2,
-
-        -- Swinging
-        SWING_DETECT_ANGLE = 60,
-        SWING_DETECT_RANGE = 24,
-        SWING_INTERACT_RANGE = 12,
-        SWING_DURATION = 0.5,
-        SWING_COOLDOWN = 0.2,
-        SWING_FOV = 90,
-
-        -- Movement Penalties
+        -- Other movement constants
         MIN_MOVEMENT_SPEED = 4,
-        MAX_MOVEMENT_SPEED = 32,
+        MAX_MOVEMENT_SPEED = 40,
 
         -- Underwater
         OXYGEN_DRAIN_RATE = 5,

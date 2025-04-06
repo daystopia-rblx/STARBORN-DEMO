@@ -1,266 +1,2562 @@
 --[[ MovementClient
     @author @Daystopia
-    @version 1.1.3
-    @date 2025-04-03
+    @version 1.1.0
+    @date 2025-04-05
 ]]
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
-local ContextActionService = game:GetService("ContextActionService")
-local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+--[[ Dependencies ]]
+local Modules = {
+    Animation = require(ReplicatedStorage.Modules.AnimationModule),
+    Stat = require(ReplicatedStorage.Modules.StatModule)
+}
 
 local Services = {
     Event = require(ReplicatedStorage.Services.Network.EventService)
 }
 
-local Modules = {
-    Animation = require(ReplicatedStorage.Modules.AnimationModule),
-    Movement = require(ReplicatedStorage.Modules.MovementModule),
-    State = require(ReplicatedStorage.Modules.StateModule),
-    Stat = require(ReplicatedStorage.Modules.StatModule),
-}
-
 local Tools = {
-    Spring = require(ReplicatedStorage.Modules.Tool.Spring)
+    Spring = require(ReplicatedStorage.Modules.Tool.Spring),
+    Bezier = require(ReplicatedStorage.Modules.Tool.Bezier)
 }
 
 local Utility = {
-    Sound = require(script.Parent.Utility.Sound),
-    Controller = require(script.Parent.Utility.Controller),
     Animation = require(script.Parent.Utility.Animation),
+    Input = require(script.Parent.Utility.Input),
     Camera = require(script.Parent.Utility.Camera),
-    Particle = require(script.Parent.Utility.Particle)
+    Particle = require(script.Parent.Utility.Particle),
+    Sound = require(script.Parent.Utility.Sound)
 }
 
---[[ Types ]]
-type CameraState = {
-    lastUpdate: number,
-    isLocked: boolean,
-    isShiftLocked: boolean,
-    shiftLockOffset: Vector3,
-    previousCameraType: Enum.CameraType?
-}
-
---[[ Constants ]]
-local CONTROL_BINDINGS = {
-    {action = "Jump", key = Enum.KeyCode.Space, description = "Jump"},
-    {action = "Run", key = Enum.KeyCode.W, description = "Run", doubleTap = true},
-    {action = "Roll", key = Enum.KeyCode.Q, description = "Roll"},
-    {action = "Crouch", key = Enum.KeyCode.C, description = "Crouch"},
-    {action = "Slide", key = Enum.KeyCode.LeftControl, description = "Slide"},
-    {action = "Emotes", key = Enum.KeyCode.T, description = "Emotes"},
-    {action = "Ragdoll", key = Enum.KeyCode.R, description = "Ragdoll"},
-    {action = "Hang", key = Enum.KeyCode.Space, description = "Climb Ledge"}
-}
-
-local CAMERA_SETTINGS = {
-    FOV = Modules.Stat.Constants.MOVEMENT.WALK_CAMERA_FOV,
-    ZOOM = 10,
-    TRANSITION_TIME = 0.3,
-    MOTION_BLUR = {
-        ENABLED = Modules.Stat.Constants.MOVEMENT.SPRINT_CAMERA_MOTION_BLUR,
-        INTENSITY = Modules.Stat.Constants.MOVEMENT.SPRINT_CAMERA_MOTION_BLUR_AMOUNT,
-        SMOOTHING = 0.5
+--[[ Configuration ]]
+local CONFIG = {
+    VELOCITY = {
+        FALL_DAMAGE_THRESHOLD = 65,
+        HARD_LAND_THRESHOLD = 45,
+        LARGE_FALL_THRESHOLD = 25
     },
-    RUN_FOV = Modules.Stat.Constants.MOVEMENT.SPRINT_CAMERA_FOV
-}
 
-local UI_SETTINGS = {
-    EMOTE_MENU = {
-        FADE_DURATION = 0.3,
-        DISPLAY_ORDER = 999998
-    }
-}
-
-local CURSOR_CONFIG = {
-    ENABLED = true,
-    DEFAULT_CURSOR = "",
-    OVERRIDE_DEFAULT = true
-}
-
-local SHIFT_LOCK_CONFIG = {
-    CHARACTER_SMOOTH_ROTATION = true,
-    CHARACTER_ROTATION_SPEED = 3,
-    CAMERA_TRANSITION_IN_SPEED = 10,
-    CAMERA_TRANSITION_OUT_SPEED = 14,
-    LOCKED_CAMERA_OFFSET = Vector3.new(1.75, 0.25, 0),
-    LOCKED_MOUSE_ICON = "http://www.roblox.com/asset/?id=7347416154",
-    TRANSITION_SPRING_DAMPER = 0.7
-}
-
---[[ Variables ]]
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local EmoteGui = PlayerGui:WaitForChild("EmoteGui")
-local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-local Humanoid = Character:WaitForChild("Humanoid")
-local Animator = Humanoid:WaitForChild("Animator")
-local Animations = {}
-
-EmoteGui.DisplayOrder = UI_SETTINGS.EMOTE_MENU.DISPLAY_ORDER
-EmoteGui:WaitForChild("Background").Visible = false
-EmoteGui:WaitForChild("Background").ImageTransparency = 1
-
---[[ State ]]
-local State = {
-    camera = {
-        lastUpdate = 0,
-        isLocked = false,
-        isShiftLocked = false,
-        shiftLockOffset = Vector3.new(0, 0, 0),
-        previousCameraType = nil,
-        shiftLockConnection = nil,
-        camOffsetSpring = Tools.Spring.new(Vector3.new(0, 0, 0)),
-        lastLookVector = Vector3.new(0, 0, 0),
-        motionBlurEffect = nil
-    },
-    ui = {
-        emoteMenu = {
-            enabled = false,
-            frame = EmoteGui:WaitForChild("Background"),
-            scrollFrame = EmoteGui:WaitForChild("Background"):WaitForChild("ScrollingFrame"),
-            isOpen = false
+    ANIMATION = {
+        BLEND_TIME = {
+            DEFAULT = 0.25,
+            QUICK = 0.07
         }
     },
-    movement = {
-        currentDirection = "forward",
-        isRunning = false,
-        isWalking = false,
-        isJumping = false,
-        isCrouching = false,
-        isCrouchWalking = false,
-        isSliding = false,
-        isWallRunning = false,
-        isScaling = false,
-        isHanging = false,
-        isSwinging = false,
-        isVaulting = false,
-        isRolling = false,
-        isSwimming = false,
-        isUnderwater = false,
-        isFalling = false,
-        isStunned = false,
-        isDashing = false,
-        isClimbing = false,
-        isSitting = false,
-        isRagdoll = false,
-        ragdollStartTime = 0,
-        ragdollDuration = 0,
-        lastVerticalVelocity = 0,
-        maxSafeVelocity = -20,
-        lastGroundedTime = 0,
-        lastWTap = 0,
-        lastHangTime = 0,
-        debounce = {
-            crouch = 0,
-            dash = 0,
-            roll = 0,
-            slide = 0,
-            vault = 0
-        },
-        effects = {
-            run = nil,
-            runCleanup = nil,
-            slide = nil,
-            slideCleanup = nil,
-            speedTrails = {},
-            speedTrailsCleanup = {}
-        },
-        canHang = true,
-        canLedge = true,
-        canScale = true
+
+    CONTROLS = {
+        DOUBLE_TAP_WINDOW = 0.25,
+        IDLE_TIMEOUT = 0.8,
+        CROUCH_KEY = Enum.KeyCode.C,
+        SPRINT_KEY = Enum.KeyCode.LeftShift,
+        RAGDOLL_KEY = Enum.KeyCode.R
     },
-    footsteps = {
-        isWalking = false,
-        lastMaterial = nil,
-        lastFootstepTime = 0,
-        currentSound = nil
+
+    ROLL = {
+        SPEED = 32,
+        DURATION = {
+            FORWARD = 0.35,
+            SIDE = 0.3
+        },
+        COOLDOWN = {
+            FORWARD = 0.8,
+            SIDE = 1.0
+        },
+        VERTICAL_FORCE = 0,
+        CANCEL = {
+            MIN_TIME = 0.12,
+            CHAIN_WINDOW = 0.25,
+            CHAIN_STAMINA_MULT = 1.35
+        }
+    },
+
+    DASH = {
+        FORCE = 95000,
+        RESPONSIVENESS = 20,
+        DISTANCE = 18,
+        DURATION = 0.35,
+        COOLDOWN = 0.4,
+        VFX = {
+            DURATION = 1.5,
+            EMIT_ATTRIBUTE = "EmitCount"
+        }
+    },
+
+    SLIDE = {
+        SPEED = 28,
+        DURATION = 0.8,
+        COOLDOWN = 0.6,
+        MIN_VELOCITY = 5,
+        GROUND_FRICTION = 0.1,
+        AIR_FRICTION = 0.05
+    },
+
+    LEDGE = {
+        SHUFFLE_SPEED = 6,
+        CHECK_DISTANCE = 1.5,
+        WALL_MIN_HEIGHT = 6,
+        HANG_DURATION = 5,
+        CLIMB_SPEED = 8,
+        DROP_COOLDOWN = 0.5,
+        PUSH_FORCE = 10,
+        JUMP_HORIZONTAL_FORCE = 100,
+        JUMP_VERTICAL_FORCE = 50,
+        WALL_JUMP_COOLDOWN = 1.0
+    },
+
+    WALL_RUN = {
+        DURATION = 0.6,
+        SUSTAIN = 0.25,
+        COOLDOWN = 1.2,
+        SPEED = 24,
+        MIN_HEIGHT = 4,
+        CHECK_DISTANCE = 1.2,
+        ANGLE_THRESHOLD = 65,
+        GRAVITY_FACTOR = 0.4,
+        EXIT_BOOST = 100
+    },
+
+    VAULT = {
+        MAX_HEIGHT = 4.2,
+        MIN_HEIGHT = 0.5,
+        CHECK_DISTANCE = 2.5,
+        DURATION = 0.65,
+        COOLDOWN = 0.4,
+        BOOST_FORCE = 40,
+        ANGLE_THRESHOLD = 45
+    },
+
+    CLIMB = {
+        SPEED = 8,
+        MAX_HEIGHT = 15,
+        CHECK_DISTANCE = 1.8,
+        COOLDOWN = 0.7,
+        STAMINA_COST = 10,
+        ANGLE_THRESHOLD = 80
+    },
+
+    SWING = {
+        DETECT_RANGE = 12,
+        INTERACT_RANGE = 4,
+        DETECT_ANGLE = 50,
+        FOV = 85,
+        DURATION = 0.7,
+        BOOST_FORCE = 65,
+        MAX_SWING_TIME = 6,
+        ROTATION_SPEED = 2.5,
+        DISTANCE = 10,
+        HEIGHT = 5,
+        FORWARD_DISTANCE = 15,
+        END_HEIGHT = 2,
+        RECOVERY_TIME = 1.0,
+        COOLDOWN = 0.5
+    },
+
+    CAMERA_SETTINGS = {
+        FOV = 72,
+        WALK_FOV = 72,
+        SPRINT_FOV = 82,
+        VAULT_FOV = 86,
+        TRANSITION_TIME = 0.2,
+        ZOOM = 12,
+        MIN_ZOOM = 8,
+        MAX_ZOOM = 14
+    },
+
+    CURSOR_CONFIG = {
+        ENABLED = true,
+        DEFAULT_CURSOR = "",
+        OVERRIDE_DEFAULT = true
+    },
+
+    SHIFT_LOCK_CONFIG = {
+        CHARACTER_ROTATION_SPEED = 5,
+        CAMERA_TRANSITION_IN_SPEED = 16,
+        CAMERA_TRANSITION_OUT_SPEED = 18,
+        LOCKED_CAMERA_OFFSET = Vector3.new(1.75, 0.3, 0),
+        LOCKED_MOUSE_ICON = "http://www.roblox.com/asset/?id=7347416154",
+        TRANSITION_SPRING_DAMPER = 0.7,
+        CHARACTER_SMOOTH_ROTATION = true
+    },
+
+    UI_SETTINGS = {
+        EMOTE_MENU = {
+            FADE_DURATION = 0.2,
+            DISPLAY_ORDER = 999998
+        },
+        DEATH_OVERLAY = {
+            FADE_DURATION = 1.2,
+            COLOR = Color3.fromRGB(0, 0, 0)
+        }
+    },
+
+    RAGDOLL = {
+        ATTACHMENT_CFRAMES = {
+            ["Neck"] = {CFrame.new(0, 1, 0, 0, -1, 0, 1, 0, -0, 0, 0, 1), CFrame.new(0, -0.5, 0, 0, -1, 0, 1, 0, -0, 0, 0, 1)},
+            ["Left Shoulder"] = {CFrame.new(-1.3, 0.75, 0, -1, 0, 0, 0, -1, 0, 0, 0, 1), CFrame.new(0.2, 0.75, 0, -1, 0, 0, 0, -1, 0, 0, 0, 1)},
+            ["Right Shoulder"] = {CFrame.new(1.3, 0.75, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1), CFrame.new(-0.2, 0.75, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
+            ["Left Hip"] = {CFrame.new(-0.5, -1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1), CFrame.new(0, 1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1)},
+            ["Right Hip"] = {CFrame.new(0.5, -1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1), CFrame.new(0, 1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1)},
+        },
+
+        INSTANCE_NAMES = {
+            ["RagdollAttachment"] = true,
+            ["RagdollConstraint"] = true,
+            ["ColliderPart"] = true,
+        },
+
+        MAIN_PARTS = {
+            "Torso", "UpperTorso", "LowerTorso",
+            "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand",
+            "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot",
+            "Head"
+        },
+
+        IMPULSE_FORCE = 100,
+        DURATION = 5
+    },
+
+    STATE_DEFINITIONS = {
+        RUNNING = {
+            attributeName = "RUNNING",
+            fieldName = "isSprinting",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Running] = true,
+                [Enum.HumanoidStateType.RunningNoPhysics] = true,
+                [Enum.HumanoidStateType.Jumping] = true,
+                [Enum.HumanoidStateType.Freefall] = true,
+                [Enum.HumanoidStateType.Landed] = true
+            },
+            setupFunction = nil,
+            cleanupFunction = nil
+        },
+        CROUCHING = {
+            attributeName = "CROUCHING",
+            fieldName = "isCrouching",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Running] = true,
+                [Enum.HumanoidStateType.RunningNoPhysics] = true,
+                [Enum.HumanoidStateType.Jumping] = true,
+                [Enum.HumanoidStateType.Freefall] = true,
+                [Enum.HumanoidStateType.Landed] = true
+            },
+            setupFunction = nil,
+            cleanupFunction = nil
+        },
+        RAGDOLL = {
+            attributeName = "RAGDOLL",
+            fieldName = "isRagdoll",
+            validHumanoidStates = {},
+            setupFunction = "SetupRagdoll",
+            cleanupFunction = "ResetRagdoll",
+            humanoidState = Enum.HumanoidStateType.Ragdoll,
+            endState = Enum.HumanoidStateType.GettingUp
+        },
+        ROLL = {
+            attributeName = "ROLL",
+            fieldName = "isRolling",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Running] = true,
+                [Enum.HumanoidStateType.RunningNoPhysics] = true,
+                [Enum.HumanoidStateType.Jumping] = true,
+                [Enum.HumanoidStateType.Freefall] = true,
+                [Enum.HumanoidStateType.Landed] = true
+            },
+            setupFunction = "SetupRoll",
+            cleanupFunction = nil
+        },
+        SLIDE = {
+            attributeName = "SLIDE",
+            fieldName = "isSliding",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Running] = true,
+                [Enum.HumanoidStateType.RunningNoPhysics] = true
+            },
+            setupFunction = "SetupSlide",
+            cleanupFunction = nil
+        },
+        DASH = {
+            attributeName = "DASH",
+            fieldName = "isDashing",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Freefall] = true
+            },
+            setupFunction = "SetupDash",
+            cleanupFunction = nil
+        },
+        VAULT = {
+            attributeName = "VAULT",
+            fieldName = "isVaulting",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Running] = true,
+                [Enum.HumanoidStateType.RunningNoPhysics] = true
+            },
+            setupFunction = "SetupVault",
+            cleanupFunction = nil
+        },
+        CLIMB = {
+            attributeName = "CLIMB",
+            fieldName = "isClimbing",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Running] = true,
+                [Enum.HumanoidStateType.RunningNoPhysics] = true,
+                [Enum.HumanoidStateType.Jumping] = true,
+                [Enum.HumanoidStateType.Freefall] = true
+            },
+            setupFunction = nil,
+            cleanupFunction = nil
+        },
+        WALL_RUN = {
+            attributeName = "WALL_RUN",
+            fieldName = "isWallRunning",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Freefall] = true
+            },
+            setupFunction = "SetupWall",
+            cleanupFunction = nil
+        },
+        SWING = {
+            attributeName = "SWING",
+            fieldName = "isSwinging",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Freefall] = true
+            },
+            setupFunction = "SetupSwing",
+            cleanupFunction = nil
+        },
+        LEDGE = {
+            attributeName = "LEDGE",
+            fieldName = "isLedgeHanging",
+            validHumanoidStates = {
+                [Enum.HumanoidStateType.Running] = true,
+                [Enum.HumanoidStateType.RunningNoPhysics] = true,
+                [Enum.HumanoidStateType.Jumping] = true,
+                [Enum.HumanoidStateType.Freefall] = true
+            },
+            setupFunction = "SetupLedge",
+            cleanupFunction = nil
+        }
     }
 }
 
---[[ Animation Functions ]]
-local function PlayAnimation(category: string, name: string?, fadeTime: number?)
-    Utility.Animation.Play(Animations, category, name, fadeTime)
-end
+--[[ State Definitions ]]
+local STATE_ANIMATIONS = {
+    [Enum.HumanoidStateType.Running] = {"LOCOMOTION", "WALK"},
+    [Enum.HumanoidStateType.RunningNoPhysics] = {"LOCOMOTION", "WALK"},
+    [Enum.HumanoidStateType.Jumping] = {"LOCOMOTION", "JUMP"},
+    [Enum.HumanoidStateType.Freefall] = {"LOCOMOTION", "FALL"},
+    [Enum.HumanoidStateType.Landed] = {"LANDING", "SMALL"},
+    [Enum.HumanoidStateType.Swimming] = {"LOCOMOTION", "SWIM"},
+    [Enum.HumanoidStateType.Climbing] = {"WALL", "CLIMB"},
+    [Enum.HumanoidStateType.Seated] = {"LOCOMOTION", "IDLE"},
+    [Enum.HumanoidStateType.Dead] = {"STATUS", "KNOCKED_IDLE"},
+    [Enum.HumanoidStateType.GettingUp] = {"STATUS", "KNOCKED_RECOVER"},
+    [Enum.HumanoidStateType.FallingDown] = {"STATUS", "PAIN_1"},
+    [Enum.HumanoidStateType.Ragdoll] = {"STATUS", "PAIN_2"}
+}
 
-local function StopAnimation(category: string, name: string?, fadeTime: number?)
-    Utility.Animation.Stop(Animations, category, name, fadeTime)
-end
+--[[ MovementClient Class ]]
+local MovementClient = {}
+MovementClient.LocalPlayer = Players.LocalPlayer
 
-local function FadeAnimation(fromCategory: string, fromName: string, toCategory: string, toName: string, fadeTime: number?)
-    Utility.Animation.Fade(Animations, fromCategory, fromName, toCategory, toName, fadeTime)
-end
+--[[ Private State ]]
+local animState = {
+    currentState = nil,
+    animations = {},
+    currentlyPlaying = { category = nil, name = nil }
+}
 
-local function InitializeAnimations()
-    local categories = {
-        "LOCOMOTION",
-        "ROLL",
-        "SPECIAL",
-        "LANDING",
-        "WALL",
-        "LEDGE",
-        "STATUS",
-        "CARRY",
-        "COMBAT",
-        "EMOTES"
+local equipState = {
+    isRunning = false,
+    isWalking = false,
+    isCrouching = false,
+    isRagdoll = false,
+    isHanging = false,
+    isInAir = false,
+    isClimbing = false,
+    isVaulting = false,
+    isRolling = false,
+    isSliding = false
+}
+
+local movementState = {
+    isSprinting = false,
+    isCrouching = false,
+    lastWTapTime = 0,
+    isRagdoll = false,
+    ragdollStartTime = 0,
+    ragdollDuration = 0,
+    isSliding = false,
+    isVaulting = false,
+    lastVerticalVelocity = 0,
+    maxFallVelocity = 0
+}
+
+local keyStates = {
+    W = false,
+    A = false,
+    S = false,
+    D = false,
+    C = false,
+    Space = false
+}
+
+local humanoidRef = nil
+local characterRef = nil
+local inputHandler = nil
+
+local cameraState = {
+    isLocked = false,
+    isShiftLocked = false,
+    shiftLockOffset = Vector3.new(0, 0, 0),
+    previousCameraType = nil,
+    shiftLockConnection = nil,
+    camOffsetSpring = nil,
+    lastLookVector = Vector3.new(0, 0, 0)
+}
+
+local uiState = {
+    emoteMenu = {
+        enabled = false,
+        frame = nil,
+        scrollFrame = nil,
+        isOpen = false
+    },
+    deathOverlay = {
+        frame = nil,
+        transparency = 1
+    }
+}
+
+local footstepState = {
+    lastFootstepTime = 0,
+    lastMaterial = nil,
+    currentSound = nil,
+    isWalking = false,
+    lastCrouchState = nil,
+    lastSprintState = nil
+}
+
+local mechanicState = {
+    lastMechanicTime = 0,
+    cooldown = 0.1
+}
+
+--[[ Event Handlers ]]
+MovementClient.Events = {
+    ["Character.AttributeChanged"] = {
+        handler = function(data)
+            local stateData = nil
+
+            for _, def in pairs(CONFIG.STATE_DEFINITIONS) do
+                if def.attributeName == data.attribute then
+                    stateData = def
+                    break
+                end
+            end
+
+            if not stateData then return end
+
+            local fieldName = stateData.fieldName
+            if not fieldName then return end
+
+            if movementState[fieldName] ~= data.value then
+                movementState[fieldName] = data.value
+
+                if data.attribute == "RAGDOLL" then
+                    if data.value then
+                        MovementClient:SetupRagdoll()
+                    else
+                        MovementClient:ResetRagdoll()
+                    end
+                end
+
+                MovementClient:UpdateMove()
+            end
+        end
+    },
+
+    ["Movement.State"] = {
+        handler = function(data)
+            if not data or not data.state then return end
+
+            local state = data.state
+            local value = data.value
+
+            if state == "RUNNING" then
+                return
+            elseif state == "RAGDOLL" then
+                duration = CONFIG.RAGDOLL.DURATION
+            elseif state == "CLIMB" then
+                duration = CONFIG.CLIMB.COOLDOWN
+            elseif state == "ROLL" then
+                duration = CONFIG.ROLL.COOLDOWN
+            elseif state == "SLIDE" then
+                duration = CONFIG.SLIDE.COOLDOWN
+            elseif state == "VAULT" then
+                duration = CONFIG.VAULT.COOLDOWN
+            end
+
+            local stateData = CONFIG.STATE_DEFINITIONS[state]
+            if stateData and stateData.fieldName then
+                movementState[stateData.fieldName] = value
+                MovementClient:UpdateMove()
+            end
+        end
+    }
+}
+
+--[[ Helper Functions ]]
+function MovementClient:CheckStructures(part, checkType)
+    local proximityParams = OverlapParams.new()
+    proximityParams.FilterDescendantsInstances = {characterRef}
+    proximityParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local checks = {
+        VAULT = function()
+            local vaultHeight = 2.5
+            local vaultDepth = 3
+
+            local topClearanceCheck = workspace:GetPartBoundsInBox(
+                CFrame.new(part.Position + Vector3.new(0, vaultHeight/2, 0)),
+                Vector3.new(part.Size.X + 1, vaultHeight, part.Size.Z + 1),
+                proximityParams
+            )
+
+            local forwardClearanceCheck = workspace:GetPartBoundsInBox(
+                CFrame.new(part.Position + part.CFrame.LookVector * vaultDepth),
+                Vector3.new(part.Size.X + 1, vaultHeight, 2),
+                proximityParams
+            )
+
+            return #topClearanceCheck > 2 or #forwardClearanceCheck > 2
+        end,
+
+        SWING = function()
+            local swingHeight = 5
+            local swingRadius = 3
+
+            local verticalClearanceCheck = workspace:GetPartBoundsInBox(
+                CFrame.new(part.Position + Vector3.new(0, swingHeight/2, 0)),
+                Vector3.new(swingRadius * 2, swingHeight, swingRadius * 2),
+                proximityParams
+            )
+
+            return #verticalClearanceCheck > 2
+        end,
+
+        CONNECTED = function()
+            local partsAbove = workspace:GetPartBoundsInBox(
+                CFrame.new(part.Position + Vector3.new(0, part.Size.Y + 0.5, 0)),
+                Vector3.new(part.Size.X + 1, 1, part.Size.Z + 1),
+                proximityParams
+            )
+
+            local partsBelow = workspace:GetPartBoundsInBox(
+                CFrame.new(part.Position + Vector3.new(0, -part.Size.Y - 0.5, 0)),
+                Vector3.new(part.Size.X + 1, 1, part.Size.Z + 1),
+                proximityParams
+            )
+
+            local partsAround = workspace:GetPartBoundsInBox(
+                CFrame.new(part.Position),
+                Vector3.new(part.Size.X + 2, part.Size.Y, part.Size.Z + 2),
+                proximityParams
+            )
+
+            local connectedParts = 0
+            for _, nearbyPart in ipairs(partsAbove) do
+                if nearbyPart ~= part and nearbyPart.Anchored then
+                    connectedParts += 1
+                end
+            end
+            for _, nearbyPart in ipairs(partsBelow) do
+                if nearbyPart ~= part and nearbyPart.Anchored then
+                    connectedParts += 1
+                end
+            end
+            for _, nearbyPart in ipairs(partsAround) do
+                if nearbyPart ~= part and nearbyPart.Anchored then
+                    connectedParts += 1
+                end
+            end
+
+            return connectedParts > 2
+        end
     }
 
-    Animations = Utility.Animation.Categories(Animator, categories)
+    if not checkType or not checks[checkType] then
+        return checks.CONNECTED()
+    end
+
+    return checks[checkType]()
+end
+
+function MovementClient:CheckCollision(origin, direction, distance)
+    if not self:ValidateCharacter() then return false end
+
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {characterRef}
+    params.FilterType = Enum.RaycastFilterType.Exclude
+
+    local heightOffsets = {0, 1, 2}
+    for _, heightOffset in ipairs(heightOffsets) do
+        local rayOrigin = origin + Vector3.new(0, heightOffset, 0)
+        local result = workspace:Raycast(
+            rayOrigin,
+            direction.Unit * (distance or 2),
+            params
+        )
+
+        if result then
+            local angle = math.acos(result.Normal:Dot(Vector3.new(0, 1, 0)))
+            if angle > 0.785 then
+                return true, result
+            end
+        end
+    end
+
+    return false, nil
+end
+
+function MovementClient:ValidateCharacter()
+    local startTime = os.clock()
+    local timeout = 10
+
+    while not characterRef and (os.clock() - startTime) < timeout do
+        characterRef = self.LocalPlayer.Character
+        if characterRef then break end
+        task.wait(0.1)
+    end
+    if not characterRef then return false end
+
+    while not humanoidRef and (os.clock() - startTime) < timeout do
+        humanoidRef = characterRef:FindFirstChild("Humanoid")
+        if humanoidRef then break end
+        task.wait(0.1)
+    end
+    if not humanoidRef then return false end
+
+    while not characterRef:FindFirstChild("HumanoidRootPart") and (os.clock() - startTime) < timeout do
+        task.wait(0.1)
+    end
+    if not characterRef:FindFirstChild("HumanoidRootPart") then return false end
+    if not humanoidRef.Parent then return false end
+
+    return true
+end
+
+--[[ Animation Functions ]]
+function MovementClient:StopAnimation(categories)
+    if not self:ValidateCharacter() then return end
+
+    for _, category in ipairs(categories) do
+        for animName, _ in pairs(Modules.Animation.Assets.Animations[category] or {}) do
+            local success = Utility.Animation.Stop(animState.animations, category, animName, CONFIG.ANIMATION.BLEND_TIME.QUICK)
+        end
+    end
+end
+
+function MovementClient:PlayAnimation(category, name, blendTime, speed)
+    if not self:ValidateCharacter() then return end
+    blendTime = blendTime or CONFIG.ANIMATION.BLEND_TIME.DEFAULT
+
+    if animState.currentlyPlaying.category == category and animState.currentlyPlaying.name == name then
+        return
+    end
+
+    if category == "LOCOMOTION" then
+        self:StopAnimation({"LOCOMOTION"})
+    elseif category == "LANDING" then
+        self:StopAnimation({"LANDING"})
+    elseif category == "STATUS" then
+        self:StopAnimation({"STATUS"})
+    end
+
+    Utility.Animation.Play(animState.animations, category, name, blendTime, speed)
+
+    animState.currentlyPlaying.category = category
+    animState.currentlyPlaying.name = name
+end
+
+function MovementClient:PlayState(humanoid, state)
+    if not self:ValidateCharacter() then return end
+
+    local animData = STATE_ANIMATIONS[state]
+    if not animData then return end
+
+    self:PlayAnimation(animData[1], animData[2])
+end
+
+function MovementClient:GetAnimations()
+    local playing = {}
+    for key, track in pairs(animState.animations) do
+        if track and track.IsPlaying then
+            table.insert(playing, key)
+        end
+    end
+    return table.concat(playing, ", ")
+end
+
+--[[ Input Functions ]]
+function MovementClient:SetupInput()
+    if not self:ValidateCharacter() then return end
+
+    if inputHandler then
+        inputHandler.Disconnect()
+        inputHandler = nil
+    end
+
+    local actions = {
+        -- Movement
+        Utility.Input.CreateAction("MoveForward", {Enum.KeyCode.W}, function(isActive)
+            if isActive then
+                local currentTime = os.clock()
+                if currentTime - movementState.lastWTapTime < CONFIG.CONTROLS.DOUBLE_TAP_WINDOW then
+                    if movementState.isCrouching then
+                        self:SetState("CROUCHING", false)
+                    end
+                    self:SetState("RUNNING", true)
+                end
+                movementState.lastWTapTime = currentTime
+            else
+                if movementState.isSprinting then
+                    self:SetState("RUNNING", false)
+                end
+            end
+
+            keyStates.W = isActive
+            self:UpdateMove()
+            self:CheckState()
+        end),
+
+        Utility.Input.CreateAction("MoveLeft", {Enum.KeyCode.A}, function(isActive)
+            keyStates.A = isActive
+            self:UpdateMove()
+            self:CheckState()
+        end),
+
+        Utility.Input.CreateAction("MoveBack", {Enum.KeyCode.S}, function(isActive)
+            keyStates.S = isActive
+            self:UpdateMove()
+            self:CheckState()
+        end),
+
+        Utility.Input.CreateAction("MoveRight", {Enum.KeyCode.D}, function(isActive)
+            keyStates.D = isActive
+            self:UpdateMove()
+            self:CheckState()
+        end),
+
+        -- Roll/Dash
+        Utility.Input.CreateAction("Roll", {Enum.KeyCode.Q}, function(isActive)
+            if not isActive then return end
+
+            if humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then
+                if self.airDashState then
+                    self:StartDash()
+                end
+                return
+            end
+
+            if self.rollState and self.rollState.isRolling and self.rollState.cancel then
+                self:CancelRoll()
+                return
+            end
+
+            local direction = "forward"
+            if keyStates.S then
+                direction = "backward"
+            elseif keyStates.A then
+                direction = "left"
+            elseif keyStates.D then
+                direction = "right"
+            end
+
+            self:StartRoll(direction)
+        end),
+
+        -- Emergency Exit
+        Utility.Input.CreateAction("ExitMechanic", {Enum.KeyCode.F}, function(isActive)
+            if not isActive then return end
+
+            if self.ledgeState and self.ledgeState.isClimbing then
+                self:DropLedge()
+                return
+            end
+
+            if self.swingState and self.swingState.isSwinging then
+                self:EndSwing()
+                return
+            end
+
+            if self.vaultState and self.vaultState.isVaulting then
+                if characterRef and characterRef.HumanoidRootPart then
+                    characterRef.HumanoidRootPart.Anchored = false
+                end
+                self.vaultState.isVaulting = false
+                movementState.isVaulting = false
+                if workspace.CurrentCamera then
+                    Utility.Camera.FOV(workspace.CurrentCamera, CONFIG.CAMERA_SETTINGS.FOV, 0.15)
+                end
+                self:UpdateMove()
+                return
+            end
+
+            if self.wallRunState and self.wallRunState.isWallRunning then
+                self:StopWall()
+                return
+            end
+        end),
+
+        -- Crouch
+        Utility.Input.CreateAction("Crouch", {CONFIG.CONTROLS.CROUCH_KEY}, function(isActive)
+            keyStates.C = isActive
+
+            if isActive then
+                if movementState.isSprinting then
+                    self:SetState("RUNNING", false)
+                end
+                self:ToggleCrouch()
+            end
+        end, {throttle = 0.2}),
+
+        -- Slide
+        Utility.Input.CreateAction("Slide", {Enum.KeyCode.LeftControl}, function(isActive)
+            if isActive and keyStates.W and movementState.isSprinting and not movementState.isRagdoll then
+                self:StartSlide()
+            end
+        end),
+
+        -- Ragdoll
+        Utility.Input.CreateAction("Ragdoll", {CONFIG.CONTROLS.RAGDOLL_KEY}, function(isActive)
+            if not isActive then return end
+
+            if movementState.isRagdoll then
+                movementState.ragdollDuration = 0
+                movementState.ragdollStartTime = 0
+                
+                humanoidRef:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                humanoidRef:ChangeState(Enum.HumanoidStateType.GettingUp)
+                
+                task.delay(0.05, function()
+                    if self:ValidateCharacter() then
+                        self:ResetRagdoll()
+                        self:SetState("RAGDOLL", false)
+                        self:PlayAnimation("LOCOMOTION", "IDLE")
+                    end
+                end)
+            else
+                self:StartRagdoll(CONFIG.RAGDOLL.DURATION)
+            end
+        end),
+
+        -- Emotes
+        Utility.Input.CreateAction("Emotes", {Enum.KeyCode.T}, function(isActive)
+            if isActive then
+                self:ToggleEmotes()
+            end
+        end, {throttle = 0.3}),
+
+        -- Jump/Ledge
+        Utility.Input.CreateAction("Jump", {Enum.KeyCode.Space}, function(isActive)
+            keyStates.Space = isActive
+
+            if isActive then
+                if movementState.isCrouching then
+                    self:SetState("CROUCHING", false)
+                elseif self.ledgeState then
+                    if self.ledgeState.isWallJumping and humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then
+                        self:JumpLedge()
+                    elseif self.ledgeState.isClimbing then
+                        self:DropLedge()
+                    end
+                end
+            end
+        end),
+
+        -- Shift Lock
+        Utility.Input.CreateAction("ShiftLock", {Enum.KeyCode.LeftShift, Enum.KeyCode.RightShift}, function(isActive)
+            if isActive and humanoidRef and humanoidRef.Health > 0 then
+                self:ToggleShiftLock()
+            end
+        end),
+
+        -- Wall Run
+        Utility.Input.CreateAction("WallRunLeft", {}, function(isActive)
+            if isActive and keyStates.Space and humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then
+                self:StartWall("left")
+            end
+        end),
+
+        Utility.Input.CreateAction("WallRunRight", {}, function(isActive)
+            if isActive and keyStates.Space and humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then
+                self:StartWall("right")
+            end
+        end),
+    }
+
+    local inputConfig = {
+        id = "movement",
+        actions = actions,
+        mouseEnabled = true,
+        keyboardEnabled = true,
+        gamepadEnabled = true,
+        touchEnabled = false,
+        requireGameFocus = true
+    }
+
+    inputHandler = Utility.Input.HandleInput(inputConfig)
+end
+
+--[[ State Management ]]
+function MovementClient:ProcessState(humanoid, oldState, newState)
+    if not self:ValidateCharacter() then return end
+
+    animState.currentState = newState
+
+    if movementState.isCrouching and (
+        newState == Enum.HumanoidStateType.Jumping or
+        newState == Enum.HumanoidStateType.Freefall or
+        newState == Enum.HumanoidStateType.Swimming or
+        newState == Enum.HumanoidStateType.Climbing
+    ) then
+        self:SetState("CROUCHING", false)
+    end
+
+    if oldState == Enum.HumanoidStateType.Climbing and newState ~= Enum.HumanoidStateType.Climbing then
+        self:StopAnimation({"WALL"})
+    elseif newState == Enum.HumanoidStateType.Climbing then
+        local isMoving = keyStates.W or keyStates.S or keyStates.A or keyStates.D
+
+        self:StopAnimation({"WALL"})
+        self:PlayAnimation("WALL", isMoving and "CLIMB" or "HOLD")
+        return
+    end
+
+    for stateName, stateData in pairs(CONFIG.STATE_DEFINITIONS) do
+        local fieldName = stateData.fieldName
+        if fieldName and movementState[fieldName] then
+            if stateData.validHumanoidStates and next(stateData.validHumanoidStates) and not stateData.validHumanoidStates[newState] then
+                self:SetState(stateName, false)
+            end
+        end
+    end
+
+    local ragdollData = CONFIG.STATE_DEFINITIONS.RAGDOLL
+    if newState == ragdollData.humanoidState and not movementState[ragdollData.fieldName] then
+        if movementState.isCrouching then
+            self:SetState("CROUCHING", false)
+        end
+        if cameraState.isShiftLocked then
+            self:ToggleShiftLock()
+        end
+        self:SetState("RAGDOLL", true)
+    elseif oldState == ragdollData.humanoidState and movementState[ragdollData.fieldName] and newState == ragdollData.endState then
+        self:SetState("RAGDOLL", false)
+    end
+
+    if newState == Enum.HumanoidStateType.Landed then
+        if self.airDashState and self.airDashState.isDashing then
+            self:StopAnimation({"SPECIAL", "AIR_DASH"})
+            self.airDashState.isDashing = false
+        end
+
+        if oldState == Enum.HumanoidStateType.Freefall then
+            self:ProcessLanding(humanoid)
+        end
+    else
+        self:PlayState(humanoid, newState)
+    end
+
+    for emoteName, _ in pairs(Modules.Animation.Assets.Animations.EMOTES or {}) do
+        local animKey = "EMOTES_" .. emoteName
+        if animState.animations[animKey] and animState.animations[animKey].IsPlaying then
+            self:StopAnimation({"EMOTES"})
+            self:PlayAnimation("LOCOMOTION", "IDLE")
+            break
+        end
+    end
+end
+
+function MovementClient:CheckState()
+    if not self:ValidateCharacter() then return end
+
+    local currentState = humanoidRef:GetState()
+    if currentState == Enum.HumanoidStateType.Climbing or currentState == Enum.HumanoidStateType.Swimming then
+        self:ProcessState(humanoidRef, currentState, currentState)
+    end
+end
+
+function MovementClient:ProcessLanding(humanoid)
+    local fallSpeed = humanoid.RootPart and math.abs(humanoid.RootPart.Velocity.Y) or 0
+    movementState.maxFallVelocity = 0
+
+    if self.airDashState and self.airDashState.isDashing then
+        self:StopAnimation({"SPECIAL", "AIR_DASH"})
+        self.airDashState.isDashing = false
+    end
+
+    Utility.Animation.Stop(animState.animations, "LOCOMOTION", "FALL", CONFIG.ANIMATION.BLEND_TIME.QUICK)
+
+    if movementState.isSprinting and keyStates.W then
+        self:PlayAnimation("LOCOMOTION", "SPRINT")
+        return
+    end
+
+    local landCategory = "LANDING"
+    local landAnim
+
+    if fallSpeed > CONFIG.VELOCITY.HARD_LAND_THRESHOLD then
+        landAnim = "HURT_LOTS"
+        Services.Event:FireServer("Client.Movement.Fall", {
+            velocity = fallSpeed,
+            severity = "high"
+        })
+    elseif fallSpeed > CONFIG.VELOCITY.FALL_DAMAGE_THRESHOLD then
+        landAnim = "HURT"
+        Services.Event:FireServer("Client.Movement.Fall", {
+            velocity = fallSpeed,
+            severity = "medium"
+        })
+    elseif fallSpeed > CONFIG.VELOCITY.LARGE_FALL_THRESHOLD then
+        landAnim = "LARGE"
+    else
+        landAnim = "SMALL"
+    end
+
+    self:PlayAnimation(landCategory, landAnim, CONFIG.ANIMATION.BLEND_TIME.QUICK)
+
+    local landingTrack = animState.animations[landCategory .. "_" .. landAnim]
+    if landingTrack then
+        landingTrack.Stopped:Connect(function()
+            if animState.currentState == Enum.HumanoidStateType.Running or
+               animState.currentState == Enum.HumanoidStateType.RunningNoPhysics then
+                self:PlayState(humanoid, animState.currentState)
+
+                if keyStates.W then
+                    self:SetState("RUNNING", true)
+                end
+            end
+        end)
+    end
+end
+
+function MovementClient:UpdateMove()
+    if not self:ValidateCharacter() then return end
+    if animState.currentState ~= Enum.HumanoidStateType.Running and
+       animState.currentState ~= Enum.HumanoidStateType.RunningNoPhysics then
+        return
+    end
+
+    local isMoving = keyStates.W or keyStates.A or keyStates.S or keyStates.D
+    local targetAnim
+    local targetFOV = CONFIG.CAMERA_SETTINGS.FOV
+
+    footstepState.isWalking = isMoving and not movementState.isSliding and not movementState.isRolling
+
+    if not isMoving then
+        targetAnim = movementState.isCrouching and "CROUCH_IDLE" or "IDLE"
+        targetFOV = CONFIG.CAMERA_SETTINGS.WALK_FOV
+    else
+        if movementState.isCrouching then
+            targetAnim = "CROUCH_WALK"
+            targetFOV = CONFIG.CAMERA_SETTINGS.WALK_FOV
+        elseif movementState.isSprinting then
+            targetAnim = "SPRINT"
+            targetFOV = CONFIG.CAMERA_SETTINGS.SPRINT_FOV
+        else
+            targetAnim = "WALK"
+            targetFOV = CONFIG.CAMERA_SETTINGS.WALK_FOV
+        end
+    end
+
+    if animState.currentlyPlaying.category ~= "LOCOMOTION" or animState.currentlyPlaying.name ~= targetAnim then
+        self:PlayAnimation("LOCOMOTION", targetAnim)
+    end
+
+    local camera = workspace.CurrentCamera
+    if camera and camera.FieldOfView ~= targetFOV then
+        Utility.Camera.FOV(camera, targetFOV, CONFIG.CAMERA_SETTINGS.TRANSITION_TIME)
+    end
+end
+
+function MovementClient:CheckMove()
+    if not self:ValidateCharacter() then return end
+
+    task.spawn(function()
+        while self:ValidateCharacter() do
+            self:UpdateMove()
+            self:UpdateFootsteps()
+
+            if movementState.isRagdoll and movementState.ragdollDuration > 0 then
+                local currentTime = os.clock()
+                if currentTime - movementState.ragdollStartTime >= movementState.ragdollDuration then
+                    movementState.ragdollDuration = 0
+                    movementState.ragdollStartTime = 0
+
+                    humanoidRef:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
+                    humanoidRef:ChangeState(Enum.HumanoidStateType.GettingUp)
+
+                    task.delay(0.05, function()
+                        if self:ValidateCharacter() and movementState.isRagdoll then
+                            self:ResetRagdoll()
+                            self:SetState("RAGDOLL", false)
+                            self:PlayAnimation("LOCOMOTION", "IDLE")
+                        end
+                    end)
+                end
+            end
+
+            task.wait(0.1)
+        end
+    end)
+end
+
+function MovementClient:SetState(stateName, value)
+    local stateData = CONFIG.STATE_DEFINITIONS[stateName]
+    if not stateData then return end
+
+    local fieldName = stateData.fieldName
+    if not fieldName then return end
+
+    if movementState[fieldName] == value then return end
+
+    if value and stateData.setupFunction then
+        local setupFunc = self[stateData.setupFunction]
+        if setupFunc then
+            setupFunc(self)
+        end
+    end
+
+    Services.Event:FireServer("Movement.State", {
+        state = stateName,
+        value = value
+    })
+
+    movementState[fieldName] = value
+    self:UpdateMove()
+end
+
+function MovementClient:ToggleCrouch()
+    self:SetState("CROUCHING", not movementState.isCrouching)
+end
+
+--[[ Ledge Functions ]]
+function MovementClient:SetupLedge()
+    if not self:ValidateCharacter() then return end
+
+    if not self.ledgeState then
+        self.ledgeState = {
+            bodyVelocity = Instance.new("LinearVelocity"),
+            attachment = Instance.new("Attachment"),
+            isClimbing = false,
+            canLedge = true,
+            ledgeAvailable = true,
+            grabbingLedge = false,
+            shuffleVelocity = Vector3.new(0, 0, 0),
+            wallJumpDebounce = false,
+            lastWallJumpTime = 0,
+            wallJumpCount = 0,
+            initialJumpHeight = 0,
+            maxWallJumps = 3,
+            maxJumpHeight = 18
+        }
+
+        self.ledgeState.bodyVelocity.Attachment0 = self.ledgeState.attachment
+        self.ledgeState.bodyVelocity.Enabled = false
+        self.ledgeState.bodyVelocity.MaxForce = math.huge
+        self.ledgeState.bodyVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+        self.ledgeState.attachment.Parent = characterRef.HumanoidRootPart
+        self.ledgeState.bodyVelocity.Parent = characterRef.HumanoidRootPart
+    end
+
+    if self.ledgeConnection then
+        self.ledgeConnection:Disconnect()
+    end
+
+    self.ledgeConnection = RunService.Heartbeat:Connect(function()
+        if not self:ValidateCharacter() then return end
+
+        if self.swingState and self.swingState.isSwinging then
+            return
+        end
+
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {characterRef}
+
+        local result = workspace:Raycast(characterRef.HumanoidRootPart.Position, characterRef.HumanoidRootPart.CFrame.LookVector * 1, raycastParams)
+        local otherResult = workspace:Raycast(characterRef.HumanoidRootPart.Position + Vector3.new(0, 2.5, 0), characterRef.HumanoidRootPart.CFrame.LookVector * 2, raycastParams)
+
+        if result and not otherResult then
+            local hitPart = result.Instance
+            if hitPart.Size.Y >= 7 and not self.ledgeState.isClimbing and
+               self.ledgeState.ledgeAvailable and self.ledgeState.canLedge then
+                local humanoidState = humanoidRef:GetState()
+                if humanoidState == Enum.HumanoidStateType.Freefall or
+                   (humanoidState == Enum.HumanoidStateType.Running and keyStates.W) then
+                    self:ClimbLedge()
+                end
+            end
+        elseif result and otherResult then
+            local hitPart = result.Instance
+            local currentTime = os.clock()
+            local currentHeight = characterRef.HumanoidRootPart.Position.Y
+
+            if hitPart.Size.Y >= 14 and
+               not self.ledgeState.isClimbing and
+               not self.ledgeState.wallJumpDebounce and
+               (currentTime - self.ledgeState.lastWallJumpTime) > 1.0 and
+               self.ledgeState.wallJumpCount < self.ledgeState.maxWallJumps and
+               (currentHeight - self.ledgeState.initialJumpHeight) < self.ledgeState.maxJumpHeight and
+               keyStates.Space then
+
+                self.ledgeState.isWallJumping = true
+                self.ledgeState.lastWallJumpTime = currentTime
+
+                if self.ledgeState.wallJumpCount == 0 then
+                    self.ledgeState.initialJumpHeight = currentHeight
+                end
+            end
+        end
+    end)
+end
+
+function MovementClient:UpdateShuffle()
+    if not self:ValidateCharacter() then return end
+    if not self.ledgeState or not self.ledgeState.isClimbing then return end
+
+    local moveDir = Vector3.new(0, 0, 0)
+    local isShuffling = false
+    local shuffleDirection = nil
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+
+    if keyStates.A then
+        moveDir = -humanoidRootPart.CFrame.RightVector
+        isShuffling = true
+        shuffleDirection = "left"
+    elseif keyStates.D then
+        moveDir = humanoidRootPart.CFrame.RightVector
+        isShuffling = true
+        shuffleDirection = "right"
+    end
+
+    if moveDir.Magnitude > 0 then
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {characterRef}
+
+        local currentWallCheck = workspace:Raycast(
+            humanoidRootPart.Position,
+            humanoidRootPart.CFrame.LookVector * 2.5,
+            raycastParams
+        )
+
+        local nextWallCheck = workspace:Raycast(
+            humanoidRootPart.Position + (moveDir * CONFIG.LEDGE.CHECK_DISTANCE),
+            humanoidRootPart.CFrame.LookVector * 2.5,
+            raycastParams
+        )
+
+        if currentWallCheck and nextWallCheck then
+            local currentWallHeight = currentWallCheck.Instance.Size.Y
+            local nextWallHeight = nextWallCheck.Instance.Size.Y
+
+            if nextWallHeight <= currentWallHeight + 1 and nextWallHeight >= CONFIG.LEDGE.WALL_MIN_HEIGHT then
+                self.ledgeState.shuffleVelocity = moveDir * CONFIG.LEDGE.SHUFFLE_SPEED
+                self.ledgeState.bodyVelocity.VectorVelocity = self.ledgeState.shuffleVelocity
+
+                if shuffleDirection == "left" then
+                    if animState.currentlyPlaying.category ~= "LEDGE" or animState.currentlyPlaying.name ~= "SHUFFLE_LEFT" then
+                        self:PlayAnimation("LEDGE", "SHUFFLE_LEFT", CONFIG.ANIMATION.BLEND_TIME.QUICK)
+                    end
+                elseif shuffleDirection == "right" then
+                    if animState.currentlyPlaying.category ~= "LEDGE" or animState.currentlyPlaying.name ~= "SHUFFLE_RIGHT" then
+                        self:PlayAnimation("LEDGE", "SHUFFLE_RIGHT", CONFIG.ANIMATION.BLEND_TIME.QUICK)
+                    end
+                end
+            else
+                self.ledgeState.shuffleVelocity = Vector3.new(0, 0, 0)
+                self.ledgeState.bodyVelocity.VectorVelocity = Vector3.new(0, 0, 0)
+
+                if animState.currentlyPlaying.category ~= "LEDGE" or animState.currentlyPlaying.name ~= "HOLD" then
+                    self:PlayAnimation("LEDGE", "HOLD", CONFIG.ANIMATION.BLEND_TIME.QUICK)
+                end
+            end
+        else
+            self.ledgeState.shuffleVelocity = Vector3.new(0, 0, 0)
+            self.ledgeState.bodyVelocity.VectorVelocity = Vector3.new(0, 0, 0)
+
+            if animState.currentlyPlaying.category ~= "LEDGE" or animState.currentlyPlaying.name ~= "HOLD" then
+                self:PlayAnimation("LEDGE", "HOLD", CONFIG.ANIMATION.BLEND_TIME.QUICK)
+            end
+        end
+    else
+        self.ledgeState.shuffleVelocity = Vector3.new(0, 0, 0)
+        self.ledgeState.bodyVelocity.VectorVelocity = Vector3.new(0, 0, 0)
+
+        if isShuffling == false and 
+           (animState.currentlyPlaying.category == "LEDGE" and
+           (animState.currentlyPlaying.name == "SHUFFLE_LEFT" or
+            animState.currentlyPlaying.name == "SHUFFLE_RIGHT")) then
+            self:PlayAnimation("LEDGE", "HOLD", CONFIG.ANIMATION.BLEND_TIME.QUICK)
+        end
+    end
+end
+
+function MovementClient:ClimbLedge()
+    if not self.ledgeState then return end
+
+    local currentTime = os.clock()
+    if currentTime - mechanicState.lastMechanicTime < mechanicState.cooldown then
+        return
+    end
+    mechanicState.lastMechanicTime = currentTime
+
+    self.ledgeState.grabbingLedge = true
+    self.ledgeState.isClimbing = true
+    self.ledgeState.ledgeAvailable = false
+    self.ledgeState.shuffleVelocity = Vector3.new(0, 0, 0)
+    self.ledgeState.hangStartTime = os.clock()
+
+    self:StopAnimation({"LOCOMOTION"})
+    self:PlayAnimation("LEDGE", "GRAB")
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {characterRef}
+
+    local wallResult = workspace:Raycast(humanoidRootPart.Position, humanoidRootPart.CFrame.LookVector * CONFIG.LEDGE.CHECK_DISTANCE, raycastParams)
+    if wallResult then
+        local topCheckStart = wallResult.Position + Vector3.new(0, 3, 0)
+        local edgeResult = workspace:Raycast(topCheckStart, Vector3.new(0, -4, 0), raycastParams)
+
+        if edgeResult then
+            local wallNormal = wallResult.Normal
+            local targetPosition = edgeResult.Position + Vector3.new(0, -1.0, 0)
+            targetPosition = targetPosition + (wallNormal * 0.5)
+
+            humanoidRootPart.CFrame = CFrame.new(targetPosition, targetPosition - wallNormal)
+        else
+            local wallNormal = wallResult.Normal
+            local targetPosition = wallResult.Position + Vector3.new(0, 1.5, 0)
+            targetPosition = targetPosition + (wallNormal * 0.5)
+
+            humanoidRootPart.CFrame = CFrame.new(targetPosition, targetPosition - wallNormal)
+        end
+    end
+
+    self.ledgeState.bodyVelocity.VectorVelocity = Vector3.new(0, 0, 0)
+    self.ledgeState.bodyVelocity.Enabled = true
+
+    humanoidRef.AutoRotate = false
+
+    if cameraState.isShiftLocked then
+        self:ToggleShiftLock()
+    end
+
+    local grabTrack = animState.animations["LEDGE_GRAB"]
+    if grabTrack then
+        grabTrack.Stopped:Connect(function()
+            if self.ledgeState and self.ledgeState.isClimbing then
+                self:PlayAnimation("LEDGE", "HOLD")
+            end
+        end)
+    end
+    
+    task.delay(CONFIG.LEDGE.HANG_DURATION, function()
+        if self.ledgeState and self.ledgeState.isClimbing then
+            self:DropLedge()
+        end
+    end)
+end
+
+function MovementClient:DropLedge()
+    if not self:ValidateCharacter() then return end
+    if not self.ledgeState then return end
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {characterRef}
+
+    local wallResult = workspace:Raycast(humanoidRootPart.Position, humanoidRootPart.CFrame.LookVector * CONFIG.LEDGE.CHECK_DISTANCE, raycastParams)
+    if not wallResult then return end
+
+    local wallNormal = wallResult.Normal
+    local dropStartPos = wallResult.Position + Vector3.new(0, -1, 0)
+    local dropEndPos = dropStartPos + (wallNormal * -1)
+
+    local landingCheck = workspace:Raycast(dropEndPos + Vector3.new(0, 5, 0), Vector3.new(0, -10, 0), raycastParams)
+    if not landingCheck then return end
+
+    self.ledgeState.grabbingLedge = false
+    self.ledgeState.isClimbing = false
+
+    self:StopAnimation({"LEDGE"})
+    self:PlayAnimation("LEDGE", "CLIMB")
+
+    humanoidRef.AutoRotate = true
+
+    if cameraState.isShiftLocked then
+        self:ToggleShiftLock()
+    end
+
+    self.ledgeState.bodyVelocity.Enabled = true
+    self.ledgeState.bodyVelocity.VectorVelocity = wallNormal * -CONFIG.LEDGE.PUSH_FORCE + Vector3.new(0, CONFIG.LEDGE.CLIMB_SPEED, 0)
+
+    local function resetPhysics()
+        if self.ledgeState then
+            self.ledgeState.bodyVelocity.Enabled = false
+            self.ledgeState.bodyVelocity.VectorVelocity = Vector3.new(0, 0, 0)
+
+            if humanoidRef then
+                humanoidRef.PlatformStand = false
+                humanoidRef.AutoRotate = true
+            end
+        end
+    end
+
+    task.delay(0.2, resetPhysics)
+
+    local climbTrack = animState.animations["LEDGE_CLIMB"]
+    if climbTrack then
+        climbTrack.Stopped:Connect(resetPhysics)
+    end
+
+    task.delay(CONFIG.LEDGE.DROP_COOLDOWN, function()
+        if self.ledgeState then
+            self.ledgeState.ledgeAvailable = true
+        end
+    end)
+end
+
+function MovementClient:JumpLedge()
+    if not self.ledgeState then return end
+
+    self.ledgeState.wallJumpDebounce = true
+    self.ledgeState.canLedge = false
+    self.ledgeState.isWallJumping = false
+    self.ledgeState.wallJumpCount = self.ledgeState.wallJumpCount + 1
+
+    self:StopAnimation({"LEDGE"})
+    self:PlayAnimation("LEDGE", "CLIMB")
+
+    humanoidRef.AutoRotate = true
+
+    if cameraState.isShiftLocked then
+        self:ToggleShiftLock()
+    end
+
+    self.ledgeState.bodyVelocity.Enabled = true
+    self.ledgeState.bodyVelocity.VectorVelocity = characterRef.HumanoidRootPart.CFrame.LookVector * CONFIG.LEDGE.JUMP_HORIZONTAL_FORCE + Vector3.new(0, CONFIG.LEDGE.JUMP_VERTICAL_FORCE, 0)
+
+    self.ledgeState.canLedge = true
+
+    task.delay(0.15, function()
+        if not self.ledgeState.grabbingLedge then
+            self.ledgeState.bodyVelocity.Enabled = false
+        end
+    end)
+
+    task.delay(CONFIG.LEDGE.WALL_JUMP_COOLDOWN, function()
+        if self.ledgeState then
+            self.ledgeState.wallJumpDebounce = false
+        end
+    end)
+end
+
+--[[ Roll Functions ]]
+function MovementClient:SetupRoll()
+    if not self:ValidateCharacter() then return end
+
+    if not self.rollState then
+        self.rollState = {
+            isRolling = false,
+            cooldown = false,
+            direction = "forward",
+            bodyVelocity = Instance.new("LinearVelocity"),
+            attachment = Instance.new("Attachment"),
+            cacheJumpPower = 0,
+            cacheJumpHeight = 0,
+            rollStartTime = 0,
+            lastRollTime = 0,
+            cancel = false
+        }
+
+        self.rollState.bodyVelocity.Attachment0 = self.rollState.attachment
+        self.rollState.bodyVelocity.Enabled = false
+        self.rollState.bodyVelocity.MaxForce = math.huge
+        self.rollState.bodyVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+        self.rollState.attachment.Parent = characterRef.HumanoidRootPart
+        self.rollState.bodyVelocity.Parent = characterRef.HumanoidRootPart
+    end
+end
+
+function MovementClient:StartRoll(direction)
+    if not self:ValidateCharacter() then return end
+    if movementState.isRagdoll or movementState.isSliding or movementState.isHanging then return end
+
+    self:SetupRoll()
+
+    if self.rollState.isRolling or self.rollState.cooldown then 
+        return 
+    end
+
+    self:StopAnimation({"LOCOMOTION", "ROLL", "LANDING"})
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    local currentTime = os.clock()
+    local isChainedRoll = self.rollState.lastRollTime and
+                         (currentTime - self.rollState.lastRollTime) <= CONFIG.ROLL.CANCEL.CHAIN_WINDOW
+
+    self.rollState.cacheJumpPower = humanoidRef.JumpPower
+    self.rollState.cacheJumpHeight = humanoidRef.JumpHeight
+    humanoidRef.JumpPower = 0
+    humanoidRef.JumpHeight = 0
+
+    self.rollState.direction = direction
+    self.rollState.rollStartTime = os.clock()
+    self.rollState.lastRollTime = self.rollState.rollStartTime
+    self.rollState.isRolling = true
+    self.rollState.cancel = false
+    movementState.isRolling = true
+
+    local rollDirection = Vector3.new(0, 0, 0)
+    local rollAnim = ""
+    local isForwardOrBack = false
+
+    if direction == "forward" then
+        rollDirection = humanoidRootPart.CFrame.LookVector
+        rollAnim = "FORWARD"
+        isForwardOrBack = true
+    elseif direction == "backward" then
+        rollDirection = -humanoidRootPart.CFrame.LookVector
+        rollAnim = "BACKWARD"
+        isForwardOrBack = true
+    elseif direction == "left" then
+        rollDirection = -humanoidRootPart.CFrame.RightVector
+        rollAnim = "LEFT"
+    elseif direction == "right" then
+        rollDirection = humanoidRootPart.CFrame.RightVector
+        rollAnim = "RIGHT"
+    end
+
+    Utility.Sound.Play("SFX.Roll", humanoidRootPart)
+    self:PlayAnimation("ROLL", rollAnim)
+
+    task.delay(CONFIG.ROLL.CANCEL.MIN_TIME, function()
+        if self.rollState and self.rollState.isRolling then
+            self.rollState.cancel = true
+        end
+    end)
+
+    local verticalForce = 0
+    if humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then
+        verticalForce = CONFIG.ROLL.VERTICAL_FORCE
+    end
+
+    rollDirection = rollDirection + Vector3.new(0, verticalForce, 0)
+    self.rollState.bodyVelocity.VectorVelocity = rollDirection * CONFIG.ROLL.SPEED
+    self.rollState.bodyVelocity.Enabled = true
+
+    local collisionConnection
+    collisionConnection = RunService.Heartbeat:Connect(function()
+        if not self:ValidateCharacter() then
+            if collisionConnection then
+                collisionConnection:Disconnect()
+            end
+            return
+        end
+
+        if self:CheckCollision(humanoidRootPart.Position, rollDirection) then
+            if collisionConnection then
+                collisionConnection:Disconnect()
+            end
+
+            if self.rollState and self.rollState.isRolling then
+                self:StopRoll()
+            end
+        end
+    end)
+
+    local duration = isForwardOrBack and CONFIG.ROLL.DURATION.FORWARD or CONFIG.ROLL.DURATION.SIDE
+    local cooldown = isForwardOrBack and CONFIG.ROLL.COOLDOWN.FORWARD or CONFIG.ROLL.COOLDOWN.SIDE
+
+    task.delay(duration, function()
+        if collisionConnection then
+            collisionConnection:Disconnect()
+        end
+
+        if self.rollState and self.rollState.isRolling then
+            self:StopRoll()
+        end
+    end)
+
+    self.rollState.cooldown = true
+    task.delay(cooldown, function()
+        if self.rollState then
+            self.rollState.cooldown = false
+        end
+    end)
+end
+
+function MovementClient:StopRoll()
+    if not self:ValidateCharacter() then return end
+    if not self.rollState or not self.rollState.isRolling then return end
+
+    self:SetState("ROLL", false)
+    self.rollState.isRolling = false
+    self.rollState.bodyVelocity.Enabled = false
+
+    humanoidRef.JumpPower = self.rollState.cacheJumpPower
+    humanoidRef.JumpHeight = self.rollState.cacheJumpHeight
+
+    self:StopAnimation({"ROLL"})
+    self:PlayAnimation("LANDING", "SMALL")
+end
+
+function MovementClient:CancelRoll()
+    if not self:ValidateCharacter() then return end
+    if not self.rollState or not self.rollState.isRolling or not self.rollState.cancel then return end
+
+    self.rollState.isRolling = false
+    self.rollState.bodyVelocity.Enabled = false
+    self.rollState.cancel = false
+
+    humanoidRef.JumpPower = self.rollState.cacheJumpPower
+    humanoidRef.JumpHeight = self.rollState.cacheJumpHeight
+
+    self:StopAnimation({"ROLL"})
+    self:PlayAnimation("ROLL", "CANCEL")
+
+    task.delay(0.1, function()
+        self:PlayAnimation("LOCOMOTION", "IDLE")
+    end)
+end
+
+--[[ Dash Functions ]]
+function MovementClient:SetupDash()
+    if not self:ValidateCharacter() then return end
+
+    if not self.airDashState then
+        self.airDashState = {
+            isDashing = false,
+            cooldown = false,
+            lastDashTime = 0,
+            linearVelocity = Instance.new("LinearVelocity"),
+            attachment = Instance.new("Attachment")
+        }
+
+        self.airDashState.linearVelocity.Attachment0 = self.airDashState.attachment
+        self.airDashState.linearVelocity.MaxForce = CONFIG.DASH.FORCE
+        self.airDashState.linearVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+        self.airDashState.linearVelocity.Enabled = false
+        self.airDashState.attachment.Parent = characterRef.HumanoidRootPart
+        self.airDashState.linearVelocity.Parent = characterRef.HumanoidRootPart
+    end
+end
+
+function MovementClient:StartDash()
+    if not self:ValidateCharacter() then return end
+    if not self.airDashState then return end
+    if movementState.isRagdoll or movementState.isHanging then return end
+    if humanoidRef:GetState() ~= Enum.HumanoidStateType.Freefall then return end
+
+    local currentTime = os.clock()
+    if currentTime - self.airDashState.lastDashTime < CONFIG.DASH.COOLDOWN then
+        return
+    end
+
+    self.airDashState.lastDashTime = currentTime
+    self.airDashState.isDashing = true
+    self:StopAnimation({"LOCOMOTION"})
+
+    Utility.Sound.Play("SFX.Dash", characterRef.HumanoidRootPart)
+
+    if not animState.animations["SPECIAL_AIR_DASH"] then
+        local specialAnims = Utility.Animation.Categories(humanoidRef:WaitForChild("Animator"), {
+            "SPECIAL"
+        })
+        for key, track in pairs(specialAnims) do
+            animState.animations[key] = track
+        end
+    end
+
+    if animState.animations["SPECIAL_AIR_DASH"] then
+        animState.animations["SPECIAL_AIR_DASH"]:Play(0.1)
+    else
+        return
+    end
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    Utility.Particle.Play("Dash", humanoidRootPart, {
+        emitCount = 25,
+        lifetime = CONFIG.DASH.VFX.DURATION
+    })
+
+    local dashVelocity = humanoidRootPart.CFrame.LookVector * CONFIG.DASH.DISTANCE * (1/CONFIG.DASH.DURATION)
+    self.airDashState.linearVelocity.VectorVelocity = dashVelocity
+    self.airDashState.linearVelocity.MaxForce = CONFIG.DASH.FORCE
+    self.airDashState.linearVelocity.Enabled = true
+
+    self.airDashState.dashEndTime = os.clock() + CONFIG.DASH.DURATION
+
+    task.delay(CONFIG.DASH.DURATION, function()
+        if self.airDashState and self.airDashState.isDashing then
+            self.airDashState.linearVelocity.Enabled = false
+            self:StopAnimation({"SPECIAL", "AIR_DASH"})
+            self.airDashState.isDashing = false
+        end
+    end)
+end
+
+function MovementClient:SetupSlide()
+    if not self:ValidateCharacter() then return end
+
+    if not self.slideState then
+        self.slideState = {
+            isSliding = false,
+            lastSlideTime = 0,
+            bodyVelocity = Instance.new("LinearVelocity"),
+            attachment = Instance.new("Attachment")
+        }
+
+        self.slideState.bodyVelocity.Attachment0 = self.slideState.attachment
+        self.slideState.bodyVelocity.MaxForce = math.huge
+        self.slideState.bodyVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+        self.slideState.bodyVelocity.Enabled = false
+        self.slideState.attachment.Parent = characterRef.HumanoidRootPart
+        self.slideState.bodyVelocity.Parent = characterRef.HumanoidRootPart
+    end
+end
+
+function MovementClient:StartSlide()
+    if not self:ValidateCharacter() then return end
+    if not self.slideState then return end
+    if movementState.isRagdoll then return end
+
+    local currentTime = os.clock()
+    if currentTime - self.slideState.lastSlideTime < CONFIG.SLIDE.COOLDOWN then
+        return
+    end
+
+    self.slideState.lastSlideTime = currentTime
+    self.slideState.isSliding = true
+    movementState.isSliding = true
+
+    Utility.Sound.Play("SFX.Slide", characterRef.HumanoidRootPart)
+
+    self:StopAnimation({"LOCOMOTION"})
+    self:PlayAnimation("SPECIAL", "SLIDE")
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    self.slideState.bodyVelocity.VectorVelocity = humanoidRootPart.CFrame.LookVector * CONFIG.SLIDE.SPEED
+    self.slideState.bodyVelocity.Enabled = true
+
+    local collisionConnection
+    collisionConnection = RunService.Heartbeat:Connect(function()
+        if not self:ValidateCharacter() then
+            if collisionConnection then
+                collisionConnection:Disconnect()
+            end
+            return
+        end
+
+        if self:CheckCollision(humanoidRootPart.Position, humanoidRootPart.CFrame.LookVector) then
+            if self.slideState.bodyVelocity then
+                self.slideState.bodyVelocity.Enabled = false
+            end
+            self.slideState.isSliding = false
+            movementState.isSliding = false
+
+            self:StopAnimation({"SPECIAL"})
+            self:PlayAnimation("LANDING", "SMALL")
+
+            if collisionConnection then
+                collisionConnection:Disconnect()
+            end
+
+            local landingTrack = animState.animations["LANDING_SMALL"]
+            if landingTrack then
+                landingTrack.Stopped:Connect(function()
+                    if not movementState.isSliding then
+                        self:UpdateMove()
+                    end
+                end)
+            end
+        end
+    end)
+
+    task.delay(CONFIG.SLIDE.DURATION, function()
+        if collisionConnection then
+            collisionConnection:Disconnect()
+        end
+
+        if self.slideState then
+            self.slideState.bodyVelocity.Enabled = false
+            self.slideState.isSliding = false
+            movementState.isSliding = false
+
+            self:StopAnimation({"SPECIAL"})
+            self:PlayAnimation("LANDING", "SMALL")
+
+            local landingTrack = animState.animations["LANDING_SMALL"]
+            if landingTrack then
+                landingTrack.Stopped:Connect(function()
+                    if not movementState.isSliding then
+                        self:UpdateMove()
+                    end
+                end)
+            end
+        end
+    end)
+end
+
+--[[ Vault Functions ]]
+function MovementClient:SetupVault()
+    if not self:ValidateCharacter() then return end
+
+    if not self.vaultState then
+        self.vaultState = {
+            isVaulting = false,
+            canVault = true,
+            lastVaultTime = 0
+        }
+    end
+end
+
+function MovementClient:StartVault()
+    if not self:ValidateCharacter() then return end
+    if not self.vaultState then return end
+    if self.vaultState.isVaulting then return end
+    if movementState.isRagdoll or movementState.isSliding then return end
+    if humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then return end
+
+    local currentTime = os.clock()
+    if currentTime - self.vaultState.lastVaultTime < CONFIG.VAULT.COOLDOWN then return end
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {characterRef}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local raycastResult = workspace:Raycast(
+        humanoidRootPart.Position,
+        humanoidRootPart.CFrame.LookVector * CONFIG.VAULT.CHECK_DISTANCE,
+        raycastParams
+    )
+
+    if not raycastResult then return end
+    local hitPart = raycastResult.Instance
+
+    if hitPart:FindFirstAncestorWhichIsA("Model"):FindFirstChild("Humanoid") then return end
+    if hitPart.Size.Y >= CONFIG.VAULT.MAX_HEIGHT then return end
+
+    if self:CheckStructures(hitPart, "VAULT") then return end
+
+    local topRaycast = workspace:Raycast(
+        raycastResult.Position + Vector3.new(0, 2, 0),
+        Vector3.new(0, -4, 0),
+        raycastParams
+    )
+
+    if not topRaycast then return end
+
+    local lookVector = humanoidRootPart.CFrame.LookVector
+    local targetPos = topRaycast.Position + Vector3.new(0, humanoidRef.HipHeight + 0.5, 0) + (lookVector * 1)
+
+    self.vaultState.isVaulting = true
+    movementState.isVaulting = true
+    self.vaultState.lastVaultTime = currentTime
+    mechanicState.lastMechanicTime = currentTime
+
+    Utility.Sound.Play("SFX.Dash", characterRef.HumanoidRootPart)
+
+    self:StopAnimation({"LOCOMOTION"})
+    self:PlayAnimation("SPECIAL", "VAULT", 0.1, 2.0)
+    local camera = workspace.CurrentCamera
+    if camera then
+        Utility.Camera.FOV(camera, CONFIG.CAMERA_SETTINGS.VAULT_FOV, 0.15)
+    end
+
+    humanoidRootPart.Anchored = true
+    local tweenInfo = TweenInfo.new(
+        CONFIG.VAULT.DURATION,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.Out
+    )
+    local tween = game:GetService("TweenService"):Create(humanoidRootPart, tweenInfo, {
+        CFrame = CFrame.new(targetPos, targetPos + lookVector)
+    })
+
+    tween:Play()
+    tween.Completed:Connect(function()
+        humanoidRootPart.Anchored = false
+        self.vaultState.isVaulting = false
+        movementState.isVaulting = false
+        if camera then
+            Utility.Camera.FOV(camera, CONFIG.CAMERA_SETTINGS.FOV, 0.15)
+        end
+
+        humanoidRootPart:ApplyImpulse(humanoidRootPart.CFrame.LookVector * CONFIG.VAULT.BOOST_FORCE)
+
+        Utility.Particle.Play("Vault", humanoidRootPart, {
+            emitCount = 25,
+            lifetime = 0.75,
+            offset = CFrame.new(0, -1.5, 0)
+        })
+
+        self:UpdateMove()
+    end)
+end
+
+function MovementClient:CheckVault()
+    if not self:ValidateCharacter() then return end
+    if self.vaultState.isVaulting then return end
+    if movementState.isRagdoll or movementState.isSliding then return end
+    if humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then return end
+
+    if (self.ledgeState and self.ledgeState.isClimbing) or
+       (self.swingState and self.swingState.isSwinging) then
+        return
+    end
+
+    local currentTime = os.clock()
+    if currentTime - self.vaultState.lastVaultTime < CONFIG.VAULT.COOLDOWN then return end
+
+    if currentTime - mechanicState.lastMechanicTime < mechanicState.cooldown then
+        return
+    end
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    if not keyStates.W then return end
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {characterRef}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local raycastResult = workspace:Raycast(
+        humanoidRootPart.Position,
+        humanoidRootPart.CFrame.LookVector * CONFIG.VAULT.CHECK_DISTANCE,
+        raycastParams
+    )
+
+    if not raycastResult then return end
+    local hitPart = raycastResult.Instance
+
+    if hitPart:FindFirstAncestorWhichIsA("Model"):FindFirstChild("Humanoid") then return end
+    if hitPart.Size.Y >= CONFIG.VAULT.MAX_HEIGHT then return end
+    if (characterRef.Head.Position.Y - hitPart.Position.Y) < CONFIG.VAULT.MIN_HEIGHT then return end
+
+    self:StartVault()
+end
+
+--[[ Swing Functions ]]
+function MovementClient:SetupSwing()
+    if not self:ValidateCharacter() then return end
+
+    if not self.swingState then
+        self.swingState = {
+            isSwinging = false,
+            canSwing = true,
+            lastSwingTime = 0,
+            swingPoint = nil,
+            bodyVelocity = Instance.new("LinearVelocity"),
+            attachment = Instance.new("Attachment")
+        }
+
+        self.swingState.bodyVelocity.Attachment0 = self.swingState.attachment
+        self.swingState.bodyVelocity.MaxForce = math.huge
+        self.swingState.bodyVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+        self.swingState.bodyVelocity.Enabled = false
+        self.swingState.attachment.Parent = characterRef.HumanoidRootPart
+        self.swingState.bodyVelocity.Parent = characterRef.HumanoidRootPart
+    end
+end
+
+function MovementClient:DetectSwing()
+    if not self.swingState or not self.swingState.canSwing then return false end
+    if movementState.isRagdoll or movementState.isHanging then return false end
+
+    if (self.ledgeState and self.ledgeState.isClimbing) or
+       (self.vaultState and self.vaultState.isVaulting) then
+        return false
+    end
+
+    local currentTime = os.clock()
+    if currentTime - self.swingState.lastSwingTime < 0.5 then return false end
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    local position = humanoidRootPart.Position
+    local lookVec = humanoidRootPart.CFrame.LookVector
+
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {characterRef}
+    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local function ValidateSwing(part, hitPosition)
+        if not part:IsA("BasePart") or not part.Anchored then
+            return false
+        end
+
+        local size = part.Size
+        local minDimension = math.min(size.X, size.Z)
+        local height = size.Y
+
+        local characterHeight = position.Y
+        local swingPointHeight = hitPosition.Y
+        local heightDifference = swingPointHeight - characterHeight
+
+        if heightDifference > 7 or heightDifference < -2 then
+            return false
+        end
+
+        if minDimension < 4 and height >= 3 then
+            local maxHorizontalPole = math.max(size.X, size.Z)
+            if maxHorizontalPole > 4 then
+                return false
+            end
+
+            if self:CheckStructures(part, "SWING") then
+                return false
+            end
+
+            local toSwingPoint = (hitPosition - position)
+            local distanceToPoint = toSwingPoint.Magnitude
+
+            if distanceToPoint > CONFIG.SWING.INTERACT_RANGE then
+                return false
+            end
+
+            local clearanceParams = RaycastParams.new()
+            clearanceParams.FilterDescendantsInstances = {characterRef, part}
+            clearanceParams.FilterType = Enum.RaycastFilterType.Exclude
+
+            local swingPathObstacle = workspace:Raycast(
+                hitPosition,
+                toSwingPoint.Unit * (distanceToPoint + 2),
+                clearanceParams
+            )
+
+            if swingPathObstacle then
+                return false
+            end
+
+            return true
+        end
+
+        local maxHorizontal = math.max(size.X, size.Z)
+        if height < 4 and maxHorizontal >= 3 then
+            if height > 3 then
+                return false
+            end
+
+            if self:CheckStructures(part, "SWING") then
+                return false
+            end
+
+            local edgeThreshold = 4
+            local relativePos = part.CFrame:pointToObjectSpace(position)
+            local edgeDistance = math.min(
+                math.abs(relativePos.X - size.X/2),
+                math.abs(relativePos.X + size.X/2),
+                math.abs(relativePos.Z - size.Z/2),
+                math.abs(relativePos.Z + size.Z/2)
+            )
+
+            if edgeDistance < edgeThreshold then
+                local clearanceParams = RaycastParams.new()
+                clearanceParams.FilterDescendantsInstances = {characterRef, part}
+                clearanceParams.FilterType = Enum.RaycastFilterType.Exclude
+
+                local verticalClearanceUp = workspace:Raycast(
+                    hitPosition,
+                    Vector3.new(0, 5, 0),
+                    clearanceParams
+                )
+
+                local verticalClearanceDown = workspace:Raycast(
+                    hitPosition,
+                    Vector3.new(0, -5, 0),
+                    clearanceParams
+                )
+
+                if not verticalClearanceUp and not verticalClearanceDown then
+                    return true
+                end
+            end
+        end
+        return false
+    end
+
+    local raycastDirections = {
+        {lookVec, 0},
+        {lookVec + Vector3.new(0, 0.3, 0), 0.3},
+        {lookVec + Vector3.new(0, 0.6, 0), 0.6},
+        {lookVec + Vector3.new(0, -0.3, 0), -0.3}
+    }
+
+    for _, directionData in ipairs(raycastDirections) do
+        local direction, heightOffset = directionData[1], directionData[2]
+        local raycastResult = workspace:Raycast(
+            position + Vector3.new(0, heightOffset, 0),
+            direction.Unit * CONFIG.SWING.DETECT_RANGE,
+            raycastParams
+        )
+
+        if raycastResult and ValidateSwing(raycastResult.Instance, raycastResult.Position) then
+            return raycastResult.Instance
+        end
+    end
+
+    return false
+end
+
+function MovementClient:StartSwing(swingPoint)
+    if not self:ValidateCharacter() then return end
+    if not self.swingState then return end
+    if self.swingState.isSwinging then return end
+
+    local currentTime = os.clock()
+    if currentTime - self.swingState.lastSwingTime < CONFIG.SWING.COOLDOWN then
+        return
+    end
+
+    if currentTime - mechanicState.lastMechanicTime < 0.1 then
+        return
+    end
+    mechanicState.lastMechanicTime = currentTime
+
+    self.swingState.isSwinging = true
+    self.swingState.swingPoint = swingPoint
+    self.swingState.canSwing = false
+    self.swingState.lastSwingTime = currentTime
+
+    self:StopAnimation({"LOCOMOTION"})
+    self:PlayAnimation("SPECIAL", "SWING")
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+
+    local startPoint = humanoidRootPart.Position
+    local lookVec = humanoidRootPart.CFrame.LookVector
+
+    local swingOffset = (startPoint - swingPoint.Position).Unit * CONFIG.SWING.DISTANCE
+    local offsetPoint = swingPoint.Position + swingOffset
+
+    local midPoint = offsetPoint + Vector3.new(0, CONFIG.SWING.HEIGHT, 0)
+    local endPoint = offsetPoint + (lookVec * CONFIG.SWING.FORWARD_DISTANCE) + Vector3.new(0, CONFIG.SWING.END_HEIGHT, 0)
+
+    self.swingState.swingOffset = swingOffset
+    self.swingState.pathCurve = Tools.Bezier.new(startPoint, midPoint, endPoint)
+    self.swingState.swingStartTime = os.clock()
+    self.swingState.swingDuration = CONFIG.SWING.DURATION
+
+    self.swingState.bodyVelocity.Enabled = true
+
+    task.delay(self.swingState.swingDuration, function()
+        if self.swingState and self.swingState.isSwinging then
+            self:EndSwing()
+        end
+    end)
+end
+
+function MovementClient:EndSwing()
+    if not self:ValidateCharacter() then return end
+    if not self.swingState or not self.swingState.isSwinging then return end
+
+    self.swingState.isSwinging = false
+    self.swingState.swingPoint = nil
+    self.swingState.bodyVelocity.Enabled = false
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+
+    local finalDirection = self.swingState.pathCurve:CalculateDerivativeAt(1).Unit
+    local finalVelocity = finalDirection * CONFIG.SWING.BOOST_FORCE
+
+    humanoidRootPart.AssemblyLinearVelocity = finalVelocity
+    self.swingState.pathCurve = nil
+
+    self:StopAnimation({"SPECIAL"})
+    self:PlayAnimation("LOCOMOTION", "FALL")
+
+    local camera = workspace.CurrentCamera
+    humanoidRef.AutoRotate = true
+
+    local lookDir = camera.CFrame.LookVector
+    lookDir = Vector3.new(lookDir.X, 0, lookDir.Z).Unit
+    humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + lookDir)
+
+    task.delay(CONFIG.SWING.RECOVERY_TIME, function()
+        if self.swingState then
+            self.swingState.canSwing = true
+        end
+    end)
+end
+
+function MovementClient:UpdateSwing(delta)
+    if not self:ValidateCharacter() then return end
+    if not self.swingState or not self.swingState.isSwinging then return end
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    local swingPoint = self.swingState.swingPoint
+    if not swingPoint or not swingPoint.Parent then
+        self:EndSwing()
+        return
+    end
+
+    local timeSinceStart = os.clock() - self.swingState.swingStartTime
+    local alpha = math.clamp(timeSinceStart / self.swingState.swingDuration, 0, 1)
+
+    local targetPosition = self.swingState.pathCurve:CalculatePositionAt(alpha)
+    local nextPosition = self.swingState.pathCurve:CalculatePositionAt(math.min(alpha + 0.1, 1))
+
+    local toTarget = (targetPosition - humanoidRootPart.Position)
+    local targetVelocity = toTarget.Unit * 30
+
+    local currentVel = self.swingState.bodyVelocity.VectorVelocity
+    local newVel = currentVel:Lerp(targetVelocity, delta * 20)
+    self.swingState.bodyVelocity.VectorVelocity = newVel
+
+    local lookDir = (nextPosition - targetPosition).Unit
+    humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + lookDir)
+end
+
+--[[ Wall Functions ]]
+function MovementClient:SetupWall()
+    if not self:ValidateCharacter() then return end
+
+    if not self.wallRunState then
+        self.wallRunState = {
+            isWallRunning = false,
+            canWallRun = true,
+            currentDuration = 0,
+            currentFalloff = 0,
+            direction = nil,
+            lastWallRunTime = 0,
+            bodyVelocity = Instance.new("LinearVelocity"),
+            attachment = Instance.new("Attachment"),
+            wallNormal = Vector3.new(0, 0, 0),
+            wallPosition = Vector3.new(0, 0, 0),
+            shuffleVelocity = Vector3.new(0, 0, 0),
+            shuffleSpeed = 10
+        }
+
+        self.wallRunState.bodyVelocity.Attachment0 = self.wallRunState.attachment
+        self.wallRunState.bodyVelocity.MaxForce = math.huge
+        self.wallRunState.bodyVelocity.VelocityConstraintMode = Enum.VelocityConstraintMode.Vector
+        self.wallRunState.bodyVelocity.Enabled = false
+        self.wallRunState.attachment.Parent = characterRef.HumanoidRootPart
+        self.wallRunState.bodyVelocity.Parent = characterRef.HumanoidRootPart
+    end
+end
+
+function MovementClient:StartWall(direction)
+    if not self:ValidateCharacter() then return end
+    if not self.wallRunState or not self.wallRunState.canWallRun then return end
+    if self.wallRunState.isWallRunning then return end
+    if movementState.isRagdoll or movementState.isSliding then return end
+
+    local currentTime = os.clock()
+    if currentTime - self.wallRunState.lastWallRunTime < CONFIG.WALL_RUN.COOLDOWN then
+        return
+    end
+
+    local isRightSide = direction == "right"
+    local wallDirection = isRightSide and characterRef.HumanoidRootPart.CFrame.RightVector or -characterRef.HumanoidRootPart.CFrame.RightVector
+
+    local params = RaycastParams.new()
+    params.IgnoreWater = true
+    params.RespectCanCollide = true
+    params.FilterDescendantsInstances = {characterRef}
+
+    local raycastResult = workspace:Raycast(
+        characterRef.HumanoidRootPart.Position,
+        wallDirection * CONFIG.WALL_RUN.CHECK_DISTANCE,
+        params
+    )
+
+    if not raycastResult then return end
+    if raycastResult.Normal.Y > CONFIG.WALL_RUN.ANGLE_THRESHOLD / 90 then return end
+
+    self.wallRunState.isWallRunning = true
+    self.wallRunState.direction = direction
+    self.wallRunState.currentDuration = CONFIG.WALL_RUN.DURATION
+    self.wallRunState.currentFalloff = CONFIG.WALL_RUN.SUSTAIN
+    self.wallRunState.wallNormal = raycastResult.Normal
+    self.wallRunState.wallPosition = raycastResult.Position
+    self.wallRunState.lastWallRunTime = currentTime
+
+    local cf = CFrame.lookAt(characterRef.HumanoidRootPart.Position, raycastResult.Position) * 
+               CFrame.Angles(0, math.rad(isRightSide and 90 or -90), 0)
+
+    characterRef.HumanoidRootPart.CFrame = cf
+
+    local velocity = cf.LookVector * CONFIG.WALL_RUN.SPEED * Vector3.new(1, 0, 1) - Vector3.new(0, self.wallRunState.currentFalloff, 0)
+    self.wallRunState.bodyVelocity.VectorVelocity = velocity
+    self.wallRunState.bodyVelocity.Enabled = true
+
+    self:StopAnimation({"LOCOMOTION"})
+    self:PlayAnimation("WALL", isRightSide and "RUN_RIGHT" or "RUN_LEFT")
+
+    humanoidRef.AutoRotate = false
+
+    return true
+end
+
+function MovementClient:StopWall()
+    if not self:ValidateCharacter() then return end
+    if not self.wallRunState or not self.wallRunState.isWallRunning then return end
+
+    self.wallRunState.bodyVelocity.Enabled = false
+    self.wallRunState.isWallRunning = false
+
+    humanoidRef.AutoRotate = true
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    if CONFIG.WALL_RUN.EXIT_BOOST > 0 then
+        local boostDirection = (humanoidRootPart.CFrame.LookVector + self.wallRunState.wallNormal).Unit
+        humanoidRootPart:ApplyImpulse(boostDirection * CONFIG.WALL_RUN.EXIT_BOOST)
+    end
+
+    self:StopAnimation({"WALL"})
+    self:PlayAnimation("LOCOMOTION", "FALL")
+end
+
+function MovementClient:CheckWall(delta)
+    if not self:ValidateCharacter() then return end
+    if humanoidRef:GetState() ~= Enum.HumanoidStateType.Freefall then return end
+    if not keyStates.Space then return end
+
+    if self.wallRunState.isWallRunning then return end
+    local currentTime = os.clock()
+    if currentTime - self.wallRunState.lastWallRunTime < CONFIG.WALL_RUN.COOLDOWN then return end
+
+    if movementState.isRagdoll or movementState.isSliding then return end
+
+    local swingPoint = self:DetectSwing()
+    if swingPoint then
+        self:StartSwing(swingPoint)
+        return
+    end
+
+    local params = RaycastParams.new()
+    params.IgnoreWater = true
+    params.RespectCanCollide = true
+    params.FilterDescendantsInstances = {characterRef}
+
+    local leftCheck = workspace:Raycast(
+        characterRef.HumanoidRootPart.Position,
+        -characterRef.HumanoidRootPart.CFrame.RightVector * CONFIG.WALL_RUN.CHECK_DISTANCE,
+        params
+    )
+
+    local rightCheck = workspace:Raycast(
+        characterRef.HumanoidRootPart.Position,
+        characterRef.HumanoidRootPart.CFrame.RightVector * CONFIG.WALL_RUN.CHECK_DISTANCE,
+        params
+    )
+
+    if leftCheck and rightCheck then
+        if keyStates.A then
+            self:StartWall("left")
+        elseif keyStates.D then
+            self:StartWall("right")
+        end
+    elseif leftCheck then
+        self:StartWall("left")
+    elseif rightCheck then
+        self:StartWall("right")
+    end
+end
+
+function MovementClient:UpdateWall(deltaTime)
+    if not self:ValidateCharacter() then return end
+    if not self.wallRunState or not self.wallRunState.isWallRunning then return end
+
+    local isRightSide = self.wallRunState.direction == "right"
+    local wallDirection = isRightSide and characterRef.HumanoidRootPart.CFrame.RightVector or -characterRef.HumanoidRootPart.CFrame.RightVector
+
+    local params = RaycastParams.new()
+    params.IgnoreWater = true
+    params.RespectCanCollide = true
+    params.FilterDescendantsInstances = {characterRef}
+
+    local raycastResult = workspace:Raycast(
+        characterRef.HumanoidRootPart.Position,
+        wallDirection * CONFIG.WALL_RUN.CHECK_DISTANCE,
+        params
+    )
+
+    if self.wallRunState.currentDuration > 0 then
+        self.wallRunState.currentDuration -= deltaTime
+    end
+
+    if self.wallRunState.currentDuration <= 0 and self.wallRunState.currentFalloff > 0 then
+        self.wallRunState.currentFalloff -= deltaTime
+    end
+
+    self:UpdateWallShuffle(deltaTime, raycastResult)
+
+    if raycastResult and self.wallRunState.bodyVelocity.Enabled then
+        local currentVelocity = self.wallRunState.bodyVelocity.VectorVelocity
+        local horizontalVelocity = Vector3.new(currentVelocity.X, 0, currentVelocity.Z)
+        
+        local gravityEffect = -workspace.Gravity * CONFIG.WALL_RUN.GRAVITY_FACTOR * deltaTime
+        local newVerticalVelocity = currentVelocity.Y + gravityEffect
+        
+        self.wallRunState.bodyVelocity.VectorVelocity = horizontalVelocity + Vector3.new(0, newVerticalVelocity, 0)
+    end
+
+    if self.wallRunState.currentDuration <= 0 or not raycastResult or not keyStates.Space then
+        self:StopWall()
+        self:UpdateMove()
+    end
+end
+
+function MovementClient:UpdateWallShuffle(deltaTime, raycastResult)
+    if not self:ValidateCharacter() then return end
+    if not self.wallRunState or not self.wallRunState.isWallRunning then return end
+    if not raycastResult then return end
+
+    local moveDir = Vector3.new(0, 0, 0)
+    local wallNormal = raycastResult.Normal
+    local humanoidRootPart = characterRef.HumanoidRootPart
+
+    local upVector = Vector3.new(0, 1, 0)
+
+    local sideVector = wallNormal:Cross(upVector).Unit
+
+    if self.wallRunState.direction == "left" then
+        sideVector = -sideVector
+    end
+
+    if keyStates.W then
+        moveDir = moveDir + upVector
+    end
+    if keyStates.S then
+        moveDir = moveDir - upVector
+    end
+    if keyStates.D then
+        moveDir = moveDir + sideVector
+    end
+    if keyStates.A then
+        moveDir = moveDir - sideVector
+    end
+
+    if moveDir.Magnitude > 0 then
+        moveDir = moveDir.Unit * self.wallRunState.shuffleSpeed
+
+        local debugPart = Instance.new("Part")
+        debugPart.Size = Vector3.new(0.2, 0.2, 0.2)
+        debugPart.Anchored = true
+        debugPart.CanCollide = false
+        debugPart.Color = Color3.fromRGB(255, 0, 0)
+        debugPart.Position = humanoidRootPart.Position
+        debugPart.Parent = workspace
+        game:GetService("Debris"):AddItem(debugPart, 0.1)
+
+        local nextPos = humanoidRootPart.Position + moveDir * deltaTime
+        local params = RaycastParams.new()
+        params.FilterDescendantsInstances = {characterRef}
+
+        local wallCheck = workspace:Raycast(
+            nextPos,
+            wallNormal * -2,
+            params
+        )
+
+        if wallCheck then
+            local currentVelocity = self.wallRunState.bodyVelocity.VectorVelocity
+            local verticalVelocity = Vector3.new(0, currentVelocity.Y, 0)
+            local horizontalVelocity = moveDir
+
+            self.wallRunState.bodyVelocity.VectorVelocity = horizontalVelocity + verticalVelocity
+            self.wallRunState.shuffleVelocity = moveDir
+
+            humanoidRootPart.CFrame = CFrame.lookAt(
+                humanoidRootPart.Position, 
+                humanoidRootPart.Position + wallNormal * -1
+            )
+        else
+            self.wallRunState.shuffleVelocity = Vector3.new(0, 0, 0)
+        end
+    else
+        self.wallRunState.shuffleVelocity = Vector3.new(0, 0, 0)
+    end
+end
+
+--[[ Head Functions ]]
+function MovementClient:UpdateHead(delta)
+    if not self:ValidateCharacter() then return end
+
+    local neck = characterRef:FindFirstChild("Torso") and characterRef.Torso:FindFirstChild("Neck") or
+                 characterRef:FindFirstChild("UpperTorso") and characterRef.UpperTorso:FindFirstChild("Neck")
+    if not neck then return end
+
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+
+    local humanoidRootPart = characterRef.HumanoidRootPart
+    local cameraDirection = humanoidRootPart.CFrame:ToObjectSpace(camera.CFrame).LookVector.Unit
+    local neckC0 = neck.C0
+
+    local horizontalAngle = math.clamp(-math.asin(cameraDirection.X), -math.pi/2, math.pi/2)
+    local verticalAngle = math.clamp(-math.pi/2 + math.asin(cameraDirection.Y), -math.pi/2, math.pi/2)
+
+    local newNeckC0
+    if cameraDirection.Z > 0 then
+        newNeckC0 = CFrame.new(neckC0.Position) *
+                    CFrame.Angles(0, horizontalAngle, 0) *
+                    CFrame.Angles(math.pi - verticalAngle, 0, math.pi)
+    else
+        newNeckC0 = CFrame.new(neckC0.Position) *
+                    CFrame.Angles(0, horizontalAngle, 0) *
+                    CFrame.Angles(verticalAngle, 0, math.pi)
+    end
+
+    neck.C0 = neck.C0:Lerp(newNeckC0, delta * 10)
 end
 
 --[[ Ragdoll Functions ]]
-local attachmentCFrames = {
-    ["Neck"] = {CFrame.new(0, 1, 0, 0, -1, 0, 1, 0, -0, 0, 0, 1), CFrame.new(0, -0.5, 0, 0, -1, 0, 1, 0, -0, 0, 0, 1)},
-    ["Left Shoulder"] = {CFrame.new(-1.3, 0.75, 0, -1, 0, 0, 0, -1, 0, 0, 0, 1), CFrame.new(0.2, 0.75, 0, -1, 0, 0, 0, -1, 0, 0, 0, 1)},
-    ["Right Shoulder"] = {CFrame.new(1.3, 0.75, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1), CFrame.new(-0.2, 0.75, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)},
-    ["Left Hip"] = {CFrame.new(-0.5, -1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1), CFrame.new(0, 1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1)},
-    ["Right Hip"] = {CFrame.new(0.5, -1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1), CFrame.new(0, 1, 0, 0, 1, -0, -1, 0, 0, 0, 0, 1)},
-}
-
-local ragdollInstanceNames = {
-    ["RagdollAttachment"] = true,
-    ["RagdollConstraint"] = true,
-    ["ColliderPart"] = true,
-}
-
-local mainParts = {
-    "Torso", "UpperTorso", "LowerTorso",
-    "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand",
-    "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot",
-    "Head"
-}
-
-local function CreateCollider(part: BasePart)
+function MovementClient:CreateCollider(part)
     if not part then return end
-    local rp = Instance.new("Part")
-    rp.Name = "ColliderPart"
-    rp.Size = part.Size/1.7
-    rp.Massless = true
-    rp.CFrame = part.CFrame
-    rp.Transparency = 1
-    rp.Anchored = false
-    rp.CanCollide = true
 
-    local wc = Instance.new("WeldConstraint")
-    wc.Part0 = rp
-    wc.Part1 = part
+    local collider = Instance.new("Part")
+    collider.Name = "ColliderPart"
+    collider.Size = part.Size / 1.7
+    collider.Massless = true
+    collider.CFrame = part.CFrame
+    collider.Transparency = 1
+    collider.Anchored = false
+    collider.CanCollide = true
 
-    wc.Parent = rp
-    rp.Parent = part
+    local weldConstraint = Instance.new("WeldConstraint")
+    weldConstraint.Part0 = collider
+    weldConstraint.Part1 = part
+    weldConstraint.Parent = collider
+
+    collider.Parent = part
+
+    return collider
 end
 
-local function SetupRagdoll(character)
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return end
+function MovementClient:SetupRagdoll()
+    humanoidRef.BreakJointsOnDeath = false
+    humanoidRef.RequiresNeck = false
+    humanoidRef.AutoRotate = false
 
-    humanoid.BreakJointsOnDeath = false
-    humanoid.RequiresNeck = false
-    humanoid.AutoRotate = false
+    if humanoidRef:GetState() ~= Enum.HumanoidStateType.Ragdoll then
+        humanoidRef:ChangeState(Enum.HumanoidStateType.Ragdoll)
+    end
+    humanoidRef:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
 
-    for _, part in pairs(character:GetDescendants()) do
+    for _, part in pairs(characterRef:GetDescendants()) do
         if part:IsA("BasePart") then
-            if table.find(mainParts, part.Name) then
+            local isMainPart = table.find(CONFIG.RAGDOLL.MAIN_PARTS, part.Name) ~= nil
+            if isMainPart then
                 part.Anchored = false
                 part.CanCollide = true
             else
@@ -269,1101 +2565,302 @@ local function SetupRagdoll(character)
         end
     end
 
-    for _, motor: Motor6D in pairs(character:GetDescendants()) do
+    for _, motor in pairs(characterRef:GetDescendants()) do
         if motor:IsA("Motor6D") then
-            if not attachmentCFrames[motor.Name] then continue end
+            local attachmentConfig = CONFIG.RAGDOLL.ATTACHMENT_CFRAMES[motor.Name]
+            if not attachmentConfig then continue end
+
             motor.Enabled = false
 
-            local a0, a1 = Instance.new("Attachment"), Instance.new("Attachment")
-            a0.CFrame = attachmentCFrames[motor.Name][1]
-            a1.CFrame = attachmentCFrames[motor.Name][2]
+            local attachment0 = Instance.new("Attachment")
+            local attachment1 = Instance.new("Attachment")
 
-            a0.Name = "RagdollAttachment"
-            a1.Name = "RagdollAttachment"
+            attachment0.CFrame = attachmentConfig[1]
+            attachment1.CFrame = attachmentConfig[2]
 
-            if table.find(mainParts, motor.Part1.Name) then
-                CreateCollider(motor.Part1)
+            attachment0.Name = "RagdollAttachment"
+            attachment1.Name = "RagdollAttachment"
+
+            if table.find(CONFIG.RAGDOLL.MAIN_PARTS, motor.Part1.Name) then
+                MovementClient:CreateCollider(motor.Part1)
             end
 
-            local b = Instance.new("BallSocketConstraint")
-            b.Attachment0 = a0
-            b.Attachment1 = a1
-            b.Name = "RagdollConstraint"
+            local ballSocket = Instance.new("BallSocketConstraint")
+            ballSocket.Attachment0 = attachment0
+            ballSocket.Attachment1 = attachment1
+            ballSocket.Name = "RagdollConstraint"
 
-            b.Radius = 0.15
-            b.LimitsEnabled = true
-            b.TwistLimitsEnabled = false
-            b.MaxFrictionTorque = 0
-            b.Restitution = 0
-            b.UpperAngle = 90
-            b.TwistLowerAngle = -45
-            b.TwistUpperAngle = 45
+            ballSocket.Radius = 0.15
+            ballSocket.LimitsEnabled = true
+            ballSocket.TwistLimitsEnabled = false
+            ballSocket.MaxFrictionTorque = 0
+            ballSocket.Restitution = 0
+            ballSocket.UpperAngle = 90
+            ballSocket.TwistLowerAngle = -45
+            ballSocket.TwistUpperAngle = 45
 
             if motor.Name == "Neck" then
-                b.TwistLimitsEnabled = true
-                b.UpperAngle = 45
-                b.TwistLowerAngle = -70
-                b.TwistUpperAngle = 70
+                ballSocket.TwistLimitsEnabled = true
+                ballSocket.UpperAngle = 45
+                ballSocket.TwistLowerAngle = -70
+                ballSocket.TwistUpperAngle = 70
             end
 
-            a0.Parent = motor.Part0
-            a1.Parent = motor.Part1
-            b.Parent = motor.Parent
+            attachment0.Parent = motor.Part0
+            attachment1.Parent = motor.Part1
+            ballSocket.Parent = motor.Parent
         end
     end
 
-    local torso = character:FindFirstChild("Torso") or character:FindFirstChild("UpperTorso")
+    local torso = characterRef:FindFirstChild("Torso") or characterRef:FindFirstChild("UpperTorso")
     if torso then
-        torso:ApplyImpulse(torso.CFrame.LookVector * 100)
+        torso:ApplyImpulse(torso.CFrame.LookVector * CONFIG.RAGDOLL.IMPULSE_FORCE)
     end
-
-    humanoid:ChangeState(Enum.HumanoidStateType.Ragdoll)
-    humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, false)
 end
 
-local function RecoverRagdoll(character)
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return end
+function MovementClient:ResetRagdoll()
+    humanoidRef:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 
-    for _, instance in pairs(character:GetDescendants()) do
-        if ragdollInstanceNames[instance.Name] then
+    humanoidRef.AutoRotate = true
+    humanoidRef.PlatformStand = false
+    humanoidRef.RequiresNeck = true
+    humanoidRef.BreakJointsOnDeath = true
+
+    for _, instance in pairs(characterRef:GetDescendants()) do
+        if CONFIG.RAGDOLL.INSTANCE_NAMES[instance.Name] then
             instance:Destroy()
         end
 
-        if instance:IsA("Motor6D") then
-            instance.Enabled = true
+        if instance:IsA("Constraint") or instance:IsA("BallSocketConstraint") then
+            instance:Destroy()
         end
     end
 
-    humanoid.AutoRotate = true
-    humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-    humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-end
-
-local function CancelRagdoll(character)
-    if not character then return end
-
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return end
-
-    State.movement.isRagdoll = false
-    State.movement.ragdollStartTime = 0
-    State.movement.ragdollDuration = 0
-    character:SetAttribute("RAGDOLL", false)
-
-    RecoverRagdoll(character)
-
-    humanoid.AutoRotate = true
-    humanoid:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
-    humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
-
-    PlayAnimation("LOCOMOTION", "IDLE")
-end
-
-local function ApplyRagdoll(character, duration)
-    if not character then return end
-
-    local humanoid = character:FindFirstChild("Humanoid")
-    if not humanoid then return end
-
-    State.movement.isRagdoll = true
-    State.movement.ragdollStartTime = os.clock()
-    State.movement.ragdollDuration = duration or 0
-    character:SetAttribute("RAGDOLL", true)
-
-    if State.camera.isShiftLocked then
-        State.camera.isShiftLocked = false
-        State.camera.shiftLockOffset = Vector3.new(0, 0, 0)
-        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        local mouse = LocalPlayer:GetMouse()
-        mouse.Icon = CURSOR_CONFIG.ENABLED and CURSOR_CONFIG.OVERRIDE_DEFAULT and CURSOR_CONFIG.DEFAULT_CURSOR or ""
+    for _, motor in pairs(characterRef:GetDescendants()) do
+        if motor:IsA("Motor6D") then
+            motor.Enabled = true
+        end
     end
 
-    SetupRagdoll(character)
+    for _, part in pairs(characterRef:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if part.Name ~= "HumanoidRootPart" then
+                part.CanCollide = false
+                part.CustomPhysicalProperties = nil
+                part.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                part.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                part.Velocity = Vector3.new(0, 0, 0)
+                part.RotVelocity = Vector3.new(0, 0, 0)
+            end
+        end
+    end
+
+    humanoidRef:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, true)
+    humanoidRef:SetStateEnabled(Enum.HumanoidStateType.GettingUp, true)
+
+    local humanoidRootPart = characterRef:FindFirstChild("HumanoidRootPart")
+    if humanoidRootPart then
+        humanoidRootPart.Anchored = true
+        task.delay(0.05, function()
+            if humanoidRootPart and humanoidRootPart.Parent then
+                humanoidRootPart.Anchored = false
+            end
+        end)
+    end
+
+    if humanoidRef:GetState() == Enum.HumanoidStateType.Ragdoll then
+        humanoidRef:ChangeState(Enum.HumanoidStateType.GettingUp)
+    end
+
+    task.delay(0.1, function()
+        if humanoidRef and humanoidRef.Parent then
+            humanoidRef:Move(Vector3.new(0, 0, 0.01))
+        end
+    end)
+end
+
+function MovementClient:EndRagdoll()
+    if not movementState.isRagdoll then return end
+
+    movementState.ragdollStartTime = 0
+    movementState.ragdollDuration = 0
+
+    self:ResetRagdoll()
+
+    task.delay(0.1, function()
+        if self:ValidateCharacter() then
+            self:SetState("RAGDOLL", false)
+
+            task.delay(0.1, function()
+                if self:ValidateCharacter() and not movementState.isRagdoll then
+                    self:PlayAnimation("LOCOMOTION", "IDLE")
+                end
+            end)
+        end
+    end)
+end
+
+function MovementClient:StartRagdoll(duration)
+    if movementState.isRagdoll then return end
+
+    if cameraState.isShiftLocked then
+        self:ToggleShiftLock()
+    end
+
+    if movementState.isCrouching then
+        self:SetState("CROUCHING", false)
+    end
+
+    if movementState.isSprinting then
+        self:SetState("RUNNING", false)
+    end
+
+    if self.ledgeState and self.ledgeState.isClimbing then
+        self:DropLedge()
+    end
+
+    if self.swingState and self.swingState.isSwinging then
+        self:EndSwing()
+    end
+
+    if self.vaultState and self.vaultState.isVaulting then
+        self.vaultState.isVaulting = false
+        movementState.isVaulting = false
+        if characterRef.HumanoidRootPart then
+            characterRef.HumanoidRootPart.Anchored = false
+        end
+    end
+
+    if self.wallRunState and self.wallRunState.isWallRunning then
+        self:StopWall()
+    end
+
+    self:StopAnimation({"LOCOMOTION"})
+    self:StopAnimation({"SPECIAL"})
+    self:StopAnimation({"LANDING"})
+    self:StopAnimation({"LEDGE"})
+    self:StopAnimation({"WALL"})
+    self:StopAnimation({"ROLL"})
+
+    movementState.ragdollStartTime = os.clock()
+    movementState.ragdollDuration = duration or CONFIG.RAGDOLL.DURATION
+
+    self:SetState("RAGDOLL", true)
+    self:PlayAnimation("STATUS", "PAIN_2")
+
+    task.delay(0.05, function()
+        if humanoidRef and humanoidRef.Parent and movementState.isRagdoll then
+            if humanoidRef:GetState() ~= Enum.HumanoidStateType.Ragdoll then
+                humanoidRef:ChangeState(Enum.HumanoidStateType.Ragdoll)
+            end
+        end
+    end)
 
     if duration and duration > 0 then
         task.delay(duration, function()
-            if State.movement.isRagdoll then
-                CancelRagdoll(character)
+            if movementState.isRagdoll then
+                self:EndRagdoll()
             end
         end)
+    end
+end
+
+--[[ Velocity Functions ]]
+function MovementClient:TrackVelocity()
+    if not self:ValidateCharacter() then return end
+
+    if humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then
+        local currentVelocity = characterRef.HumanoidRootPart.AssemblyLinearVelocity.Y
+
+        if currentVelocity < 0 and currentVelocity < movementState.maxFallVelocity then
+            movementState.maxFallVelocity = currentVelocity
+        end
+
+        movementState.lastVerticalVelocity = currentVelocity
     end
 end
 
 --[[ Camera Functions ]]
-local function LockCamera()
-    if not State.camera.isLocked then
-        State.camera.previousCameraType = workspace.CurrentCamera.CameraType
-        Utility.Camera.Lock(workspace.CurrentCamera)
+function MovementClient:LockCamera()
+    if not cameraState.isLocked then
+        cameraState.previousCameraType = workspace.CurrentCamera.CameraType
+        workspace.CurrentCamera.CameraType = Enum.CameraType.Scriptable
         UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-        State.camera.isLocked = true
+        cameraState.isLocked = true
     end
 end
 
-local function UnlockCamera()
-    if State.camera.isLocked then
-        Utility.Camera.Unlock(workspace.CurrentCamera)
+function MovementClient:UnlockCamera()
+    if cameraState.isLocked then
+        workspace.CurrentCamera.CameraType = cameraState.previousCameraType or Enum.CameraType.Custom
         UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        State.camera.isLocked = false
+        cameraState.isLocked = false
     end
 end
-
---[[ Shift Lock Functions ]]
-local function UpdateShift()
-    if State.camera.isShiftLocked then
-        State.camera.camOffsetSpring.Speed = SHIFT_LOCK_CONFIG.CAMERA_TRANSITION_IN_SPEED
-        State.camera.camOffsetSpring.Target = SHIFT_LOCK_CONFIG.LOCKED_CAMERA_OFFSET
-    else
-        State.camera.camOffsetSpring.Speed = SHIFT_LOCK_CONFIG.CAMERA_TRANSITION_OUT_SPEED
-        State.camera.camOffsetSpring.Target = Vector3.new(0, 0, 0)
-    end
-
-    State.camera.shiftLockOffset = State.camera.camOffsetSpring.Position
-end
-
-local function ApplyCamera()
-    local camera = workspace.CurrentCamera
-    if not camera then return end
-
-    local humanoid = Character:FindFirstChild("Humanoid")
-    local head = Character:FindFirstChild("Head")
-    if not humanoid or not head then return end
-
-    local distance = (head.Position - camera.CFrame.Position).Magnitude
-    if distance > 1 then
-        local offset = State.camera.shiftLockOffset
-        if offset.Magnitude > 0.01 then
-            camera.CFrame = camera.CFrame * CFrame.new(offset)
-        end
-
-        if State.camera.isShiftLocked and UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
-            UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-        end
-    end
-end
-
-local function ToggleShift()
-    local humanoid = Character:FindFirstChild("Humanoid")
-    local rootPart = Character:FindFirstChild("HumanoidRootPart")
-    if not humanoid or humanoid.Health <= 0 or not rootPart then return end
-
-    if State.movement.isRagdoll or State.movement.isHanging then
-        if not State.camera.isShiftLocked then
-            return
-        end
-    end
-
-    State.camera.isShiftLocked = not State.camera.isShiftLocked
-
-    if not State.camera.isShiftLocked then
-        State.camera.shiftLockOffset = Vector3.new(0, 0, 0)
-    end
-
-    UserInputService.MouseBehavior = State.camera.isShiftLocked and
-        Enum.MouseBehavior.LockCenter or
-        Enum.MouseBehavior.Default
-
-    local mouse = LocalPlayer:GetMouse()
-    if State.camera.isShiftLocked then
-        mouse.Icon = SHIFT_LOCK_CONFIG.LOCKED_MOUSE_ICON
-    else
-        mouse.Icon = CURSOR_CONFIG.ENABLED and CURSOR_CONFIG.OVERRIDE_DEFAULT and CURSOR_CONFIG.DEFAULT_CURSOR or ""
-    end
-
-    if humanoid then
-        humanoid.AutoRotate = not State.camera.isShiftLocked
-        if State.camera.isShiftLocked then
-            local camera = workspace.CurrentCamera
-            if camera then
-                local _, targetYaw, _ = camera.CFrame:ToOrientation()
-                local currentCFrame = rootPart.CFrame
-                local _, currentYaw, _ = currentCFrame:ToOrientation()
-
-                local angleDiff = targetYaw - currentYaw
-                while angleDiff > math.pi do
-                    angleDiff = angleDiff - (2 * math.pi)
-                end
-                while angleDiff < -math.pi do
-                    angleDiff = angleDiff + (2 * math.pi)
-                end
-
-                local tweenInfo = TweenInfo.new(
-                    0.4,
-                    Enum.EasingStyle.Cubic,
-                    Enum.EasingDirection.Out
-                )
-
-                local targetCFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, targetYaw, 0)
-                local tween = game:GetService("TweenService"):Create(rootPart, tweenInfo, {
-                    CFrame = targetCFrame
-                })
-                tween:Play()
-            end
-        end
-    end
-end
-
---[[ Ledge Functions ]]
-local function DetectHang()
-    if not Character then return false end
-
-    local rootPart = Character:FindFirstChild("HumanoidRootPart")
-    local humanoid = Character:FindFirstChild("Humanoid")
-    if not rootPart or not humanoid then return false end
-
-    if humanoid:GetState() ~= Enum.HumanoidStateType.Freefall and
-       humanoid:GetState() ~= Enum.HumanoidStateType.Jumping then
-        return false
-    end
-
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    raycastParams.RespectCanCollide = true
-
-    local rayStart = rootPart.Position
-    local rayDirection = rootPart.CFrame.LookVector * 2.5
-
-    local wallCheck = workspace:Raycast(
-        rayStart,
-        rayDirection,
-        raycastParams
-    )
-
-    if not wallCheck then return false end
-
-    local ledgeCheck = workspace:Raycast(
-        wallCheck.Position + Vector3.new(0, 3, 0),
-        rootPart.CFrame.LookVector * 2,
-        raycastParams
-    )
-
-    if not ledgeCheck and wallCheck.Instance.Size.Y >= 5 then
-        return true
-    end
-
-    return false
-end
-
-local function StartHang()
-    if not Character then return nil end
-
-    local rootPart = Character:FindFirstChild("HumanoidRootPart")
-    local humanoid = Character:FindFirstChild("Humanoid")
-    if not rootPart or not humanoid then return nil end
-
-    local currentTime = os.clock()
-    if currentTime - State.movement.lastHangTime < 0.5 then
-        return nil
-    end
-    State.movement.lastHangTime = currentTime
-
-    if State.camera.isShiftLocked then
-        State.camera.isShiftLocked = false
-        State.camera.shiftLockOffset = Vector3.new(0, 0, 0)
-        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-        local mouse = LocalPlayer:GetMouse()
-        mouse.Icon = CURSOR_CONFIG.ENABLED and CURSOR_CONFIG.OVERRIDE_DEFAULT and CURSOR_CONFIG.DEFAULT_CURSOR or ""
-    end
-
-    State.movement.isHanging = true
-    State.movement.canHang = false
-
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-
-    local wallCheck = workspace:Raycast(
-        rootPart.Position,
-        rootPart.CFrame.LookVector * 2.5,
-        raycastParams
-    )
-
-    if wallCheck then
-        local hangPosition = wallCheck.Position - (rootPart.CFrame.LookVector * 1) + Vector3.new(0, 1, 0)
-        rootPart.CFrame = CFrame.new(hangPosition, hangPosition + rootPart.CFrame.LookVector)
-    end
-
-    local bodyVelocity = rootPart:FindFirstChild("HangVelocity") or Instance.new("LinearVelocity")
-    bodyVelocity.Name = "HangVelocity"
-    local attachment = rootPart:FindFirstChild("HangAttachment") or Instance.new("Attachment")
-    attachment.Name = "HangAttachment"
-    bodyVelocity.Attachment0 = attachment
-    bodyVelocity.VectorVelocity = Vector3.zero
-    bodyVelocity.MaxForce = math.huge
-    bodyVelocity.Enabled = true
-    attachment.Parent = rootPart
-    bodyVelocity.Parent = rootPart
-
-    humanoid.AutoRotate = false
-    PlayAnimation("LEDGE", "HOLD")
-
-    return { type = "hang", enabled = true }
-end
-
-local function FinishHang()
-    if not Character then return end
-
-    local rootPart = Character:FindFirstChild("HumanoidRootPart")
-    local humanoid = Character:FindFirstChild("Humanoid")
-    if not rootPart or not humanoid then return end
-
-    State.movement.isHanging = false
-    humanoid.AutoRotate = true
-
-    if State.movement.hangMoveConnection then
-        State.movement.hangMoveConnection:Disconnect()
-        State.movement.hangMoveConnection = nil
-    end
-
-    local bodyVelocity = rootPart:FindFirstChild("HangVelocity")
-    local attachment = rootPart:FindFirstChild("HangAttachment")
-    if bodyVelocity then
-        bodyVelocity.Enabled = true
-        bodyVelocity.VectorVelocity = rootPart.CFrame.LookVector * 10 + Vector3.new(0, 30, 0)
-        task.delay(0.15, function()
-            if bodyVelocity and bodyVelocity.Parent then
-                bodyVelocity.Enabled = false
-                bodyVelocity:Destroy()
-            end
-        end)
-    end
-    if attachment then
-        attachment:Destroy()
-    end
-
-    StopAnimation("LEDGE", "HOLD")
-    PlayAnimation("LOCOMOTION", "JUMP")
-
-    task.delay(0.75, function()
-        State.movement.canHang = true
-        State.movement.canLedge = true
-    end)
-end
-
---[[ Climb Functions ]]
-local function DetectWall()
-    if not Character then return false end
-
-    local rootPart = Character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return false end
-
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    raycastParams.RespectCanCollide = true
-
-    local checkHeights = {0, 2, 4}
-    local checkDistance = 2.5
-
-    for _, heightOffset in ipairs(checkHeights) do
-        local startPos = rootPart.Position + Vector3.new(0, heightOffset, 0)
-        local directions = {
-            rootPart.CFrame.LookVector * checkDistance,
-            rootPart.CFrame.RightVector * checkDistance,
-            -rootPart.CFrame.RightVector * checkDistance
-        }
-
-        for _, direction in pairs(directions) do
-            local ray = workspace:Raycast(startPos, direction, raycastParams)
-            if ray and ray.Instance and ray.Instance.CanCollide then
-                return true
-            end
-        end
-    end
-
-    return false
-end
-
---[[ Vault Functions ]]
-local function DetectVault()
-    if not Character then return false end
-
-    local rootPart = Character:FindFirstChild("HumanoidRootPart")
-    local humanoid = Character:FindFirstChild("Humanoid")
-    if not rootPart or not humanoid then return false end
-
-    if humanoid:GetState() ~= Enum.HumanoidStateType.Running then
-        return false
-    end
-
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-    raycastParams.RespectCanCollide = true
-
-    local rayOrigin = rootPart.Position + Vector3.new(0, humanoid.HipHeight * 0.25, 0)
-    local rayDirection = rootPart.CFrame.LookVector * 2.5
-
-    local frontCheck = workspace:Raycast(
-        rayOrigin,
-        rayDirection,
-        raycastParams
-    )
-
-    if not frontCheck then
-        return false
-    end
-
-    local obstacleDistance = (frontCheck.Position - rayOrigin).Magnitude
-    if obstacleDistance < 0.5 then
-        return false
-    end
-
-    local obstacleHeight = frontCheck.Position.Y - rootPart.Position.Y
-    if obstacleHeight > 3.5 then
-        return false
-    end
-
-    local aboveCheck = workspace:Raycast(
-        frontCheck.Position + Vector3.new(0, 2, 0),
-        rootPart.CFrame.LookVector * 2,
-        raycastParams
-    )
-
-    if aboveCheck then
-        return false
-    end
-
-    local function CheckLanding(offset)
-        local baseOffset = math.max(1.5, obstacleDistance + 1)
-        local checkPosition = frontCheck.Position + Vector3.new(0, 2, 0) + (rootPart.CFrame.LookVector * (baseOffset + offset))
-
-        local landingCheck = workspace:Raycast(
-            checkPosition,
-            Vector3.new(0, -4, 0),
-            raycastParams
-        )
-        return landingCheck
-    end
-
-    local landingCheck = nil
-    for offset = 0, 1.0, 0.25 do
-        landingCheck = CheckLanding(offset)
-        if landingCheck then
-            break
-        end
-    end
-
-    if not landingCheck then
-        return false
-    end
-
-    return {
-        success = true,
-        landingPosition = landingCheck.Position,
-        obstacleDistance = obstacleDistance
-    }
-end
-
---[[ Swing Functions ]]
-local function DetectSwing()
-    if not Character then return false end
-
-    local rootPart = Character:FindFirstChild("HumanoidRootPart")
-    if not rootPart then return false end
-
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterDescendantsInstances = {Character}
-    raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-
-    local ray = workspace:Raycast(
-        rootPart.Position,
-        Vector3.new(0, 10, 0),
-        raycastParams
-    )
-
-    return ray and ray.Instance and ray.Instance:FindFirstChild("SwingPoint")
-end
-
---[[ Utility ]]
-local function CancelCrouch()
-    if State.movement.isCrouching then
-        local rootPart = Character.PrimaryPart
-        if rootPart then
-            rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, rootPart.Orientation.Y * math.pi/180, 0)
-        end
-        StopAnimation("LOCOMOTION", "CROUCH")
-        PlayAnimation("LOCOMOTION", "IDLE")
-        State.movement.isCrouching = false
-    end
-end
-
-local function CanMove()
-    if State.movement.isRagdoll then
-        return false
-    end
-
-    return not (
-        State.movement.isRolling or
-        State.movement.isDashing or
-        State.movement.isSliding or
-        State.movement.isWallRunning or
-        State.movement.isScaling or
-        State.movement.isSwinging or
-        State.movement.isVaulting or
-        State.movement.isHanging or
-        State.movement.isClimbing or
-        State.movement.isSitting or
-        State.movement.isStunned
-    )
-end
-
-local function CanRoll()
-    local humanoid = Character and Character:FindFirstChild("Humanoid")
-    if not humanoid then return false end
-
-    local onGround = humanoid:GetState() ~= Enum.HumanoidStateType.Freefall and
-                    humanoid:GetState() ~= Enum.HumanoidStateType.Jumping and
-                    humanoid.FloorMaterial ~= Enum.Material.Air
-
-    return CanMove() and onGround
-end
-
---[[ Movement Handlers ]]
-local MovementHandlers
-MovementHandlers = {
-    Run = function(enabled)
-        if enabled then
-            if State.movement.isCrouching then return nil end
-
-            local currentTime = os.clock()
-            if currentTime - State.movement.lastWTap < Modules.Stat.Constants.MOVEMENT.SPRINT_DOUBLE_TAP_DELAY then
-                if not State.movement.isRunning then
-                    State.movement.isRunning = true
-                    State.movement.isWalking = false
-
-                    if State.movement.isWalking then
-                        FadeAnimation("LOCOMOTION", "WALK", "LOCOMOTION", "SPRINT", 0.2)
-                    else
-                        PlayAnimation("LOCOMOTION", "SPRINT", 0.2)
-                    end
-                end
-
-                if not State.movement.effects.run then
-                    local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
-                    if torso then
-                        local effect, cleanup = Utility.Particle.Play("Run", torso, {
-                            continuous = true,
-                            weld = true,
-                            offset = CFrame.new(0, 0, 0)
-                        })
-                        State.movement.effects.run = effect
-                        State.movement.effects.runCleanup = cleanup
-                    end
-
-                    local limbs = {
-                        ["Left Arm"] = Character:FindFirstChild("LeftUpperArm") or Character:FindFirstChild("Left Arm"),
-                        ["Right Arm"] = Character:FindFirstChild("RightUpperArm") or Character:FindFirstChild("Right Arm"),
-                        ["Left Leg"] = Character:FindFirstChild("LeftUpperLeg") or Character:FindFirstChild("Left Leg"),
-                        ["Right Leg"] = Character:FindFirstChild("RightUpperLeg") or Character:FindFirstChild("Right Leg")
-                    }
-
-                    for limbName, limbPart in pairs(limbs) do
-                        if limbPart then
-                            local effect, cleanup = Utility.Particle.Play("Speed Trails", limbPart, {
-                                continuous = true,
-                                weld = true,
-                                target = limbName
-                            })
-                            if effect then
-                                State.movement.effects.speedTrails[limbName] = effect
-                                State.movement.effects.speedTrailsCleanup[limbName] = cleanup
-                            end
-                        end
-                    end
-                end
-
-                Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.RUN_FOV, CAMERA_SETTINGS.TRANSITION_TIME)
-
-                return { type = "run", enabled = true }
-            end
-            State.movement.lastWTap = currentTime
-
-            if not State.movement.isWalking and not State.movement.isRunning then
-                State.movement.isWalking = true
-                if State.movement.isRunning then
-                    FadeAnimation("LOCOMOTION", "SPRINT", "LOCOMOTION", "WALK", 0.2)
-                else
-                    PlayAnimation("LOCOMOTION", "WALK", 0.2)
-                end
-            end
-            return { type = "walk", enabled = true }
-        else
-            State.movement.isRunning = false
-            State.movement.isWalking = true
-
-            if Animations["LOCOMOTION_SPRINT"] and Animations["LOCOMOTION_SPRINT"].IsPlaying then
-                if not State.movement.isCrouching then
-                    FadeAnimation("LOCOMOTION", "SPRINT", "LOCOMOTION", "WALK", 0.2)
-                else
-                    StopAnimation("LOCOMOTION", "SPRINT", 0.2)
-                end
-            end
-
-            if State.movement.effects.runCleanup then
-                State.movement.effects.runCleanup()
-                State.movement.effects.run = nil
-                State.movement.effects.runCleanup = nil
-            end
-
-            for limbName, cleanup in pairs(State.movement.effects.speedTrailsCleanup) do
-                cleanup()
-                State.movement.effects.speedTrails[limbName] = nil
-                State.movement.effects.speedTrailsCleanup[limbName] = nil
-            end
-
-            Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, CAMERA_SETTINGS.TRANSITION_TIME)
-
-            return { type = "walk", enabled = true }
-        end
-    end,
-    Roll = function()
-        if not CanRoll() then return false end
-
-        CancelCrouch()
-
-        local humanoid = Character:FindFirstChild("Humanoid")
-        if not humanoid then return false end
-
-        local humanoidState = humanoid:GetState()
-        if humanoid.FloorMaterial == Enum.Material.Air or
-           humanoidState == Enum.HumanoidStateType.Freefall or
-           humanoidState == Enum.HumanoidStateType.Jumping then
-            return MovementHandlers.Dash()
-        end
-
-        State.movement.isRolling = true
-        State.movement.isRolling = true
-
-        local direction = "forward"
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            direction = "backward"
-        elseif UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            direction = "left"
-        elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            direction = "right"
-        end
-
-        if direction == "backward" then
-            direction = "back"
-        end
-
-        Utility.Particle.Play("Dodge", Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso"))
-
-        if direction == "left" then
-            PlayAnimation("ROLL", "LEFT")
-        elseif direction == "right" then
-            PlayAnimation("ROLL", "RIGHT")
-        elseif direction == "backward" then
-            PlayAnimation("ROLL", "BACK")
-        else
-            PlayAnimation("ROLL", "FORWARD")
-        end
-
-        return { type = "roll", direction = direction }
-    end,
-    Crouch = function(enabled)
-        if not CanMove() then return false end
-
-        if enabled and State.movement.isCrouching then
-            enabled = false
-        end
-
-        State.movement.isCrouching = enabled
-        if enabled then
-            StopAnimation("LOCOMOTION", "WALK")
-            StopAnimation("LOCOMOTION", "SPRINT")
-            StopAnimation("LOCOMOTION", "IDLE")
-
-            if State.movement.isWalking or State.movement.isRunning then
-                PlayAnimation("LOCOMOTION", "CROUCH_WALK")
-            else
-                PlayAnimation("LOCOMOTION", "CROUCH_IDLE")
-            end
-        else
-            StopAnimation("LOCOMOTION", "CROUCH_IDLE")
-            StopAnimation("LOCOMOTION", "CROUCH_WALK")
-
-            if State.movement.isWalking then
-                PlayAnimation("LOCOMOTION", "WALK")
-            elseif State.movement.isRunning then
-                PlayAnimation("LOCOMOTION", "SPRINT")
-            else
-                PlayAnimation("LOCOMOTION", "IDLE")
-            end
-        end
-        return { type = "crouch", enabled = enabled }
-    end,
-    Slide = function()
-        if not CanMove() then return false end
-
-        local humanoid = Character:FindFirstChild("Humanoid")
-        local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
-        if not humanoid or not torso then return false end
-
-        if not State.movement.isRunning or humanoid:GetState() ~= Enum.HumanoidStateType.Running then
-            return false
-        end
-
-        State.movement.isSliding = true
-        PlayAnimation("SPECIAL", "SLIDE")
-
-        if not State.movement.effects.slide then
-            local effect, cleanup = Utility.Particle.Play("Slide", torso, {
-                continuous = true,
-                weld = true,
-                offset = CFrame.new(0, -2.5, 0) * CFrame.new(torso.CFrame.LookVector)
-            })
-            State.movement.effects.slide = effect
-            State.movement.effects.slideCleanup = cleanup
-        end
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 10, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
-
-        return { type = "slide" }
-    end,
-    WallRun = function()
-        State.movement.isWallRunning = true
-        local direction = State.movement.currentDirection
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 15, 0.3)
-
-        if direction == "left" then
-            PlayAnimation("WALL", "RUN_LEFT")
-        else
-            PlayAnimation("WALL", "RUN_RIGHT")
-        end
-        return { type = "wallrun" }
-    end,
-    WallClimb = function()
-        if DetectWall() then
-            CancelCrouch()
-            State.movement.isWallClimbing = true
-            PlayAnimation("WALL", "HOLD")
-            return { type = "wallclimb" }
-        end
-        return nil
-    end,
-    Swing = function()
-        if DetectSwing() then
-            State.movement.isSwinging = true
-            PlayAnimation("LEDGE", "HOLD")
-            return { type = "swing" }
-        end
-        return nil
-    end,
-    Hang = function()
-        if DetectHang() then
-            State.movement.isHanging = true
-            PlayAnimation("LEDGE", "HOLD")
-            return { type = "hang" }
-        end
-        return nil
-    end,
-    Sit = function(enabled)
-        State.movement.isSitting = enabled
-        if enabled then
-            PlayAnimation("LOCOMOTION", "SIT")
-        else
-            StopAnimation("LOCOMOTION", "SIT")
-            PlayAnimation("LOCOMOTION", "IDLE")
-        end
-        return { type = "sit", enabled = enabled }
-    end,
-    Vault = function()
-        if not CanMove() then return false end
-
-        local vaultInfo = DetectVault()
-        if not vaultInfo or not vaultInfo.success then return false end
-
-        State.movement.isVaulting = true
-        PlayAnimation("SPECIAL", "VAULT")
-        Utility.Sound.Play("SFX.Dash")
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 5, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
-
-        local humanoid = Character:FindFirstChild("Humanoid")
-        local torso = Character:FindFirstChild("UpperTorso") or Character:FindFirstChild("Torso")
-        if humanoid and torso then
-            local targetPosition = vaultInfo.landingPosition + Vector3.new(0, humanoid.HipHeight, 0)
-            local vaultDuration = Modules.State.Templates.VAULT.duration or 0.5
-            local tweenInfo = TweenInfo.new(vaultDuration, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-            local tween = game:GetService("TweenService"):Create(torso, tweenInfo, {
-                CFrame = CFrame.new(targetPosition, targetPosition + torso.CFrame.LookVector)
-            })
-
-            local function cleanup()
-                State.movement.isVaulting = false
-                StopAnimation("SPECIAL", "VAULT")
-                PlayAnimation("LOCOMOTION", "IDLE")
-            end
-
-            tween:Play()
-            tween.Completed:Connect(cleanup)
-            task.delay(1, function()
-                if State.movement.isVaulting then
-                    cleanup()
-                end
-            end)
-        end
-
-        return {
-            type = "vault",
-            landingPosition = vaultInfo.landingPosition
-        }
-    end,
-    Swim = function(enabled)
-        State.movement.isSwimming = enabled
-        if enabled then
-            PlayAnimation("LOCOMOTION", "SWIM")
-        else
-            StopAnimation("LOCOMOTION", "SWIM")
-            PlayAnimation("LOCOMOTION", "IDLE")
-        end
-        return { type = "swim", enabled = enabled }
-    end,
-    Dash = function()
-        if not CanMove() then return false end
-
-        CancelCrouch()
-
-        local rootPart = Character:FindFirstChild("HumanoidRootPart")
-        if not rootPart then return false end
-
-        local direction = "forward"
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            direction = "backward"
-        elseif UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            direction = "left"
-        elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            direction = "right"
-        end
-
-        State.movement.currentDirection = direction
-        State.movement.isDashing = true
-        State.movement.isWalking = false
-        State.movement.isRunning = false
-
-        StopAnimation("LOCOMOTION", "WALK")
-        StopAnimation("LOCOMOTION", "SPRINT")
-        StopAnimation("LOCOMOTION", "JUMP")
-        StopAnimation("LOCOMOTION", "FALL")
-        StopAnimation("LOCOMOTION", "IDLE")
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV + 20, 0.1)
-        PlayAnimation("SPECIAL", "AIR_DASH")
-        Utility.Sound.Play("SFX.Dash")
-        return { type = "dash", direction = direction }
-    end,
-    Jump = function(enabled)
-        if enabled then
-            if State.movement.isVaulting then
-                return false
-            end
-
-            CancelCrouch()
-            State.movement.isJumping = true
-            PlayAnimation("LOCOMOTION", "JUMP")
-            return { type = "jump" }
-        end
-        return nil
-    end,
-    Fall = function()
-        State.movement.isFalling = true
-        PlayAnimation("LOCOMOTION", "FALL")
-        return { type = "fall" }
-    end,
-    CrouchWalk = function(enabled)
-        State.movement.isCrouchWalking = enabled
-        if enabled then
-            StopAnimation("LOCOMOTION", "WALK")
-            StopAnimation("LOCOMOTION", "SPRINT")
-            StopAnimation("LOCOMOTION", "CROUCH_IDLE")
-            PlayAnimation("LOCOMOTION", "CROUCH_WALK")
-        else
-            StopAnimation("LOCOMOTION", "CROUCH_WALK")
-            if State.movement.isWalking then
-                PlayAnimation("LOCOMOTION", "WALK")
-            elseif State.movement.isRunning then
-                PlayAnimation("LOCOMOTION", "SPRINT")
-            else
-                PlayAnimation("LOCOMOTION", "CROUCH_IDLE")
-            end
-        end
-        return { type = "crouch_walk", enabled = enabled }
-    end,
-    Land = function(impactStrength)
-        if impactStrength > 0.5 then
-            Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV - 5, 0.2)
-            PlayAnimation("LANDING", "LARGE")
-        else
-            Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, 0.1)
-            PlayAnimation("LANDING", "SMALL")
-        end
-        return { type = "land", impact = impactStrength }
-    end,
-    Ragdoll = function(enabled)
-        if not Character then return nil end
-
-        if enabled == State.movement.isRagdoll then return nil end
-
-        if enabled then
-            local stateTemplate = Modules.State.Templates["RAGDOLL"]
-            ApplyRagdoll(Character, stateTemplate.duration)
-        else
-            CancelRagdoll(Character)
-        end
-        State.movement.isRagdoll = enabled
-        return { type = "ragdoll", enabled = enabled }
-    end,
-    Scale = function()
-        if DetectWall() then
-            CancelCrouch()
-            State.movement.isScaling = true
-            PlayAnimation("WALL", "HOLD")
-            return { type = "scale" }
-        end
-    end,
-    Climb = function()
-        if DetectWall() then
-            CancelCrouch()
-            State.movement.isClimbing = true
-            PlayAnimation("WALL", "HOLD")
-            return { type = "climb" }
-        end
-        return nil
-    end,
-}
-local MOVEMENT_HANDLERS = MovementHandlers
-
-local MOVEMENT_CLEANUP = {
-    Roll = function()
-        State.movement.isRolling = false
-        StopAnimation("ROLL", "FORWARD")
-        StopAnimation("ROLL", "BACK")
-        StopAnimation("ROLL", "LEFT")
-        StopAnimation("ROLL", "RIGHT")
-        PlayAnimation("LANDING", "SMALL")
-
-        local rootPart = Character:FindFirstChild("HumanoidRootPart")
-        if rootPart then
-            local rollForce = rootPart:FindFirstChild("roll_force")
-            if rollForce then
-                rollForce:Destroy()
-            end
-        end
-
-        State.movement.isStunned = false
-        State.movement.isWalking = false
-        State.movement.isRunning = false
-
-        local humanoid = Character:FindFirstChild("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = 16
-            humanoid.AutoRotate = true
-        end
-    end,
-    Dash = function()
-        State.movement.isDashing = false
-        StopAnimation("SPECIAL", "AIR_DASH")
-        PlayAnimation("LANDING", "SMALL")
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, 0.2)
-
-        local rootPart = Character:FindFirstChild("HumanoidRootPart")
-        if rootPart then
-            local dashForce = rootPart:FindFirstChild("dash_force")
-            if dashForce then
-                dashForce:Destroy()
-            end
-        end
-    end,
-    Slide = function()
-        State.movement.isSliding = false
-        StopAnimation("SPECIAL", "SLIDE")
-        PlayAnimation("LANDING", "SMALL")
-
-        if State.movement.effects.slideCleanup then
-            State.movement.effects.slideCleanup()
-            State.movement.effects.slide = nil
-            State.movement.effects.slideCleanup = nil
-        end
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
-        Utility.Camera.StopShake(workspace.CurrentCamera)
-    end,
-    WallRun = function()
-        State.movement.isWallRunning = false
-        StopAnimation("WALL", "RUN_LEFT")
-        StopAnimation("WALL", "RUN_RIGHT")
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, 0.3)
-        Utility.Camera.StopShake(workspace.CurrentCamera)
-    end,
-    WallClimb = function()
-        State.movement.isWallClimbing = false
-        StopAnimation("WALL", "HOLD")
-    end,
-    Swing = function()
-        State.movement.isSwinging = false
-        StopAnimation("LEDGE", "HOLD")
-    end,
-    Climb = function()
-        State.movement.isClimbing = false
-        StopAnimation("WALL", "HOLD")
-    end,
-    Sit = function()
-        State.movement.isSitting = false
-        StopAnimation("LOCOMOTION", "SIT")
-    end,
-    Vault = function()
-        State.movement.isVaulting = false
-        StopAnimation("SPECIAL", "VAULT")
-        PlayAnimation("LANDING", "SMALL")
-
-        Utility.Camera.FOV(workspace.CurrentCamera, CAMERA_SETTINGS.FOV, Modules.Stat.Constants.MOVEMENT.SLIDE_SMOOTH_TIME)
-        task.delay(0.2, function()
-            PlayAnimation("LOCOMOTION", "IDLE")
-        end)
-    end,
-    Run = function()
-        State.movement.isRunning = false
-        State.movement.isWalking = true
-        StopAnimation("LOCOMOTION", "SPRINT")
-    end,
-    Ragdoll = function()
-        State.movement.isRagdoll = false
-        if Character then
-            Character:SetAttribute("RAGDOLL", false)
-        end
-    end,
-    Hang = function()
-        if State.movement.isHanging then
-            FinishHang()
-        end
-    end,
-    Scale = function()
-        State.movement.isScaling = false
-        StopAnimation("WALL", "HOLD")
-    end,
-}
 
 --[[ Emote Functions ]]
-local function ToggleEmotes(show)
-    if not State.ui.emoteMenu.frame then return end
+function MovementClient:SetupEmotes()
+    if not self:ValidateCharacter() then return end
 
-    local ui = State.ui.emoteMenu
-    if show ~= nil then
-        ui.isOpen = show
-    else
-        ui.isOpen = not ui.isOpen
+    if uiState.emoteMenu.frame then return end
+
+    local playerGui = self.LocalPlayer:WaitForChild("PlayerGui")
+    local emoteGui = playerGui:WaitForChild("EmoteGui")
+
+    uiState.emoteMenu.frame = emoteGui:WaitForChild("Background")
+    uiState.emoteMenu.scrollFrame = uiState.emoteMenu.frame:WaitForChild("ScrollingFrame")
+end
+
+function MovementClient:CreateEmoteButton(category, emoteName)
+    if not self:ValidateCharacter() then return end
+
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, -10, 0, 40)
+    button.BackgroundTransparency = 0.5
+    button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    button.Font = Enum.Font.Antique
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 20
+    button.Text = emoteName:gsub("_", " ")
+    button.AutoButtonColor = true
+
+    button.MouseButton1Click:Connect(function()
+        local animKey = category .. "_" .. emoteName
+        if not animState.animations[animKey] then
+            local originalColor = button.BackgroundColor3
+            button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+            task.delay(0.2, function()
+                button.BackgroundColor3 = originalColor
+                task.delay(0.1, function()
+                    self:ToggleEmotes(false)
+                end)
+            end)
+        return
     end
 
-    if ui.isOpen then
-        State.movement.isStunned = true
-        ui.frame.Visible = true
-        local scrollFrame = State.ui.emoteMenu.scrollFrame
+        self:PlayAnimation(category, emoteName)
+        self:ToggleEmotes(false)
+    end)
+
+    return button
+end
+
+function MovementClient:ToggleEmotes(show)
+    if not self:ValidateCharacter() then return end
+    self:SetupEmotes()
+
+    if not uiState.emoteMenu.frame then return end
+
+    if show ~= nil then
+        uiState.emoteMenu.isOpen = show
+    else
+        uiState.emoteMenu.isOpen = not uiState.emoteMenu.isOpen
+    end
+
+    if uiState.emoteMenu.isOpen then
+        movementState.isStunned = true
+        uiState.emoteMenu.frame.Visible = true
+        local scrollFrame = uiState.emoteMenu.scrollFrame
 
         for _, child in pairs(scrollFrame:GetChildren()) do
             if child:IsA("TextButton") then
@@ -1372,8 +2869,8 @@ local function ToggleEmotes(show)
         end
 
         local yOffset = 5
-        for emoteName, data in pairs(Modules.Animation.Assets.Animations.EMOTES) do
-            local button = CreateEmote("EMOTES", emoteName)
+        for emoteName, _ in pairs(Modules.Animation.Assets.Animations.EMOTES or {}) do
+            local button = self:CreateEmoteButton("EMOTES", emoteName)
             button.Position = UDim2.new(0, 5, 0, yOffset)
             button.Parent = scrollFrame
             button.BackgroundTransparency = 1
@@ -1383,967 +2880,447 @@ local function ToggleEmotes(show)
 
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset)
 
-        Utility.Controller.Update({
-            instance = ui.frame,
-            properties = { ImageTransparency = 0 },
-            duration = UI_SETTINGS.EMOTE_MENU.FADE_DURATION
+        local tweenInfo = TweenInfo.new(CONFIG.UI_SETTINGS.EMOTE_MENU.FADE_DURATION, Enum.EasingStyle.Quad)
+        local tween = game:GetService("TweenService"):Create(uiState.emoteMenu.frame, tweenInfo, {
+            ImageTransparency = 0
         })
+        tween:Play()
 
         for _, child in pairs(scrollFrame:GetChildren()) do
             if child:IsA("TextButton") then
-                Utility.Controller.Update({
-                    instance = child,
-                    properties = {
-                        BackgroundTransparency = 0.5,
-                        TextTransparency = 0
-                    },
-                    duration = UI_SETTINGS.EMOTE_MENU.FADE_DURATION
+                local buttonTween = game:GetService("TweenService"):Create(child, tweenInfo, {
+                    BackgroundTransparency = 0.5,
+                    TextTransparency = 0
                 })
+                buttonTween:Play()
             end
         end
     else
-        State.movement.isStunned = false
+        local scrollFrame = uiState.emoteMenu.scrollFrame
+        local tweenInfo = TweenInfo.new(CONFIG.UI_SETTINGS.EMOTE_MENU.FADE_DURATION, Enum.EasingStyle.Quad)
 
-        local scrollFrame = State.ui.emoteMenu.scrollFrame
         for _, child in pairs(scrollFrame:GetChildren()) do
             if child:IsA("TextButton") then
-                Utility.Controller.Update({
-                    instance = child,
-                    properties = {
-                        BackgroundTransparency = 1,
-                        TextTransparency = 1
-                    },
-                    duration = UI_SETTINGS.EMOTE_MENU.FADE_DURATION
+                local buttonTween = game:GetService("TweenService"):Create(child, tweenInfo, {
+                    BackgroundTransparency = 1,
+                    TextTransparency = 1
                 })
+                buttonTween:Play()
             end
         end
 
-        Utility.Controller.Update({
-            instance = ui.frame,
-            properties = { ImageTransparency = 1 },
-            duration = UI_SETTINGS.EMOTE_MENU.FADE_DURATION,
-            onComplete = function()
-                ui.frame.Visible = false
-                for _, child in pairs(scrollFrame:GetChildren()) do
-                    if child:IsA("TextButton") then
-                        child:Destroy()
-                    end
+        local tween = game:GetService("TweenService"):Create(uiState.emoteMenu.frame, tweenInfo, {
+            ImageTransparency = 1
+        })
+        tween:Play()
+
+        tween.Completed:Connect(function()
+            uiState.emoteMenu.frame.Visible = false
+            for _, child in pairs(scrollFrame:GetChildren()) do
+                if child:IsA("TextButton") then
+                    child:Destroy()
                 end
             end
-        })
+        end)
+    end
+
+    movementState.isStunned = uiState.emoteMenu.isOpen
+end
+
+--[[ Death Functions ]]
+function MovementClient:SetupDeath()
+    if not self:ValidateCharacter() then return end
+
+    if uiState.deathOverlay.frame then return end
+
+    local playerGui = self.LocalPlayer:WaitForChild("PlayerGui")
+    local deathGui = playerGui:FindFirstChild("DeathOverlay")
+
+    if not deathGui then
+        deathGui = Instance.new("ScreenGui")
+        deathGui.Name = "DeathOverlay"
+        deathGui.DisplayOrder = 10000
+        deathGui.Parent = playerGui
+
+        local overlay = Instance.new("Frame")
+        overlay.Name = "Overlay"
+        overlay.Size = UDim2.new(1, 0, 1, 0)
+        overlay.BackgroundColor3 = CONFIG.UI_SETTINGS.DEATH_OVERLAY.COLOR
+        overlay.BackgroundTransparency = 1
+        overlay.BorderSizePixel = 0
+        overlay.Parent = deathGui
+    end
+
+    uiState.deathOverlay.frame = deathGui:WaitForChild("Overlay")
+    uiState.deathOverlay.transparency = 1
+end
+
+function MovementClient:FadeDeath(fadeIn)
+    self:SetupDeath()
+
+    if not uiState.deathOverlay.frame then return end
+
+    local targetTransparency = fadeIn and 0 or 1
+    local tweenInfo = TweenInfo.new(
+        CONFIG.UI_SETTINGS.DEATH_OVERLAY.FADE_DURATION,
+        Enum.EasingStyle.Quad,
+        Enum.EasingDirection.Out
+    )
+
+    local tween = game:GetService("TweenService"):Create(
+        uiState.deathOverlay.frame,
+        tweenInfo,
+        {BackgroundTransparency = targetTransparency}
+    )
+
+    tween:Play()
+    uiState.deathOverlay.transparency = targetTransparency
+end
+
+--[[ Shift Lock Functions ]]
+function MovementClient:SetMouseState(enable)
+    UserInputService.MouseBehavior = enable and Enum.MouseBehavior.LockCenter or Enum.MouseBehavior.Default
+end
+
+function MovementClient:SetMouseIcon(enable)
+    if not self:ValidateCharacter() then return end
+
+    local mouse = self.LocalPlayer:GetMouse()
+    mouse.Icon = enable and CONFIG.SHIFT_LOCK_CONFIG.LOCKED_MOUSE_ICON or
+                (CONFIG.CURSOR_CONFIG.ENABLED and CONFIG.CURSOR_CONFIG.OVERRIDE_DEFAULT and
+                CONFIG.CURSOR_CONFIG.DEFAULT_CURSOR or "")
+end
+
+function MovementClient:TransitionLockOffset(enable)
+    if not cameraState.camOffsetSpring then
+        cameraState.camOffsetSpring = Tools.Spring.new(Vector3.new(0, 0, 0))
+        cameraState.camOffsetSpring.Damper = CONFIG.SHIFT_LOCK_CONFIG.TRANSITION_SPRING_DAMPER
+    end
+
+    if enable then
+        cameraState.camOffsetSpring.Speed = CONFIG.SHIFT_LOCK_CONFIG.CAMERA_TRANSITION_IN_SPEED
+        cameraState.camOffsetSpring.Target = CONFIG.SHIFT_LOCK_CONFIG.LOCKED_CAMERA_OFFSET
+    else
+        cameraState.camOffsetSpring.Speed = CONFIG.SHIFT_LOCK_CONFIG.CAMERA_TRANSITION_OUT_SPEED
+        cameraState.camOffsetSpring.Target = Vector3.new(0, 0, 0)
+    end
+
+    cameraState.shiftLockOffset = cameraState.camOffsetSpring.Position
+end
+
+function MovementClient:ToggleShiftLock()
+    if not self:ValidateCharacter() then return end
+    if humanoidRef.Health <= 0 then return end
+
+    if movementState.isRagdoll or (self.ledgeState and self.ledgeState.isClimbing) then
+        if not cameraState.isShiftLocked then
+            return
+        end
+    end
+
+    cameraState.isShiftLocked = not cameraState.isShiftLocked
+
+    self:SetMouseState(cameraState.isShiftLocked)
+    self:SetMouseIcon(cameraState.isShiftLocked)
+    self:TransitionLockOffset(cameraState.isShiftLocked)
+
+    humanoidRef.AutoRotate = not cameraState.isShiftLocked
+end
+
+function MovementClient:UpdateShiftLock(delta)
+    if not self:ValidateCharacter() then return end
+
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+
+    local head = characterRef:FindFirstChild("Head")
+    if not head then return end
+
+    local distance = (head.Position - camera.CFrame.Position).Magnitude
+    if distance > 1 then
+        if cameraState.camOffsetSpring then
+            cameraState.shiftLockOffset = cameraState.camOffsetSpring.Position
+            if cameraState.shiftLockOffset.Magnitude > 0.01 then
+                local lookVector = camera.CFrame.LookVector
+                local rightVector = camera.CFrame.RightVector
+                local upVector = camera.CFrame.UpVector
+
+                local offset = rightVector * cameraState.shiftLockOffset.X +
+                             upVector * cameraState.shiftLockOffset.Y +
+                             lookVector * cameraState.shiftLockOffset.Z
+
+                camera.CFrame = CFrame.new(camera.CFrame.Position + offset) *
+                           CFrame.fromMatrix(Vector3.new(), rightVector, upVector, -lookVector)
+            end
+        end
+
+        if cameraState.isShiftLocked and UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
+            self:SetMouseState(true)
+        end
+    end
+
+    if cameraState.isShiftLocked and not humanoidRef.Sit then
+        local rootPart = characterRef:FindFirstChild("HumanoidRootPart")
+        if not rootPart then return end
+
+        local _, targetYaw, _ = camera.CFrame:ToOrientation()
+        local currentCFrame = rootPart.CFrame
+        local _, currentYaw, _ = currentCFrame:ToOrientation()
+
+        local angleDiff = targetYaw - currentYaw
+        while angleDiff > math.pi do angleDiff -= 2 * math.pi end
+        while angleDiff < -math.pi do angleDiff += 2 * math.pi end
+
+        local newYaw = currentYaw + (angleDiff * delta * 5 * CONFIG.SHIFT_LOCK_CONFIG.CHARACTER_ROTATION_SPEED)
+        local newCFrame = CFrame.new(currentCFrame.Position) * CFrame.Angles(0, newYaw, 0)
+
+        if CONFIG.SHIFT_LOCK_CONFIG.CHARACTER_SMOOTH_ROTATION then
+            rootPart.CFrame = currentCFrame:Lerp(newCFrame, delta * 5 * CONFIG.SHIFT_LOCK_CONFIG.CHARACTER_ROTATION_SPEED)
+        else
+            rootPart.CFrame = newCFrame
+        end
     end
 end
 
-function CreateEmote(category: string, emoteName: string)
-    local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, -10, 0, 40)
-    button.BackgroundTransparency = 0.5
-    button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    button.Font = Enum.Font.Antique
-    button.TextColor3 = Color3.fromRGB(255, 255, 255)
-    button.TextSize = 18
-    button.Text = emoteName:gsub("_", " ")
-    button.AutoButtonColor = true
-
-    button.MouseButton1Click:Connect(function()
-        local animKey = category .. "_" .. emoteName
-        if not Animations[animKey] then
-            local originalColor = button.BackgroundColor3
-            button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            task.delay(0.2, function()
-                button.BackgroundColor3 = originalColor
-                task.delay(0.1, function()
-                    ToggleEmotes(false)
-                end)
-            end)
-            return
-        end
-
-        PlayAnimation(category, emoteName)
-        ToggleEmotes(false)
-    end)
-
-    return button
+--[[ Footstep Functions ]]
+function MovementClient:GetFloor()
+    if not self:ValidateCharacter() then return "Air" end
+    local floorMaterial = humanoidRef.FloorMaterial
+    return floorMaterial and tostring(floorMaterial):gsub("Enum.Material.", "") or "Air"
 end
 
-local function ExecuteMovement(actionName, inputState, inputObject)
-    local humanoid = Character:FindFirstChild("Humanoid")
-    if not humanoid then return Enum.ContextActionResult.Pass end
+function MovementClient:PlayFootstep(material)
+    if footstepState.currentSound then
+        footstepState.currentSound:Stop()
+        footstepState.currentSound = nil
+    end
 
-    if actionName == "Move" then
-        for emoteName, _ in pairs(Modules.Animation.Assets.Animations.EMOTES) do
-            local animKey = "EMOTES_" .. emoteName
-            if Animations[animKey] and Animations[animKey].IsPlaying then
-                StopAnimation("EMOTES", emoteName)
-                PlayAnimation("LOCOMOTION", "IDLE")
+    local baseSpeed = 10/12
+    local config = {
+        effects = {
+            pitch = {
+                Octave = 1.0
+            }
+        },
+        loop = true
+    }
+
+    if movementState.isCrouching then
+        config.speed = baseSpeed * 0.6
+        config.effects.pitch.Octave = 1/0.6
+    elseif movementState.isSprinting then
+        config.speed = baseSpeed * 1.7
+        config.effects.pitch.Octave = 1/1.6
+    else
+        config.speed = baseSpeed
+    end
+
+    footstepState.currentSound = Utility.Sound.Play("SFX.Footsteps." .. material, characterRef, config)
+    footstepState.lastMaterial = material
+end
+
+function MovementClient:UpdateFootsteps()
+    if not self:ValidateCharacter() then return end
+
+    local isMoving = humanoidRef.MoveDirection.Magnitude > 0
+    local isRunning = humanoidRef:GetState() == Enum.HumanoidStateType.Running or
+                     humanoidRef:GetState() == Enum.HumanoidStateType.RunningNoPhysics
+    local isNotSpecial = not movementState.isSliding and
+                        not movementState.isRolling and
+                        not movementState.isDashing and
+                        not movementState.isRagdoll
+
+    if isMoving and isRunning and isNotSpecial then
+        local material = self:GetFloor()
+        if footstepState.lastMaterial ~= material or
+           footstepState.lastCrouchState ~= movementState.isCrouching or
+           footstepState.lastSprintState ~= movementState.isSprinting then
+
+            self:PlayFootstep(material)
+            footstepState.lastCrouchState = movementState.isCrouching
+            footstepState.lastSprintState = movementState.isSprinting
+        end
+    else
+        if footstepState.currentSound then
+            footstepState.currentSound:Stop()
+            footstepState.currentSound = nil
+        end
+        footstepState.lastMaterial = nil
+        footstepState.lastCrouchState = nil
+        footstepState.lastSprintState = nil
+    end
+end
+
+--[[ Initialization Functions ]]
+function MovementClient:SetupAttributes()
+    if not self:ValidateCharacter() then return end
+
+    local function MonitorAttribute(attributeName)
+        local matchedState = nil
+        for stateName, stateData in pairs(CONFIG.STATE_DEFINITIONS) do
+            if stateData.attributeName == attributeName then
+                matchedState = stateData
                 break
             end
         end
 
-        if not CanMove() then
-            humanoid:Move(Vector3.zero)
-            return Enum.ContextActionResult.Sink
-        end
+        if not matchedState then return end
 
-        local isAnyMovementKeyDown =
-            UserInputService:IsKeyDown(Enum.KeyCode.W) or
-            UserInputService:IsKeyDown(Enum.KeyCode.A) or
-            UserInputService:IsKeyDown(Enum.KeyCode.S) or
-            UserInputService:IsKeyDown(Enum.KeyCode.D)
+        local value = characterRef:GetAttribute(attributeName)
+        local fieldName = matchedState.fieldName
 
-        if inputState == Enum.UserInputState.Begin then
-            if State.movement.isSwimming then
-                StopAnimation("LOCOMOTION", "SWIM_IDLE")
-                PlayAnimation("LOCOMOTION", "SWIM")
-            elseif not State.movement.isWalking and not State.movement.isRunning and isAnyMovementKeyDown then
-                State.movement.isWalking = true
-                if State.movement.isCrouching then
-                    PlayAnimation("LOCOMOTION", "CROUCH_WALK")
+        if fieldName and movementState[fieldName] ~= value then
+            movementState[fieldName] = value
+
+            if attributeName == "RAGDOLL" then
+                if value then
+                    self:SetupRagdoll()
                 else
-                    PlayAnimation("LOCOMOTION", "WALK")
+                    self:ResetRagdoll()
                 end
             end
-        elseif inputState == Enum.UserInputState.End then
-            if not isAnyMovementKeyDown then
-                if State.movement.isSwimming then
-                    StopAnimation("LOCOMOTION", "SWIM")
-                    PlayAnimation("LOCOMOTION", "SWIM_IDLE")
-                else
-                    State.movement.isWalking = false
-                    State.movement.isRunning = false
 
-                    if State.movement.isCrouching then
-                        if Animations["LOCOMOTION_CROUCH_WALK"] and Animations["LOCOMOTION_CROUCH_WALK"].IsPlaying then
-                            FadeAnimation("LOCOMOTION", "CROUCH_WALK", "LOCOMOTION", "CROUCH_IDLE", 0.2)
-                        end
-                    else
-                        if Animations["LOCOMOTION_WALK"] and Animations["LOCOMOTION_WALK"].IsPlaying then
-                            FadeAnimation("LOCOMOTION", "WALK", "LOCOMOTION", "IDLE", 0.2)
-                        elseif Animations["LOCOMOTION_SPRINT"] and Animations["LOCOMOTION_SPRINT"].IsPlaying then
-                            FadeAnimation("LOCOMOTION", "SPRINT", "LOCOMOTION", "IDLE", 0.2)
-                        else
-                            PlayAnimation("LOCOMOTION", "IDLE", 0.2)
-                        end
-                    end
-
-                    Services.Event:FireServer("Client.Movement.Execute", { type = "idle", enabled = true })
-                end
-            end
-            return Enum.ContextActionResult.Pass
+            self:UpdateMove()
         end
+    end
 
-        local camera = workspace.CurrentCamera
-        if camera then
-            local lookVector = camera.CFrame.LookVector
-            local moveDirection = Vector3.new(lookVector.X, 0, lookVector.Z).Unit
-
-            if moveDirection.Magnitude > 0 then
-                Services.Event:FireServer("Client.Movement.Execute", {
-                    type = "move",
-                    direction = moveDirection
-                })
-            end
+    for _, stateData in pairs(CONFIG.STATE_DEFINITIONS) do
+        if stateData.attributeName then
+            characterRef:GetAttributeChangedSignal(stateData.attributeName):Connect(function()
+                MonitorAttribute(stateData.attributeName)
+            end)
         end
-        return Enum.ContextActionResult.Pass
     end
-
-    if actionName == "Roll" or actionName == "Slide" or actionName == "Dash" then
-        if inputState == Enum.UserInputState.Begin then
-            if not CanMove() then
-                return Enum.ContextActionResult.Sink
-            end
-            local handler = MOVEMENT_HANDLERS[actionName]
-            if handler then
-                local data = handler()
-                if data then
-                    data.ability = actionName:lower()
-                    local stateTemplate = Modules.State.Templates[actionName:upper()]
-                    if stateTemplate then
-                        data.remaining = stateTemplate.duration
-                        data.duration = stateTemplate.duration
-                    end
-                    Services.Event:FireServer("Client.Movement.Execute", data)
-                end
-            end
-        end
-        return Enum.ContextActionResult.Sink
-    end
-
-    if actionName == "Emotes" then
-        if inputState == Enum.UserInputState.Begin then
-            ToggleEmotes()
-        end
-        return Enum.ContextActionResult.Sink
-    end
-
-    if actionName == "Ragdoll" then
-        if inputState == Enum.UserInputState.Begin then
-            local handler = MOVEMENT_HANDLERS[actionName]
-            if handler then
-                if not State.movement.isRagdoll then
-                    local data = handler(true)
-                    if data then
-                        Services.Event:FireServer("Client.Movement.Execute", data)
-                    end
-                end
-            end
-        end
-        return Enum.ContextActionResult.Sink
-    end
-
-    local stateType = actionName:upper()
-    local stateTemplate = Modules.State.Templates[stateType]
-    if not stateTemplate then return Enum.ContextActionResult.Pass end
-
-    local handler = MOVEMENT_HANDLERS[actionName]
-    if not handler then return Enum.ContextActionResult.Pass end
-
-    local data
-    if inputState == Enum.UserInputState.Begin then
-        data = handler(true)
-    elseif inputState == Enum.UserInputState.End then
-        data = handler(false)
-        local cleanup = MOVEMENT_CLEANUP[actionName]
-        if cleanup then cleanup() end
-    end
-
-    if data then
-        Services.Event:FireServer("Client.Movement.Execute", data)
-    end
-
-    return Enum.ContextActionResult.Pass
 end
 
-local function TrackVelocity()
-    local velocityConnection
+function MovementClient:SetupCharacter(character)
+    if not character then return end
 
-    local function SetupConnection()
-        if velocityConnection then
-            velocityConnection:Disconnect()
-            velocityConnection = nil
+    animState.currentlyPlaying = { category = nil, name = nil }
+
+    local humanoid = character:WaitForChild("Humanoid")
+    local animator = humanoid:WaitForChild("Animator")
+
+    humanoidRef = humanoid
+    characterRef = character
+
+    if not self:ValidateCharacter() then return end
+
+    Utility.Sound.Monitor(character.HumanoidRootPart, {"Running"})
+
+    for _, stateData in pairs(CONFIG.STATE_DEFINITIONS) do
+        if stateData.fieldName then
+            movementState[stateData.fieldName] = false
         end
-
-        if not Character then return end
-
-        local humanoid = Character:FindFirstChild("Humanoid")
-        local rootPart = Character:FindFirstChild("HumanoidRootPart")
-        if not humanoid or not rootPart then return end
-
-        velocityConnection = RunService.Heartbeat:Connect(function()
-            local currentVelocity = rootPart.AssemblyLinearVelocity.Y
-            local wasInAir = os.clock() - State.movement.lastGroundedTime > 0.1
-
-            if wasInAir and humanoid:GetState() == Enum.HumanoidStateType.Running then
-                local impactStrength = math.clamp(
-                    math.abs(State.movement.lastVerticalVelocity) / math.abs(State.movement.maxSafeVelocity),
-                    0,
-                    1
-                )
-
-                if impactStrength > 0.3 and CanMove() then
-                    local data = {
-                        type = "land",
-                        impact = impactStrength - 0.3
-                    }
-                    Services.Event:FireServer("Client.Movement.Execute", data)
-
-                    if impactStrength > 0.5 then
-                        PlayAnimation("LANDING", "LARGE")
-                    else
-                        PlayAnimation("LANDING", "SMALL")
-                    end
-                elseif impactStrength > 0.1 and CanMove() then
-                    PlayAnimation("LANDING", "SMALL")
-                end
-
-                State.movement.lastGroundedTime = os.clock()
-            end
-
-            if humanoid:GetState() == Enum.HumanoidStateType.Running then
-                State.movement.lastGroundedTime = os.clock()
-            end
-
-            State.movement.lastVerticalVelocity = currentVelocity
-        end)
     end
 
-    SetupConnection()
+    movementState.lastWTapTime = 0
+    movementState.ragdollStartTime = 0
+    movementState.ragdollDuration = 0
+    mechanicState.lastMechanicTime = 0
+    mechanicState.cooldown = 0.1
 
-    LocalPlayer.CharacterAdded:Connect(function(newCharacter)
-        Character = newCharacter
-        SetupConnection()
-    end)
-end
+    keyStates.W = false
+    keyStates.A = false
+    keyStates.S = false
+    keyStates.D = false
+    keyStates.C = false
+    keyStates.Space = false
 
-local function SetupKeybindings()
-    UserInputService.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseWheel then
-            return Enum.ContextActionResult.Sink
+    animState.animations = Utility.Animation.Categories(animator, {
+        "LOCOMOTION", "LANDING", "STATUS", "WALL", "LEDGE", "SPECIAL", "ROLL", "EMOTES"
+    })
+
+    humanoid.StateChanged:Connect(function(oldState, newState)
+        self:ProcessState(humanoid, oldState, newState)
+
+        if newState == Enum.HumanoidStateType.Landed and self.ledgeState then
+            self.ledgeState.wallJumpDebounce = false
+            self.ledgeState.wallJumpCount = 0
+            self.ledgeState.initialJumpHeight = 0
         end
     end)
 
-    ContextActionService:BindAction(
-        "DisableZoomIn",
-        function() return Enum.ContextActionResult.Sink end,
-        false,
-        Enum.KeyCode.I
-    )
+    animState.currentState = humanoid:GetState()
+    self:PlayState(humanoid, animState.currentState)
 
-    ContextActionService:BindAction(
-        "DisableZoomOut",
-        function() return Enum.ContextActionResult.Sink end,
-        false,
-        Enum.KeyCode.O
-    )
+    self:SetupAttributes()
+    self:SetupLedge()
+    self:SetupSwing()
+    self:SetupRoll()
+    self:SetupDash()
+    self:SetupWall()
+    self:SetupVault()
+    self:SetupSlide()
+    self:CheckMove()
 
-    ContextActionService:BindAction(
-        "Move",
-        ExecuteMovement,
-        false,
-        Enum.KeyCode.W,
-        Enum.KeyCode.A,
-        Enum.KeyCode.S,
-        Enum.KeyCode.D
-    )
+    humanoid.Died:Connect(function()
+        self:FadeDeath(true)
 
-    for _, binding in ipairs(CONTROL_BINDINGS) do
-        if binding.action ~= "Hang" then
-            if binding.gamepadKey then
-                ContextActionService:BindAction(
-                    binding.action,
-                    ExecuteMovement,
-                    false,
-                    binding.key,
-                    binding.gamepadKey
-                )
-            else
-                ContextActionService:BindAction(
-                    binding.action,
-                    ExecuteMovement,
-                    false,
-                    binding.key
-                )
-            end
-        end
-    end
-end
-
-local function CleanupKeybindings()
-    for _, binding in ipairs(CONTROL_BINDINGS) do
-        ContextActionService:UnbindAction(binding.action)
-    end
-end
-
---[[ Direction Functions ]]
-local function TrackDirection()
-    local function UpdateDirection()
-        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            State.movement.currentDirection = "backward"
-        elseif UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            State.movement.currentDirection = "left"
-        elseif UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            State.movement.currentDirection = "right"
-        else
-            State.movement.currentDirection = "forward"
-        end
-    end
-
-    UserInputService.InputBegan:Connect(function(input)
-        if input.KeyCode == Enum.KeyCode.W or
-           input.KeyCode == Enum.KeyCode.A or
-           input.KeyCode == Enum.KeyCode.S or
-           input.KeyCode == Enum.KeyCode.D then
-            UpdateDirection()
+        if uiState.emoteMenu.isOpen then
+            self:ToggleEmotes(false)
         end
     end)
 
-    UserInputService.InputEnded:Connect(function(input)
-        if input.KeyCode == Enum.KeyCode.W or
-           input.KeyCode == Enum.KeyCode.A or
-           input.KeyCode == Enum.KeyCode.S or
-           input.KeyCode == Enum.KeyCode.D then
-            UpdateDirection()
+    self:FadeDeath(false)
+end
+
+function MovementClient:Initialize()
+    if self.initialized then return end
+    self.initialized = true
+
+    self:SetupInput()
+
+    for eventName, eventData in pairs(self.Events) do
+        Services.Event:OnClientEvent(eventName, eventData.handler)
+    end
+
+    local character = self.LocalPlayer.Character
+    if character then
+        self:SetupCharacter(character)
+    end
+
+    self.LocalPlayer.CharacterAdded:Connect(function(newCharacter)
+        self:FadeDeath(false)
+        self:SetupCharacter(newCharacter)
+    end)
+
+    if CONFIG.CURSOR_CONFIG.ENABLED and CONFIG.CURSOR_CONFIG.OVERRIDE_DEFAULT then
+        local mouse = self.LocalPlayer:GetMouse()
+        mouse.Icon = CONFIG.CURSOR_CONFIG.DEFAULT_CURSOR
+    end
+
+    if workspace.CurrentCamera then
+        workspace.CurrentCamera.FieldOfView = CONFIG.CAMERA_SETTINGS.FOV
+        self.LocalPlayer.CameraMode = Enum.CameraMode.Classic
+        self.LocalPlayer.CameraMinZoomDistance = CONFIG.CAMERA_SETTINGS.MIN_ZOOM
+        self.LocalPlayer.CameraMaxZoomDistance = CONFIG.CAMERA_SETTINGS.MAX_ZOOM
+    end
+
+    RunService.RenderStepped:Connect(function(delta)
+        if not characterRef or not humanoidRef then return end
+
+        self:UpdateShiftLock(delta)
+        self:UpdateShuffle()
+        self:UpdateHead(delta)
+        self:UpdateSwing(delta)
+        self:UpdateWall(delta)
+        self:CheckVault()
+        self:CheckWall(delta)
+        self:TrackVelocity()
+
+        if humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then
+            if keyStates.Space then
+                local swingPoint = self:DetectSwing()
+                if swingPoint then
+                    self:StartSwing(swingPoint)
+                end
+            end
         end
     end)
 end
 
---[[ Footstep Functions ]]
-local function GetFloor()
-    if not Character then return "Air" end
+MovementClient:Initialize()
 
-    local humanoid = Character:FindFirstChild("Humanoid")
-    if not humanoid then return "Air" end
+return MovementClient
 
-    local floorMaterial = humanoid.FloorMaterial
-    if not floorMaterial then return "Air" end
-
-    return tostring(floorMaterial):gsub("Enum.Material.", "")
-end
-
-local function PlayFootstep(material: string, speedMultiplier: number)
-    if os.clock() - State.footsteps.lastFootstepTime < 0.2 then return end
-
-    if State.footsteps.currentSound then
-        State.footsteps.currentSound:Stop()
-        State.footsteps.currentSound = nil
-    end
-
-    State.footsteps.currentSound = Utility.Sound.Play("SFX.Footsteps." .. material, Character)
-    if State.footsteps.currentSound then
-        State.footsteps.currentSound.PlaybackSpeed = math.clamp(speedMultiplier, 0.8, 1.5)
-    end
-
-    State.footsteps.lastFootstepTime = os.clock()
-    State.footsteps.lastMaterial = material
-end
-
-local function UpdateFootsteps()
-    if not Character then return end
-
-    local humanoid = Character:FindFirstChild("Humanoid")
-    if not humanoid then return end
-
-    local shouldPlayFootsteps = humanoid.MoveDirection.Magnitude > 0
-        and (humanoid:GetState() == Enum.HumanoidStateType.Running or State.movement.isCrouching)
-        and not State.movement.isSliding
-        and not State.movement.isRolling
-        and not State.movement.isDashing
-        and not State.movement.isSwimming
-        and not State.movement.isRagdoll
-
-    if shouldPlayFootsteps then
-        local material = GetFloor()
-        local speedMultiplier = 0.2
-        if State.movement.isRunning then
-            speedMultiplier = 1.0
-        elseif State.movement.isCrouching then
-            speedMultiplier = 0.05
-            if not State.movement.isWalking then
-                return
-            end
-        end
-
-        local currentTime = os.clock()
-        local stepInterval = 0.3 / speedMultiplier
-        if currentTime - State.footsteps.lastFootstepTime >= stepInterval then
-            PlayFootstep(material, speedMultiplier)
-        end
-    else
-        if State.footsteps.currentSound then
-            State.footsteps.currentSound:Stop()
-            State.footsteps.currentSound = nil
-        end
-        State.footsteps.lastMaterial = nil
-    end
-end
-
---[[ Events ]]
-local Events = {
-    ["Character.Added"] = {
-        handler = function(newCharacter)
-            Character = newCharacter
-
-            CancelRagdoll(Character)
-            Character:SetAttribute("RAGDOLL", false)
-
-            local humanoidRootPart = Character:WaitForChild("HumanoidRootPart")
-            if humanoidRootPart then
-                local runningSound = humanoidRootPart:WaitForChild("Running")
-                if runningSound then
-                    runningSound.Volume = 0
-                end
-            end
-
-            for key, _ in pairs(State.movement) do
-                if type(State.movement[key]) == "boolean" then
-                    State.movement[key] = false
-                end
-            end
-
-            State.camera.isLocked = false
-            State.camera.camOffsetSpring.Damper = SHIFT_LOCK_CONFIG.TRANSITION_SPRING_DAMPER
-
-            for name, track in pairs(Animations) do
-                if track and track.IsPlaying then
-                    track:Stop()
-                end
-            end
-
-            State.movement.canHang = true
-            State.movement.canLedge = true
-            State.movement.isHanging = false
-            State.movement.lastHangTime = 0
-
-            Humanoid = Character:WaitForChild("Humanoid")
-            Animator = Humanoid:WaitForChild("Animator")
-            Animations = {}
-            InitializeAnimations()
-
-            PlayAnimation("LOCOMOTION", "IDLE")
-            Services.Event:FireServer("Client.Movement.Execute", { type = "idle", enabled = true })
-
-            if workspace.CurrentCamera then
-                workspace.CurrentCamera.FieldOfView = CAMERA_SETTINGS.FOV
-                LocalPlayer.CameraMode = Enum.CameraMode.Classic
-                LocalPlayer.CameraMinZoomDistance = 0
-                LocalPlayer.CameraMaxZoomDistance = CAMERA_SETTINGS.ZOOM
-            end
-
-            UserInputService.MouseIconEnabled = true
-
-            if not Humanoid then
-                warn("No humanoid found in new character")
-                return
-            end
-
-            Humanoid.StateChanged:Connect(function(old, new)
-                if new == Enum.HumanoidStateType.Seated then
-                    State.movement.isSitting = true
-                    Services.Event:FireServer("Client.Movement.Execute", { type = "sit", enabled = true })
-                elseif State.movement.isSitting and new == Enum.HumanoidStateType.Running then
-                    State.movement.isSitting = false
-                    Services.Event:FireServer("Client.Movement.Execute", { type = "sit", enabled = false })
-                    return
-                end
-
-                if new == Enum.HumanoidStateType.Jumping then
-                    if State.movement.isRolling then
-                        MOVEMENT_CLEANUP.Roll()
-                        Services.Event:FireServer("Client.Movement.Execute", { type = "roll", enabled = false })
-                    end
-
-                    if not State.movement.isDashing then
-                        State.movement.isJumping = true
-                        State.movement.isFalling = false
-                        PlayAnimation("LOCOMOTION", "JUMP")
-                    end
-                elseif new == Enum.HumanoidStateType.Freefall then
-                    if not State.movement.isRolling and not State.movement.isDashing then
-                        State.movement.isJumping = false
-                        State.movement.isFalling = true
-                        StopAnimation("LOCOMOTION", "JUMP")
-                        PlayAnimation("LOCOMOTION", "FALL")
-                    end
-                elseif new == Enum.HumanoidStateType.Landed then
-                    State.movement.isFalling = false
-                    StopAnimation("LOCOMOTION", "FALL")
-
-                    if State.movement.isDashing then
-                        State.movement.isDashing = false
-                        StopAnimation("SPECIAL", "AIR_DASH")
-                    end
-
-                    if not State.movement.isRolling and not State.movement.isDashing then
-                        local impactStrength = math.clamp(
-                            math.abs(State.movement.lastVerticalVelocity) / math.abs(State.movement.maxSafeVelocity),
-                            0,
-                            1
-                        )
-
-                        if impactStrength > 0.5 then
-                            PlayAnimation("LANDING", "LARGE")
-                        else
-                            PlayAnimation("LANDING", "SMALL")
-                        end
-                    end
-                elseif new == Enum.HumanoidStateType.Running then
-                    if old == Enum.HumanoidStateType.Landed then
-                        task.delay(0.3, function()
-                            if not State.movement.isRolling and not State.movement.isDashing and
-                               not State.movement.isSliding and not State.movement.isWallRunning then
-                                StopAnimation("LANDING", "LARGE")
-                                StopAnimation("LANDING", "SMALL")
-
-                                if State.movement.isRunning then
-                                    PlayAnimation("LOCOMOTION", "SPRINT")
-                                elseif State.movement.isWalking then
-                                    PlayAnimation("LOCOMOTION", "WALK")
-                                else
-                                    PlayAnimation("LOCOMOTION", "IDLE")
-                                end
-                            end
-                        end)
-                    elseif not State.movement.isRolling and not State.movement.isDashing and
-                           not State.movement.isSliding and not State.movement.isWallRunning then
-                        if State.movement.isRunning then
-                            PlayAnimation("LOCOMOTION", "SPRINT")
-                        elseif State.movement.isWalking then
-                            PlayAnimation("LOCOMOTION", "WALK")
-                        else
-                            PlayAnimation("LOCOMOTION", "IDLE")
-                        end
-                    end
-                elseif new == Enum.HumanoidStateType.Swimming then
-                    State.movement.isFalling = false
-                    State.movement.isSwimming = true
-                    StopAnimation("LOCOMOTION", "FALL")
-
-                    local isMoving = Character:FindFirstChild("Humanoid") and Character.Humanoid.MoveDirection.Magnitude > 0
-                    if isMoving then
-                        StopAnimation("LOCOMOTION", "SWIM_IDLE")
-                        PlayAnimation("LOCOMOTION", "SWIM")
-                    else
-                        StopAnimation("LOCOMOTION", "SWIM")
-                        PlayAnimation("LOCOMOTION", "SWIM_IDLE")
-                    end
-
-                    Services.Event:FireServer("Client.Movement.Execute", { type = "swim", enabled = true })
-                elseif old == Enum.HumanoidStateType.Swimming and new ~= Enum.HumanoidStateType.Swimming then
-                    State.movement.isSwimming = false
-                    StopAnimation("LOCOMOTION", "SWIM")
-                    StopAnimation("LOCOMOTION", "SWIM_IDLE")
-                    PlayAnimation("LOCOMOTION", "IDLE")
-                    Services.Event:FireServer("Client.Movement.Execute", { type = "swim", enabled = false })
-                elseif new == Enum.HumanoidStateType.Dead then
-                    State.movement.isFalling = false
-                    StopAnimation("LOCOMOTION", "FALL")
-                end
-            end)
-
-            Humanoid.Died:Connect(function()
-                for name, track in pairs(Animations) do
-                    if track and track.IsPlaying then
-                        track:Stop()
-                    end
-                end
-
-                CleanupKeybindings()
-
-                if State.camera.shiftLockConnection then
-                    State.camera.shiftLockConnection:Disconnect()
-                    State.camera.shiftLockConnection = nil
-                end
-
-                if State.camera.motionBlurEffect then
-                    State.camera.motionBlurEffect:Destroy()
-                    State.camera.motionBlurEffect = nil
-                end
-
-                Character:SetAttribute("RAGDOLL", true)
-
-                local torso = Character:FindFirstChild("Torso") or Character:FindFirstChild("UpperTorso")
-                if torso then
-                    torso:ApplyImpulse(torso.CFrame.LookVector * 100)
-                end
-
-                if workspace.CurrentCamera then
-                    LocalPlayer.CameraMode = Enum.CameraMode.Classic
-                    LocalPlayer.CameraMinZoomDistance = 0
-                    LocalPlayer.CameraMaxZoomDistance = CAMERA_SETTINGS.ZOOM
-                    workspace.CurrentCamera.FieldOfView = CAMERA_SETTINGS.FOV
-                end
-
-                State.camera.isShiftLocked = false
-                State.camera.shiftLockOffset = Vector3.new(0, 0, 0)
-                UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-                local mouse = LocalPlayer:GetMouse()
-                mouse.Icon = CURSOR_CONFIG.ENABLED and CURSOR_CONFIG.OVERRIDE_DEFAULT and CURSOR_CONFIG.DEFAULT_CURSOR or ""
-
-                for key, _ in pairs(State.movement) do
-                    if type(State.movement[key]) == "boolean" then
-                        State.movement[key] = false
-                    end
-                end
-            end)
-
-            Humanoid.CameraOffset = Vector3.new(0, 0, 0)
-            Humanoid.UseJumpPower = true
-
-            SetupKeybindings()
-
-            State.camera.isShiftLocked = false
-            State.camera.shiftLockOffset = Vector3.new(0, 0, 0)
-            UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-            local mouse = LocalPlayer:GetMouse()
-            mouse.Icon = CURSOR_CONFIG.ENABLED and CURSOR_CONFIG.OVERRIDE_DEFAULT and CURSOR_CONFIG.DEFAULT_CURSOR or ""
-
-            if State.camera.shiftLockConnection then
-                State.camera.shiftLockConnection:Disconnect()
-                State.camera.shiftLockConnection = nil
-            end
-
-            if workspace.CurrentCamera then
-                local rootPart = Character:FindFirstChild("HumanoidRootPart")
-                if rootPart then
-                    local humanoid = Character:FindFirstChild("Humanoid")
-                    local hipHeight = humanoid and humanoid.HipHeight or 2
-                    local cameraPos = rootPart.Position + Vector3.new(0, hipHeight + 1, 5)
-                    local cameraLook = rootPart.Position + Vector3.new(0, hipHeight, 0)
-                    workspace.CurrentCamera.CFrame = CFrame.new(cameraPos, cameraLook)
-                end
-            end
-
-            State.camera.shiftLockConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-                if gameProcessed then return end
-
-                if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.RightShift then
-                    ToggleShift()
-                end
-            end)
-
-            RunService.RenderStepped:Connect(function(delta)
-                if not Character then return end
-
-                local humanoid = Character:FindFirstChild("Humanoid")
-                local rootPart = Character:FindFirstChild("HumanoidRootPart")
-                if not humanoid or not rootPart then return end
-
-                UpdateShift()
-                ApplyCamera()
-
-                local camera = workspace.CurrentCamera
-                if not camera then return end
-
-                if CAMERA_SETTINGS.MOTION_BLUR.ENABLED then
-                    if not State.camera.motionBlurEffect then
-                        State.camera.motionBlurEffect = Instance.new("BlurEffect")
-                        State.camera.motionBlurEffect.Parent = camera
-                    end
-
-                    local currentLookVector = camera.CFrame.LookVector
-                    local magnitude = (currentLookVector - State.camera.lastLookVector).Magnitude
-
-                    local targetBlur = math.abs(magnitude) * CAMERA_SETTINGS.MOTION_BLUR.INTENSITY
-                    local currentBlur = State.camera.motionBlurEffect.Size
-                    local newBlur = currentBlur + (targetBlur - currentBlur) * CAMERA_SETTINGS.MOTION_BLUR.SMOOTHING
-
-                    State.camera.motionBlurEffect.Size = newBlur
-                    State.camera.lastLookVector = currentLookVector
-                elseif State.camera.motionBlurEffect then
-                    State.camera.motionBlurEffect:Destroy()
-                    State.camera.motionBlurEffect = nil
-                end
-
-                local neck = Character:FindFirstChild("Torso") and Character.Torso:FindFirstChild("Neck") or
-                             Character:FindFirstChild("UpperTorso") and Character.UpperTorso:FindFirstChild("Neck")
-                if not neck then return end
-
-                local cameraDirection = rootPart.CFrame:ToObjectSpace(camera.CFrame).LookVector.Unit
-                local neckC0 = neck.C0
-
-                local horizontalAngle = math.clamp(-math.asin(cameraDirection.X), -math.pi/2, math.pi/2)
-                local verticalAngle = math.clamp(-math.pi/2 + math.asin(cameraDirection.Y), -math.pi/2, math.pi/2)
-
-                local newNeckC0
-                if cameraDirection.Z > 0 then
-                    newNeckC0 = CFrame.new(neckC0.Position) *
-                                CFrame.Angles(0, horizontalAngle, 0) *
-                                CFrame.Angles(math.pi - verticalAngle, 0, math.pi)
-                else
-                    newNeckC0 = CFrame.new(neckC0.Position) *
-                                CFrame.Angles(0, horizontalAngle, 0) *
-                                CFrame.Angles(verticalAngle, 0, math.pi)
-                end
-
-                neck.C0 = neck.C0:Lerp(newNeckC0, delta * 10)
-
-                if State.camera.isShiftLocked and not humanoid.Sit then
-                    local _, targetYaw, _ = camera.CFrame:ToOrientation()
-                    local currentCFrame = rootPart.CFrame
-                    local _, currentYaw, _ = currentCFrame:ToOrientation()
-
-                    local angleDiff = targetYaw - currentYaw
-                    while angleDiff > math.pi do
-                        angleDiff = angleDiff - (2 * math.pi)
-                    end
-                    while angleDiff < -math.pi do
-                        angleDiff = angleDiff + (2 * math.pi)
-                    end
-
-                    local newYaw = currentYaw + (angleDiff * delta * 5 * SHIFT_LOCK_CONFIG.CHARACTER_ROTATION_SPEED)
-
-                    local newCFrame = CFrame.new(currentCFrame.Position) * CFrame.Angles(0, newYaw, 0)
-
-                    if SHIFT_LOCK_CONFIG.CHARACTER_SMOOTH_ROTATION then
-                        rootPart.CFrame = currentCFrame:Lerp(newCFrame, delta * 5 * SHIFT_LOCK_CONFIG.CHARACTER_ROTATION_SPEED)
-                    else
-                        rootPart.CFrame = newCFrame
-                    end
-                end
-            end)
-
-            newCharacter:GetAttributeChangedSignal("RAGDOLL"):Connect(function()
-                local isRagdoll = newCharacter:GetAttribute("RAGDOLL")
-                local duration = newCharacter:GetAttribute("RAGDOLL_DURATION")
-
-                if isRagdoll then
-                    ApplyRagdoll(newCharacter, duration)
-                else
-                    CancelRagdoll(newCharacter)
-                end
-            end)
-
-            if Humanoid then
-                Humanoid.StateChanged:Connect(function(oldState, newState)
-                    if newState == Enum.HumanoidStateType.FallingDown or newState == Enum.HumanoidStateType.Ragdoll then
-                        ApplyRagdoll(newCharacter)
-                    elseif oldState == Enum.HumanoidStateType.FallingDown or oldState == Enum.HumanoidStateType.Ragdoll then
-                        CancelRagdoll(newCharacter)
-                    end
-                end)
-            end
-        end
-    },
-
-    ["Character.Removing"] = {
-        handler = function(char)
-            if State.camera.updateConnection then
-                State.camera.updateConnection:Disconnect()
-                State.camera.updateConnection = nil
-            end
-
-            if State.camera.motionBlurEffect then
-                State.camera.motionBlurEffect:Destroy()
-                State.camera.motionBlurEffect = nil
-            end
-
-            CleanupKeybindings()
-
-            if State.movement.isRagdoll then
-                CancelRagdoll(char)
-            end
-        end
-    },
-
-    ["Client.Movement.Execute"] = {
-        handler = function(response)
-            if not response then return end
-
-            if response.type then
-                response.type = string.lower(response.type)
-            end
-
-            if not response.success then
-                warn(string.format(
-                    "Movement failed: %s, Received type: %s",
-                    response.error or "Unknown error",
-                    response.type or "None"
-                ))
-                if response.type then
-                    local cleanup = MOVEMENT_CLEANUP[response.type:sub(1,1):upper() .. response.type:sub(2)]
-                    if cleanup then
-                        cleanup()
-                    end
-                end
-                return
-            end
-
-            if response.type == "move" then
-                if response.data and response.data.direction then
-                    Humanoid:Move(response.data.direction, true)
-                end
-                return
-            end
-
-            local stateTemplate = Modules.State.Templates[response.type:upper()]
-            if stateTemplate and stateTemplate.duration then
-                task.delay(stateTemplate.duration, function()
-                    local cleanupKey = response.type:sub(1,1):upper() .. response.type:sub(2)
-                    local cleanup = MOVEMENT_CLEANUP[cleanupKey]
-                    if cleanup then
-                        cleanup()
-                    end
-                end)
-            end
-        end
-    },
-
-    ["Client.Movement.Camera"] = {
-        handler = function(lock)
-            if lock then
-                LockCamera()
-            else
-                UnlockCamera()
-            end
-        end
-    }
-}
-
---[[ Initialization ]]
-local function Initialize()
-    InitializeAnimations()
-    TrackVelocity()
-    TrackDirection()
-
-    if CURSOR_CONFIG.ENABLED and CURSOR_CONFIG.OVERRIDE_DEFAULT then
-        local mouse = LocalPlayer:GetMouse()
-        mouse.Icon = CURSOR_CONFIG.DEFAULT_CURSOR
-    end
-
-    RunService.Heartbeat:Connect(function()
-        if not Character then return end
-
-        local humanoid = Character:FindFirstChild("Humanoid")
-        if not humanoid then return end
-
-        UpdateFootsteps()
-
-        if CanMove() and not State.movement.isHanging then
-            if DetectHang() and State.movement.canHang and State.movement.canLedge then
-                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                    local data = StartHang()
-                    if data then
-                        Services.Event:FireServer("Client.Movement.Execute", data)
-                    end
-                end
-            end
-        end
-
-        if State.movement.isHanging then
-            if not UserInputService:IsKeyDown(Enum.KeyCode.Space) then
-                FinishHang()
-                Services.Event:FireServer("Client.Movement.Execute", { type = "hang", enabled = false })
-            end
-        end
-
-        if CanMove() and (State.movement.isWalking or State.movement.isRunning) then
-            if DetectVault() then
-                local vaultTemplate = Modules.State.Templates.VAULT
-                local lastVaultTime = State.movement.lastVaultTime or 0
-                local currentTime = os.clock()
-
-                if currentTime - lastVaultTime >= (vaultTemplate.cooldown or 0) then
-                    local data = MOVEMENT_HANDLERS.Vault()
-                    if data then
-                        State.movement.lastVaultTime = currentTime
-                        Services.Event:FireServer("Client.Movement.Execute", data)
-                    end
-                end
-            end
-        end
-
-        if CanMove() then
-            if DetectWall() then
-                local data = MOVEMENT_HANDLERS.WallClimb()
-                if data then
-                    Services.Event:FireServer("Client.Movement.Execute", data)
-                end
-            else
-                if State.movement.isWallClimbing then
-                    State.movement.isWallClimbing = false
-                    StopAnimation("WALL", "HOLD")
-                    PlayAnimation("LOCOMOTION", "IDLE")
-                end
-            end
-        end
-    end)
-
-    for eventName, handler in pairs(Events) do
-        if eventName == "Character.Added" then
-            LocalPlayer.CharacterAdded:Connect(handler.handler)
-            if Character then
-                handler.handler(Character)
-            end
-        elseif eventName == "Character.Removing" then
-            LocalPlayer.CharacterRemoving:Connect(handler.handler)
-        else
-            Services.Event:OnClientEvent(eventName, handler.handler)
-        end
-    end
-
-    SetupKeybindings()
-
-    return true
-end
-
-Initialize()
