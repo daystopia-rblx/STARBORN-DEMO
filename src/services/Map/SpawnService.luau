@@ -42,14 +42,14 @@ SpawnService.Listeners = {
 
     ["Combat.Death"] = function(self, data)
         if data and data.player then
-            task.wait(6)
+            task.wait(1)
             data.player:LoadCharacter()
             task.wait(0.1)
             self:RespawnCheckpoint(data.player)
         elseif data and data.entity then
             local player = game:GetService("Players"):GetPlayerFromCharacter(data.entity)
             if player then
-                task.wait(10)
+                task.wait(1)
                 player:LoadCharacter()
                 task.wait(0.1)
                 self:RespawnCheckpoint(player)

@@ -1,7 +1,7 @@
 --[[ AnimationModule
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-04-05
+    @version 1.0.3
+    @date 2025-04-07
 ]]
 local AnimationModule = {}
 
@@ -17,8 +17,8 @@ AnimationModule.Assets = {
             FALL = { id = "rbxassetid://95957590187070", looped = true, priority = Enum.AnimationPriority.Action },
             CROUCH_IDLE = { id = "rbxassetid://17665952892", looped = true, priority = Enum.AnimationPriority.Core },
             CROUCH_WALK = { id = "rbxassetid://17665954907", looped = true, priority = Enum.AnimationPriority.Core },
-            SWIM_IDLE = { id = "", looped = true, priority = Enum.AnimationPriority.Core },
-            SWIM = { id = "", looped = true, priority = Enum.AnimationPriority.Core }
+            SWIM_IDLE = { id = "rbxassetid://131899647125024", looped = true, priority = Enum.AnimationPriority.Core },
+            SWIM = { id = "rbxassetid://91416508630464", looped = true, priority = Enum.AnimationPriority.Core }
         },
 
         LANDING = {

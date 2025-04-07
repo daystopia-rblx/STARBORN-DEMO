@@ -1,7 +1,7 @@
 --[[ MovementClient
     @author @Daystopia
-    @version 1.1.0
-    @date 2025-04-05
+    @version 1.1.1
+    @date 2025-04-07
 ]]
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -20,7 +20,8 @@ local Services = {
 
 local Tools = {
     Spring = require(ReplicatedStorage.Modules.Tool.Spring),
-    Bezier = require(ReplicatedStorage.Modules.Tool.Bezier)
+    Bezier = require(ReplicatedStorage.Modules.Tool.Bezier),
+    Debug = require(ReplicatedStorage.Modules.Tool.Debug)
 }
 
 local Utility = {
@@ -136,22 +137,74 @@ local CONFIG = {
         STAMINA_COST = 10,
         ANGLE_THRESHOLD = 80
     },
-
     SWING = {
-        DETECT_RANGE = 12,
-        INTERACT_RANGE = 4,
-        DETECT_ANGLE = 50,
-        FOV = 85,
-        DURATION = 0.7,
-        BOOST_FORCE = 65,
-        MAX_SWING_TIME = 6,
-        ROTATION_SPEED = 2.5,
-        DISTANCE = 10,
-        HEIGHT = 5,
-        FORWARD_DISTANCE = 15,
-        END_HEIGHT = 2,
-        RECOVERY_TIME = 1.0,
-        COOLDOWN = 0.5
+        TIMING = {
+            DURATION = 0.7,
+            MAX_TIME = 6,
+            COOLDOWN = 0.5,
+            RECOVERY_TIME = 1.0,
+            DETECT_COOLDOWN = 0.5,
+        },
+
+        DETECT = {
+            RANGE = 12,
+            INTERACT_RANGE = 4,
+            ANGLE = 50,
+            FOV = 85,
+            HEIGHT_DIFFERENCE_MAX = 5,
+            MAX_DISTANCE = 5,
+        },
+
+        MOVEMENT = {
+            ROTATION_SPEED = 2.5,
+            DISTANCE = 10,
+            HEIGHT = 5,
+            FORWARD_DISTANCE = 15,
+            END_HEIGHT = 2,
+            BOOST_FORCE = 65,
+        },
+
+        SURFACE = {
+            MIN_DIMENSION = 0.5,
+            LONG_THRESHOLD = 8,
+            MIN_HEIGHT_REGULAR = 3,
+            MIN_HEIGHT_LONG = 2,
+            PROXIMITY_THRESHOLD = 1.0,
+            DIRECTION_THRESHOLD = 0.7,
+        },
+
+        CHAIN = {
+            WINDOW_START = 0.5,
+            WINDOW_END = 0.9,
+            HEIGHT_MULT = 1.2,
+            FORWARD_MULT = 0.8,
+            END_HEIGHT_MULT = 0.8,
+            BOOST_UP_MULT = 0.5,
+            BOOST_FWD_MULT = 0.7,
+            DETECT_ANGLE_SPREAD = 75,
+            DETECT_ANGLE_STEPS = 15,
+            HEIGHT_OFFSETS = {-1, 0, 1, 2},
+            MAX_RECENT_POINTS = 3,
+        },
+
+        VALIDATION = {
+            MIN_WALL_HEIGHT = 7,
+            MIN_SURFACE_DISTANCE = 2,
+            MAX_SURFACE_DISTANCE = 20,
+            MIN_GROUND_CLEARANCE = 2,
+            MAX_CEILING_DISTANCE = 10,
+            WALL_DOT_THRESHOLD = 0.7,
+        },
+
+        PHYSICS = {
+            VELOCITY_BLEND = 0.8,
+            MIN_EXIT_SPEED = 20,
+            MAX_EXIT_SPEED = 80,
+            GRAVITY_INFLUENCE = 0.3,
+            ROTATION_SMOOTHING = 0.2,
+            PATH_FOLLOW_SPEED = 30,
+            PATH_CORRECTION_RATE = 20,
+        }
     },
 
     CAMERA_SETTINGS = {
@@ -508,6 +561,28 @@ MovementClient.Events = {
     }
 }
 
+--[[ Debug Config ]]
+local DEBUG = {
+    ENABLED = false,
+    RATE_LIMIT = 0.5,
+    SWING = {
+        ENABLED = true,
+        SHOW_POINTS = true,
+        VALIDATION = false,
+        RAYCAST = false,
+        PATH = false,
+        CHAIN = true,
+    },
+    VAULT = {
+        ENABLED = false,
+    },
+    WALL_RUN = {
+        ENABLED = false,
+    },
+}
+
+local Debug = Tools.Debug.new(DEBUG)
+
 --[[ Helper Functions ]]
 function MovementClient:CheckStructures(part, checkType)
     local proximityParams = OverlapParams.new()
@@ -535,16 +610,37 @@ function MovementClient:CheckStructures(part, checkType)
         end,
 
         SWING = function()
-            local swingHeight = 5
-            local swingRadius = 3
+            local partSize = part.Size
+            local maxDim = math.max(partSize.X, partSize.Z)
+            local minDim = math.min(partSize.X, partSize.Z)
 
-            local verticalClearanceCheck = workspace:GetPartBoundsInBox(
-                CFrame.new(part.Position + Vector3.new(0, swingHeight/2, 0)),
-                Vector3.new(swingRadius * 2, swingHeight, swingRadius * 2),
+            if maxDim > 20 then
+                local lookVec = characterRef.HumanoidRootPart.CFrame.LookVector
+                local partLookVec = (part.Position - characterRef.HumanoidRootPart.Position).Unit
+                local dot = math.abs(lookVec:Dot(partLookVec))
+
+                if dot > 0.7 then
+                    return true
+                end
+            end
+
+            local partsAround = workspace:GetPartBoundsInBox(
+                CFrame.new(part.Position),
+                Vector3.new(part.Size.X + 1, part.Size.Y, part.Size.Z + 1),
                 proximityParams
             )
 
-            return #verticalClearanceCheck > 2
+            local connectedWalls = 0
+            for _, nearbyPart in ipairs(partsAround) do
+                if nearbyPart ~= part and nearbyPart.Anchored then
+                    local maxNearbyDim = math.max(nearbyPart.Size.X, nearbyPart.Size.Z)
+                    if maxNearbyDim > 20 then
+                        connectedWalls += 1
+                    end
+                end
+            end
+
+            return connectedWalls > 0
         end,
 
         CONNECTED = function()
@@ -601,29 +697,50 @@ function MovementClient:CheckCollision(origin, direction, distance)
     params.FilterDescendantsInstances = {characterRef}
     params.FilterType = Enum.RaycastFilterType.Exclude
 
-    local heightOffsets = {0, 1, 2}
+    local heightOffsets = {0, 0.5, 1.2}
+    local collisionsAtHeight = {}
+    local lastResult
+
     for _, heightOffset in ipairs(heightOffsets) do
         local rayOrigin = origin + Vector3.new(0, heightOffset, 0)
+        local rayDistance = direction.Unit * (distance or 2)
+
         local result = workspace:Raycast(
             rayOrigin,
-            direction.Unit * (distance or 2),
+            rayDistance,
             params
         )
 
         if result then
             local angle = math.acos(result.Normal:Dot(Vector3.new(0, 1, 0)))
-            if angle > 0.785 then
+            if heightOffset == 0 and angle > 0.785 then
                 return true, result
+            elseif heightOffset > 0 and angle > 1.48 then
+                collisionsAtHeight[heightOffset] = result
+                lastResult = result
             end
         end
     end
 
-    return false, nil
+    local numCollisions = 0
+    for _ in pairs(collisionsAtHeight) do
+        numCollisions += 1
+    end
+
+    if numCollisions >= 2 then
+        return true, lastResult
+    end
+
+    if collisionsAtHeight[1.2] and not collisionsAtHeight[0.5] then
+        return false
+    end
+
+    return false
 end
 
 function MovementClient:ValidateCharacter()
     local startTime = os.clock()
-    local timeout = 10
+    local timeout = 3
 
     while not characterRef and (os.clock() - startTime) < timeout do
         characterRef = self.LocalPlayer.Character
@@ -754,7 +871,8 @@ function MovementClient:SetupInput()
         Utility.Input.CreateAction("Roll", {Enum.KeyCode.Q}, function(isActive)
             if not isActive then return end
 
-            if humanoidRef:GetState() == Enum.HumanoidStateType.Freefall then
+            if humanoidRef:GetState() == Enum.HumanoidStateType.Freefall or
+               (self.swingState and self.swingState.isSwinging) then
                 if self.airDashState then
                     self:StartDash()
                 end
@@ -837,10 +955,10 @@ function MovementClient:SetupInput()
             if movementState.isRagdoll then
                 movementState.ragdollDuration = 0
                 movementState.ragdollStartTime = 0
-                
+
                 humanoidRef:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
                 humanoidRef:ChangeState(Enum.HumanoidStateType.GettingUp)
-                
+
                 task.delay(0.05, function()
                     if self:ValidateCharacter() then
                         self:ResetRagdoll()
@@ -993,6 +1111,16 @@ end
 function MovementClient:ProcessLanding(humanoid)
     local fallSpeed = humanoid.RootPart and math.abs(humanoid.RootPart.Velocity.Y) or 0
     movementState.maxFallVelocity = 0
+
+    if self.swingState and self.swingState.wasSwinging then
+        local landingDelay = os.clock() - (self.swingState.swingEndTime or 0)
+        if landingDelay < 2.0 then
+            local currentVel = humanoid.RootPart.AssemblyLinearVelocity
+            humanoid.RootPart.AssemblyLinearVelocity = Vector3.new(0, currentVel.Y, 0)
+        end
+        self.swingState.wasSwinging = false
+        self.swingState.swingEndTime = nil
+    end
 
     if self.airDashState and self.airDashState.isDashing then
         self:StopAnimation({"SPECIAL", "AIR_DASH"})
@@ -1161,7 +1289,7 @@ function MovementClient:SetupLedge()
             lastWallJumpTime = 0,
             wallJumpCount = 0,
             initialJumpHeight = 0,
-            maxWallJumps = 3,
+            maxWallJumps = 1,
             maxJumpHeight = 18
         }
 
@@ -1662,7 +1790,6 @@ function MovementClient:StartDash()
     if not self:ValidateCharacter() then return end
     if not self.airDashState then return end
     if movementState.isRagdoll or movementState.isHanging then return end
-    if humanoidRef:GetState() ~= Enum.HumanoidStateType.Freefall then return end
 
     local currentTime = os.clock()
     if currentTime - self.airDashState.lastDashTime < CONFIG.DASH.COOLDOWN then
@@ -1671,7 +1798,12 @@ function MovementClient:StartDash()
 
     self.airDashState.lastDashTime = currentTime
     self.airDashState.isDashing = true
-    self:StopAnimation({"LOCOMOTION"})
+
+    if self.swingState and self.swingState.isSwinging then
+        self:EndSwing()
+    end
+
+    self:StopAnimation({"LOCOMOTION", "SPECIAL"})
 
     Utility.Sound.Play("SFX.Dash", characterRef.HumanoidRootPart)
 
@@ -1708,6 +1840,7 @@ function MovementClient:StartDash()
             self.airDashState.linearVelocity.Enabled = false
             self:StopAnimation({"SPECIAL", "AIR_DASH"})
             self.airDashState.isDashing = false
+            self:PlayAnimation("LOCOMOTION", "FALL")
         end
     end)
 end
@@ -1963,9 +2096,12 @@ function MovementClient:SetupSwing()
             isSwinging = false,
             canSwing = true,
             lastSwingTime = 0,
-            swingPoint = nil,
             bodyVelocity = Instance.new("LinearVelocity"),
-            attachment = Instance.new("Attachment")
+            attachment = Instance.new("Attachment"),
+            wasSwinging = false,
+            swingEndTime = nil,
+            recentSwingPoints = {},
+            maxRecentPoints = 3
         }
 
         self.swingState.bodyVelocity.Attachment0 = self.swingState.attachment
@@ -1975,6 +2111,297 @@ function MovementClient:SetupSwing()
         self.swingState.attachment.Parent = characterRef.HumanoidRootPart
         self.swingState.bodyVelocity.Parent = characterRef.HumanoidRootPart
     end
+end
+
+function MovementClient:ValidateSwing(part, hitPosition, showDebug)
+    local minDimension = math.min(part.Size.X, part.Size.Y, part.Size.Z)
+    local maxDimension = math.max(part.Size.X, part.Size.Y, part.Size.Z)
+    local isLong = maxDimension >= CONFIG.SWING.SURFACE.LONG_THRESHOLD
+    local isCylindrical = false
+
+    local dimensions = {part.Size.X, part.Size.Y, part.Size.Z}
+    table.sort(dimensions)
+    if math.abs(dimensions[1] - dimensions[2]) < 0.5 and dimensions[3] > dimensions[2] * 2 then
+        isCylindrical = true
+    end
+
+    local localHitPos = part.CFrame:ToObjectSpace(CFrame.new(hitPosition)).Position
+
+    if showDebug then
+        Debug:Print("SWING", "VALIDATION", "Part Size:", part.Size)
+        Debug:Print("SWING", "VALIDATION", "Min Dimension:", minDimension)
+        Debug:Print("SWING", "VALIDATION", "Max Dimension:", maxDimension)
+        Debug:Print("SWING", "VALIDATION", "Is Long:", isLong)
+        Debug:Print("SWING", "VALIDATION", "Is Cylindrical:", isCylindrical)
+        Debug:Print("SWING", "VALIDATION", "Local Hit Position:", localHitPos)
+    end
+
+    if isCylindrical then
+        local relativeY = math.abs(localHitPos.Y) / (part.Size.Y/2)
+        if relativeY > 0.9 then
+            if showDebug then
+                Debug:Print("SWING", "VALIDATION", "Invalid: Hitting top/bottom of cylinder")
+            end
+            return false
+        end
+    else
+        local relativeY = math.abs(localHitPos.Y) / (part.Size.Y/2)
+        if relativeY > 0.9 then
+            if showDebug then
+                Debug:Print("SWING", "VALIDATION", "Invalid: Hitting top/bottom face")
+            end
+            return false
+        end
+    end
+
+    local character = Players.LocalPlayer.Character
+    if not character then
+        if showDebug then
+            Debug:Print("SWING", "VALIDATION", "Invalid: No character")
+        end
+        return false
+    end
+
+    local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+    if not humanoidRootPart then
+        if showDebug then
+            Debug:Print("SWING", "VALIDATION", "Invalid: No humanoid root part")
+        end
+        return false
+    end
+
+    local structureCheckResult = self:CheckStructures(part, "SWING")
+    if structureCheckResult then
+        if showDebug then
+            Debug:Print("SWING", "VALIDATION", "Invalid: Failed structure check")
+        end
+        return false
+    end
+
+    local characterHeight = humanoidRootPart.Position.Y
+    local swingPointHeight = hitPosition.Y
+    local heightDifference = math.abs(swingPointHeight - characterHeight)
+
+    if heightDifference > CONFIG.SWING.DETECT.HEIGHT_DIFFERENCE_MAX then
+        if showDebug then
+            Debug:Print("SWING", "VALIDATION", "Invalid: Height difference too large:", heightDifference)
+        end
+        return false
+    end
+
+    local swingStartPoint = humanoidRootPart.Position
+    local lookVec = humanoidRootPart.CFrame.LookVector
+
+    local forwardRayParams = RaycastParams.new()
+    forwardRayParams.FilterDescendantsInstances = {characterRef, part}
+    forwardRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local forwardDistance = CONFIG.SWING.MOVEMENT.FORWARD_DISTANCE
+
+    local forwardRaycastResult = workspace:Raycast(
+        swingStartPoint,
+        lookVec * forwardDistance,
+        forwardRayParams
+    )
+
+    if forwardRaycastResult then
+        local wallDistance = (forwardRaycastResult.Position - swingStartPoint).Magnitude
+        return false
+    end
+
+    local upwardRayParams = RaycastParams.new()
+    upwardRayParams.FilterDescendantsInstances = {characterRef, part}
+    upwardRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local heightCheck = CONFIG.SWING.VALIDATION.MAX_CEILING_DISTANCE
+
+    local upwardRaycastResult = workspace:Raycast(
+        hitPosition,
+        Vector3.new(0, heightCheck, 0),
+        upwardRayParams
+    )
+
+    if upwardRaycastResult then
+        return false
+    end
+
+    local downwardRayParams = RaycastParams.new()
+    downwardRayParams.FilterDescendantsInstances = {characterRef, part}
+    downwardRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local downwardRaycastResult = workspace:Raycast(
+        hitPosition,
+        Vector3.new(0, -heightCheck, 0),
+        downwardRayParams
+    )
+
+    if downwardRaycastResult then
+        local floorDistance = (hitPosition.Y - downwardRaycastResult.Position.Y)
+        if floorDistance < 2 then
+            return false
+        end
+    end
+
+    local swingStartPoint = humanoidRootPart.Position
+    local swingOffset = (swingStartPoint - hitPosition).Unit * (CONFIG.SWING.MOVEMENT.DISTANCE or 4)
+    local offsetPoint = hitPosition + swingOffset
+
+    local heightAdjustment = 0
+    local downwardRayParams = RaycastParams.new()
+    downwardRayParams.FilterDescendantsInstances = {characterRef, part}
+    downwardRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local downwardCheck = workspace:Raycast(hitPosition, Vector3.new(0, -20, 0), downwardRayParams)
+    if downwardCheck then
+        local groundHeight = downwardCheck.Position.Y
+        local characterHeight = humanoidRootPart.Position.Y
+        if characterHeight - groundHeight < 5 then
+            heightAdjustment = math.min(5, 5 - (characterHeight - groundHeight))
+        end
+    end
+
+    local midPoint = offsetPoint + Vector3.new(0, heightAdjustment, 0)
+    local endPoint = offsetPoint + (lookVec * (CONFIG.SWING.MOVEMENT.FORWARD_DISTANCE or 8)) + Vector3.new(0, CONFIG.SWING.MOVEMENT.END_HEIGHT or 0, 0)
+
+    if showDebug then
+        Debug:Print("SWING", "PATH", "=== SWING PATH DEBUG ===")
+        Debug:Print("SWING", "PATH", "Start Point:", swingStartPoint)
+        Debug:Print("SWING", "PATH", "Hit Position:", hitPosition)
+        Debug:Print("SWING", "PATH", "Offset Point:", offsetPoint)
+        Debug:Print("SWING", "PATH", "Ground Check:", downwardCheck and downwardCheck.Position or "No ground found")
+        Debug:Print("SWING", "PATH", "Height Adjustment:", heightAdjustment)
+        Debug:Print("SWING", "PATH", "Mid Point:", midPoint)
+        Debug:Print("SWING", "PATH", "End Point:", endPoint)
+        Debug:Print("SWING", "PATH", "Height Difference:", heightDifference)
+        Debug:Print("SWING", "PATH", "Swing Offset:", swingOffset)
+        Debug:Print("SWING", "PATH", "Look Vector:", lookVec)
+
+        if DEBUG.SWING.SHOW_POINTS then
+            local points = {
+                {pos = hitPosition, shape = "Cross", color = Color3.fromRGB(255, 0, 0), pulse = true},
+                {pos = midPoint, shape = "Sphere", color = Color3.fromRGB(255, 255, 0)},
+                {pos = endPoint, shape = "Sphere", color = Color3.fromRGB(0, 0, 255)}
+            }
+
+            for _, point in ipairs(points) do
+                Debug:Point(point.pos, {
+                    Shape = point.shape,
+                    Size = 0.8,
+                    Color = point.color,
+                    Transparency = 0.3,
+                    Duration = 3,
+                    Pulse = point.pulse or false
+                })
+            end
+
+            Debug:Path({swingStartPoint, hitPosition, midPoint, endPoint}, Color3.fromRGB(255, 128, 0))
+        end
+    end
+
+    local landingRayParams = RaycastParams.new()
+    landingRayParams.FilterDescendantsInstances = {characterRef, part}
+    landingRayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+    local directLandingCheck = workspace:Raycast(hitPosition, Vector3.new(0, -20, 0), landingRayParams)
+    local projectedLandingCheck = workspace:Raycast(endPoint, Vector3.new(0, -20, 0), landingRayParams)
+
+    if showDebug then
+        if directLandingCheck then
+            local directLandingDistance = (hitPosition.Y - directLandingCheck.Position.Y)
+            Debug:Point(directLandingCheck.Position, Color3.fromRGB(0, 255, 0), 0.8)
+        end
+
+        if projectedLandingCheck then
+            local projectedLandingDistance = (endPoint.Y - projectedLandingCheck.Position.Y)
+            Debug:Point(projectedLandingCheck.Position, Color3.fromRGB(0, 100, 0), 0.8)
+        end
+    end
+
+    if minDimension < CONFIG.SWING.SURFACE.MIN_DIMENSION then
+        local minHeightRequired = isLong and CONFIG.SWING.SURFACE.MIN_HEIGHT_LONG or CONFIG.SWING.SURFACE.MIN_HEIGHT_REGULAR
+
+        if part.Size.Y < minHeightRequired then
+            return false
+        end
+
+        local localHitPos = part.CFrame:ToObjectSpace(CFrame.new(hitPosition)).Position
+
+        local longAxis = "X"
+        local longDimension = part.Size.X
+
+        if part.Size.Y > longDimension then
+            longAxis = "Y"
+            longDimension = part.Size.Y
+        end
+
+        if part.Size.Z > longDimension then
+            longAxis = "Z"
+            longDimension = part.Size.Z
+        end
+
+        local isValidPosition = false
+        local size = part.Size
+        local hitLocal = localHitPos
+
+        local threshold = CONFIG.SWING.SURFACE.PROXIMITY_THRESHOLD
+
+        if longAxis == "X" then
+            local distanceFromZSurface = math.min(
+                math.abs(hitLocal.Z + size.Z/2),
+                math.abs(hitLocal.Z - size.Z/2)
+            )
+            local distanceFromYSurface = math.min(
+                math.abs(hitLocal.Y + size.Y/2),
+                math.abs(hitLocal.Y - size.Y/2)
+            )
+
+            local lookVecLocal = part.CFrame:VectorToObjectSpace(lookVec)
+            local facingAlongX = math.abs(lookVecLocal.X) > CONFIG.SWING.SURFACE.DIRECTION_THRESHOLD
+
+            isValidPosition = not facingAlongX and (distanceFromZSurface <= threshold or distanceFromYSurface <= threshold)
+
+        elseif longAxis == "Z" then
+            local distanceFromXSurface = math.min(
+                math.abs(hitLocal.X + size.X/2),
+                math.abs(hitLocal.X - size.X/2)
+            )
+            local distanceFromYSurface = math.min(
+                math.abs(hitLocal.Y + size.Y/2),
+                math.abs(hitLocal.Y - size.Y/2)
+            )
+
+            local lookVecLocal = part.CFrame:VectorToObjectSpace(lookVec)
+            local facingAlongZ = math.abs(lookVecLocal.Z) > CONFIG.SWING.SURFACE.DIRECTION_THRESHOLD
+
+            isValidPosition = not facingAlongZ and (distanceFromXSurface <= threshold or distanceFromYSurface <= threshold)
+
+        else
+            local distanceFromXSurface = math.min(
+                math.abs(hitLocal.X + size.X/2),
+                math.abs(hitLocal.X - size.X/2)
+            )
+            local distanceFromZSurface = math.min(
+                math.abs(hitLocal.Z + size.Z/2),
+                math.abs(hitLocal.Z - size.Z/2)
+            )
+
+            isValidPosition = distanceFromXSurface <= threshold or distanceFromZSurface <= threshold
+        end
+
+        if not isValidPosition then
+            return false
+        end
+
+        local distanceToSwingPoint = (hitPosition - humanoidRootPart.Position).Magnitude
+
+        if distanceToSwingPoint > CONFIG.SWING.MOVEMENT.MAX_DISTANCE then
+            return false
+        end
+
+        return true
+    end
+
+    return true
 end
 
 function MovementClient:DetectSwing()
@@ -1987,7 +2414,7 @@ function MovementClient:DetectSwing()
     end
 
     local currentTime = os.clock()
-    if currentTime - self.swingState.lastSwingTime < 0.5 then return false end
+    if currentTime - self.swingState.lastSwingTime < CONFIG.SWING.TIMING.COOLDOWN then return false end
 
     local humanoidRootPart = characterRef.HumanoidRootPart
     local position = humanoidRootPart.Position
@@ -1996,101 +2423,6 @@ function MovementClient:DetectSwing()
     local raycastParams = RaycastParams.new()
     raycastParams.FilterDescendantsInstances = {characterRef}
     raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-
-    local function ValidateSwing(part, hitPosition)
-        if not part:IsA("BasePart") or not part.Anchored then
-            return false
-        end
-
-        local size = part.Size
-        local minDimension = math.min(size.X, size.Z)
-        local height = size.Y
-
-        local characterHeight = position.Y
-        local swingPointHeight = hitPosition.Y
-        local heightDifference = swingPointHeight - characterHeight
-
-        if heightDifference > 7 or heightDifference < -2 then
-            return false
-        end
-
-        if minDimension < 4 and height >= 3 then
-            local maxHorizontalPole = math.max(size.X, size.Z)
-            if maxHorizontalPole > 4 then
-                return false
-            end
-
-            if self:CheckStructures(part, "SWING") then
-                return false
-            end
-
-            local toSwingPoint = (hitPosition - position)
-            local distanceToPoint = toSwingPoint.Magnitude
-
-            if distanceToPoint > CONFIG.SWING.INTERACT_RANGE then
-                return false
-            end
-
-            local clearanceParams = RaycastParams.new()
-            clearanceParams.FilterDescendantsInstances = {characterRef, part}
-            clearanceParams.FilterType = Enum.RaycastFilterType.Exclude
-
-            local swingPathObstacle = workspace:Raycast(
-                hitPosition,
-                toSwingPoint.Unit * (distanceToPoint + 2),
-                clearanceParams
-            )
-
-            if swingPathObstacle then
-                return false
-            end
-
-            return true
-        end
-
-        local maxHorizontal = math.max(size.X, size.Z)
-        if height < 4 and maxHorizontal >= 3 then
-            if height > 3 then
-                return false
-            end
-
-            if self:CheckStructures(part, "SWING") then
-                return false
-            end
-
-            local edgeThreshold = 4
-            local relativePos = part.CFrame:pointToObjectSpace(position)
-            local edgeDistance = math.min(
-                math.abs(relativePos.X - size.X/2),
-                math.abs(relativePos.X + size.X/2),
-                math.abs(relativePos.Z - size.Z/2),
-                math.abs(relativePos.Z + size.Z/2)
-            )
-
-            if edgeDistance < edgeThreshold then
-                local clearanceParams = RaycastParams.new()
-                clearanceParams.FilterDescendantsInstances = {characterRef, part}
-                clearanceParams.FilterType = Enum.RaycastFilterType.Exclude
-
-                local verticalClearanceUp = workspace:Raycast(
-                    hitPosition,
-                    Vector3.new(0, 5, 0),
-                    clearanceParams
-                )
-
-                local verticalClearanceDown = workspace:Raycast(
-                    hitPosition,
-                    Vector3.new(0, -5, 0),
-                    clearanceParams
-                )
-
-                if not verticalClearanceUp and not verticalClearanceDown then
-                    return true
-                end
-            end
-        end
-        return false
-    end
 
     local raycastDirections = {
         {lookVec, 0},
@@ -2103,12 +2435,44 @@ function MovementClient:DetectSwing()
         local direction, heightOffset = directionData[1], directionData[2]
         local raycastResult = workspace:Raycast(
             position + Vector3.new(0, heightOffset, 0),
-            direction.Unit * CONFIG.SWING.DETECT_RANGE,
+            direction * CONFIG.SWING.DETECT.RANGE,
             raycastParams
         )
 
-        if raycastResult and ValidateSwing(raycastResult.Instance, raycastResult.Position) then
-            return raycastResult.Instance
+        if raycastResult then
+            local part = raycastResult.Instance
+
+            Debug:Print("SWING", "RAYCAST", "=== RAYCAST DEBUG ===")
+            Debug:Print("SWING", "RAYCAST", "Hit Part:", part:GetFullName())
+            Debug:Print("SWING", "RAYCAST", "Hit Material:", raycastResult.Material)
+            Debug:Print("SWING", "RAYCAST", "Hit Normal:", raycastResult.Normal.X, raycastResult.Normal.Y, raycastResult.Normal.Z)
+            Debug:Print("SWING", "RAYCAST", "Hit Distance:", raycastResult.Distance)
+            Debug:Print("SWING", "RAYCAST", "Part Size:", part.Size.X, part.Size.Y, part.Size.Z)
+
+            if not part:IsA("BasePart") or part.CanCollide == false then
+                Debug:Print("SWING", "RAYCAST", "Invalid swing surface: Not a solid part")
+                Debug:Print("SWING", "RAYCAST", "IsBasePart:", part:IsA("BasePart"))
+                Debug:Print("SWING", "RAYCAST", "CanCollide:", part.CanCollide)
+                continue
+            end
+
+            local dimensions = {part.Size.X, part.Size.Y, part.Size.Z}
+            table.sort(dimensions)
+            local isCylindrical = math.abs(dimensions[1] - dimensions[2]) < 0.5 and dimensions[3] > dimensions[2] * 2
+            Debug:Print("SWING", "RAYCAST", "Sorted dimensions:", dimensions[1], dimensions[2], dimensions[3])
+            Debug:Print("SWING", "RAYCAST", "Is Cylindrical:", isCylindrical)
+
+            local upDot = math.abs(raycastResult.Normal:Dot(Vector3.new(0, 1, 0)))
+            Debug:Print("SWING", "RAYCAST", "Surface Angle (up dot):", upDot)
+
+            if upDot > CONFIG.SWING.VALIDATION.WALL_DOT_THRESHOLD and not isCylindrical then
+                Debug:Print("SWING", "RAYCAST", "Invalid swing surface: Surface too vertical (up dot > 0.7)")
+                continue
+            end
+
+            if self:ValidateSwing(raycastResult.Instance, raycastResult.Position, true) then
+                return raycastResult.Instance
+            end
         end
     end
 
@@ -2120,8 +2484,14 @@ function MovementClient:StartSwing(swingPoint)
     if not self.swingState then return end
     if self.swingState.isSwinging then return end
 
+    for _, recentPoint in ipairs(self.swingState.recentSwingPoints) do
+        if recentPoint == swingPoint then
+            return
+        end
+    end
+
     local currentTime = os.clock()
-    if currentTime - self.swingState.lastSwingTime < CONFIG.SWING.COOLDOWN then
+    if currentTime - self.swingState.lastSwingTime < CONFIG.SWING.TIMING.COOLDOWN then
         return
     end
 
@@ -2130,10 +2500,26 @@ function MovementClient:StartSwing(swingPoint)
     end
     mechanicState.lastMechanicTime = currentTime
 
+    if self.swingState.recoveryTimer and coroutine.status(self.swingState.recoveryTimer) == "suspended" then
+        task.cancel(self.swingState.recoveryTimer)
+    end
+    self.swingState.recoveryTimer = nil
+
+    if self.swingState.swingEndTimer and coroutine.status(self.swingState.swingEndTimer) == "suspended" then
+        task.cancel(self.swingState.swingEndTimer)
+    end
+    self.swingState.swingEndTimer = nil
+
+    table.insert(self.swingState.recentSwingPoints, 1, swingPoint)
+    if #self.swingState.recentSwingPoints > CONFIG.SWING.CHAIN.MAX_RECENT_POINTS then
+        table.remove(self.swingState.recentSwingPoints)
+    end
+
     self.swingState.isSwinging = true
     self.swingState.swingPoint = swingPoint
     self.swingState.canSwing = false
     self.swingState.lastSwingTime = currentTime
+    self.swingState.chainDetected = false
 
     self:StopAnimation({"LOCOMOTION"})
     self:PlayAnimation("SPECIAL", "SWING")
@@ -2143,20 +2529,40 @@ function MovementClient:StartSwing(swingPoint)
     local startPoint = humanoidRootPart.Position
     local lookVec = humanoidRootPart.CFrame.LookVector
 
-    local swingOffset = (startPoint - swingPoint.Position).Unit * CONFIG.SWING.DISTANCE
-    local offsetPoint = swingPoint.Position + swingOffset
+    local swingDirection = lookVec.Unit
+    local sideOffset = Vector3.new(swingDirection.X, 0, swingDirection.Z).Unit * CONFIG.SWING.MOVEMENT.DISTANCE
 
-    local midPoint = offsetPoint + Vector3.new(0, CONFIG.SWING.HEIGHT, 0)
-    local endPoint = offsetPoint + (lookVec * CONFIG.SWING.FORWARD_DISTANCE) + Vector3.new(0, CONFIG.SWING.END_HEIGHT, 0)
+    local swingCenter = swingPoint.Position
+    local lowestPoint = swingCenter + Vector3.new(0, -CONFIG.SWING.MOVEMENT.DISTANCE * 0.8, 0)
 
-    self.swingState.swingOffset = swingOffset
+    local arcHeight = CONFIG.SWING.MOVEMENT.HEIGHT
+    local forwardDist = CONFIG.SWING.MOVEMENT.FORWARD_DISTANCE
+    local endHeight = CONFIG.SWING.MOVEMENT.END_HEIGHT
+
+    if self.swingState.inChainWindow then
+        arcHeight = CONFIG.SWING.MOVEMENT.HEIGHT * CONFIG.SWING.CHAIN.HEIGHT_MULT
+        forwardDist = CONFIG.SWING.MOVEMENT.FORWARD_DISTANCE * CONFIG.SWING.CHAIN.FORWARD_MULT
+        endHeight = CONFIG.SWING.MOVEMENT.HEIGHT * CONFIG.SWING.CHAIN.END_HEIGHT_MULT
+    end
+
+    local midPoint = lowestPoint + (swingDirection * forwardDist * 0.5) + Vector3.new(0, arcHeight, 0)
+    local endPoint = lowestPoint + (swingDirection * forwardDist) + Vector3.new(0, endHeight, 0)
+
+    self.swingState.swingOffset = sideOffset
     self.swingState.pathCurve = Tools.Bezier.new(startPoint, midPoint, endPoint)
     self.swingState.swingStartTime = os.clock()
-    self.swingState.swingDuration = CONFIG.SWING.DURATION
+    self.swingState.swingDuration = CONFIG.SWING.TIMING.DURATION
+    self.swingState.lastCFrame = humanoidRootPart.CFrame
+
+    local initialPathDirection = (midPoint - startPoint).Unit
+    initialPathDirection = Vector3.new(initialPathDirection.X, 0, initialPathDirection.Z).Unit
+
+    local targetCFrame = CFrame.new(humanoidRootPart.Position) * CFrame.lookAt(Vector3.new(), initialPathDirection)
+    humanoidRootPart.CFrame = humanoidRootPart.CFrame:Lerp(targetCFrame, CONFIG.SWING.PHYSICS.ROTATION_SMOOTHING)
 
     self.swingState.bodyVelocity.Enabled = true
 
-    task.delay(self.swingState.swingDuration, function()
+    self.swingState.swingEndTimer = task.delay(self.swingState.swingDuration, function()
         if self.swingState and self.swingState.isSwinging then
             self:EndSwing()
         end
@@ -2167,31 +2573,166 @@ function MovementClient:EndSwing()
     if not self:ValidateCharacter() then return end
     if not self.swingState or not self.swingState.isSwinging then return end
 
+    if self.swingState.recoveryTimer and coroutine.status(self.swingState.recoveryTimer) == "suspended" then
+        task.cancel(self.swingState.recoveryTimer)
+    end
+    self.swingState.recoveryTimer = nil
+
+    if self.swingState.swingEndTimer and coroutine.status(self.swingState.swingEndTimer) == "suspended" then
+        task.cancel(self.swingState.swingEndTimer)
+    end
+    self.swingState.swingEndTimer = nil
+
     self.swingState.isSwinging = false
     self.swingState.swingPoint = nil
     self.swingState.bodyVelocity.Enabled = false
+    self.swingState.lastCFrame = nil
 
     local humanoidRootPart = characterRef.HumanoidRootPart
 
-    local finalDirection = self.swingState.pathCurve:CalculateDerivativeAt(1).Unit
-    local finalVelocity = finalDirection * CONFIG.SWING.BOOST_FORCE
+    local finalDirection = self.swingState.pathCurve:CalculateDerivativeAt(1)
+    if finalDirection then
+        finalDirection = finalDirection.Unit
+    else
+        finalDirection = Vector3.new(0, 1, 0)
+    end
 
-    humanoidRootPart.AssemblyLinearVelocity = finalVelocity
+    local upwardBoost = Vector3.new(0, CONFIG.SWING.MOVEMENT.BOOST_FORCE * (self.swingState.inChainWindow and CONFIG.SWING.CHAIN.BOOST_UP_MULT or 0.3), 0)
+    local forwardBoost = finalDirection * (CONFIG.SWING.MOVEMENT.BOOST_FORCE * (self.swingState.inChainWindow and CONFIG.SWING.CHAIN.BOOST_FWD_MULT or 0.8))
+    local finalVelocity = forwardBoost + upwardBoost
+
+    Debug:Print("SWING", "CHAIN", "=== SWING CHAIN DEBUG ===")
+    Debug:Print("SWING", "CHAIN", "Final Direction:", finalDirection)
+    Debug:Print("SWING", "CHAIN", "Final Velocity:", finalVelocity)
+    Debug:Print("SWING", "CHAIN", "Current Velocity:", humanoidRootPart.AssemblyLinearVelocity)
+
+    local currentVel = humanoidRootPart.AssemblyLinearVelocity
+    local blendedVelocity = currentVel:Lerp(finalVelocity, CONFIG.SWING.PHYSICS.VELOCITY_BLEND)
+    humanoidRootPart.AssemblyLinearVelocity = blendedVelocity
+
+    Debug:Print("SWING", "CHAIN", "Blended Velocity:", blendedVelocity)
+    Debug:Print("SWING", "CHAIN", "Chain Ready:", true)
+
     self.swingState.pathCurve = nil
+    self.swingState.wasSwinging = true
+    self.swingState.swingEndTime = os.clock()
+    self.swingState.canSwing = true
+    self.swingState.lastSwingTime = 0
+    self.swingState.inChainWindow = true
+
+    if not self.swingState.chainDetected then
+        local chainConnection
+        chainConnection = RunService.Heartbeat:Connect(function()
+            if not self.swingState.inChainWindow or self.swingState.isSwinging then
+                chainConnection:Disconnect()
+                return
+            end
+
+            local raycastParams = RaycastParams.new()
+            raycastParams.FilterDescendantsInstances = {characterRef}
+            raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+            local lookVec = humanoidRootPart.CFrame.LookVector
+            local position = humanoidRootPart.Position + Vector3.new(0, 2, 0)
+
+            local angles = {-75, -60, -45, -30, -15, 0, 15, 30, 45, 60, 75}
+            local chainTargets = {}
+
+            for _, angle in ipairs(angles) do
+                local direction = CFrame.fromAxisAngle(Vector3.new(0, 1, 0), math.rad(angle)) * lookVec
+
+                local heightOffsets = {-1, 0, 1, 2}
+                for _, heightOffset in ipairs(heightOffsets) do
+                    local raycastResult = workspace:Raycast(
+                        position + Vector3.new(0, heightOffset, 0),
+                        direction.Unit * CONFIG.SWING.DETECT.RANGE,
+                        raycastParams
+                    )
+
+                    if raycastResult and self:ValidateSwing(raycastResult.Instance, raycastResult.Position) then
+                        table.insert(chainTargets, {
+                            position = raycastResult.Position,
+                            part = raycastResult.Instance,
+                            distance = (raycastResult.Position - position).Magnitude
+                        })
+
+                        if DEBUG.SWING.SHOW_POINTS then
+                            Debug:Point(raycastResult.Position, {
+                                Shape = "Cross",
+                                Size = 0.8,
+                                Color = Color3.fromRGB(0, 255, 255),
+                                Transparency = 0.3,
+                                Duration = 0.1,
+                                Pulse = true
+                            })
+                        end
+                    end
+                end
+            end
+
+            local uniqueTargets = {}
+            local seenParts = {}
+            for _, target in ipairs(chainTargets) do
+                if not seenParts[target.part] then
+                    seenParts[target.part] = true
+                    table.insert(uniqueTargets, target)
+                end
+            end
+            table.sort(uniqueTargets, function(a, b) return a.distance < b.distance end)
+
+            if #uniqueTargets > 0 and keyStates.Space then
+                Debug:Print("SWING", "CHAIN", "Chain Targets Found:", #uniqueTargets)
+
+                local nextTarget = uniqueTargets[1]
+                if nextTarget then
+                    chainConnection:Disconnect()
+                    self:StartSwing(nextTarget.part)
+                end
+            end
+        end)
+    end
+
+    if DEBUG.SWING.SHOW_POINTS then
+        local boostEnd = humanoidRootPart.Position + (blendedVelocity.Unit * 5)
+        Debug:Point(humanoidRootPart.Position, {
+            Shape = "Cross",
+            Size = 1,
+            Color = Color3.fromRGB(255, 128, 0),
+            Transparency = 0.3,
+            Duration = 2,
+            Pulse = true
+        })
+        Debug:Point(boostEnd, {
+            Shape = "Sphere",
+            Size = 1,
+            Color = Color3.fromRGB(0, 255, 128),
+            Transparency = 0.3,
+            Duration = 2,
+            Pulse = false
+        })
+        Debug:Path({humanoidRootPart.Position, boostEnd}, Color3.fromRGB(255, 255, 0))
+    end
 
     self:StopAnimation({"SPECIAL"})
     self:PlayAnimation("LOCOMOTION", "FALL")
 
-    local camera = workspace.CurrentCamera
     humanoidRef.AutoRotate = true
 
-    local lookDir = camera.CFrame.LookVector
-    lookDir = Vector3.new(lookDir.X, 0, lookDir.Z).Unit
-    humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + lookDir)
+    local camera = workspace.CurrentCamera
+    if camera then
+        local lookDir = camera.CFrame.LookVector
+        lookDir = Vector3.new(lookDir.X, 0, lookDir.Z).Unit
+        local targetCFrame = CFrame.new(humanoidRootPart.Position) * CFrame.lookAt(Vector3.new(), lookDir)
+        humanoidRootPart.CFrame = humanoidRootPart.CFrame:Lerp(targetCFrame, 0.2)
+    end
 
-    task.delay(CONFIG.SWING.RECOVERY_TIME, function()
-        if self.swingState then
-            self.swingState.canSwing = true
+    self.swingState.recoveryTimer = task.delay(CONFIG.SWING.TIMING.RECOVERY_TIME, function()
+        if self.swingState and not self.swingState.isSwinging then
+            self.swingState.wasSwinging = false
+            self.swingState.swingEndTime = nil
+            self.swingState.inChainWindow = false
+            table.clear(self.swingState.recentSwingPoints)
+            Debug:Print("SWING", "CHAIN", "Chain Window Closed")
         end
     end)
 end
@@ -2210,18 +2751,92 @@ function MovementClient:UpdateSwing(delta)
     local timeSinceStart = os.clock() - self.swingState.swingStartTime
     local alpha = math.clamp(timeSinceStart / self.swingState.swingDuration, 0, 1)
 
+    if alpha > CONFIG.SWING.CHAIN.WINDOW_START and alpha < CONFIG.SWING.CHAIN.WINDOW_END and keyStates.Space and not self.swingState.chainDetected then
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterDescendantsInstances = {characterRef}
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+
+        local lookVec = humanoidRootPart.CFrame.LookVector
+        local position = humanoidRootPart.Position + Vector3.new(0, 2, 0)
+
+        local angles = {}
+        local maxAngle = CONFIG.SWING.CHAIN.DETECT_ANGLE_SPREAD
+        local angleStep = CONFIG.SWING.CHAIN.DETECT_ANGLE_STEPS
+
+        for angle = -maxAngle, maxAngle, angleStep do
+            table.insert(angles, angle)
+        end
+
+        local chainTargets = {}
+        local bestTarget = nil
+        local bestDistance = math.huge
+
+        for _, angle in ipairs(angles) do
+            local direction = CFrame.fromAxisAngle(Vector3.new(0, 1, 0), math.rad(angle)) * lookVec
+
+            for _, heightOffset in ipairs(CONFIG.SWING.CHAIN.HEIGHT_OFFSETS) do
+                local raycastResult = workspace:Raycast(
+                    position + Vector3.new(0, heightOffset, 0),
+                    direction.Unit * CONFIG.SWING.DETECT.RANGE,
+                    raycastParams
+                )
+
+                if raycastResult and raycastResult.Instance ~= swingPoint and 
+                   self:ValidateSwing(raycastResult.Instance, raycastResult.Position, false) then
+                    local distance = (raycastResult.Position - position).Magnitude
+                    if distance < bestDistance then
+                        bestDistance = distance
+                        bestTarget = {
+                            position = raycastResult.Position,
+                            part = raycastResult.Instance,
+                            distance = distance
+                        }
+                    end
+                end
+            end
+        end
+
+        if bestTarget then
+            if DEBUG.SWING.SHOW_POINTS then
+                Debug:Point(bestTarget.position, {
+                    Shape = "Cross",
+                    Size = 1,
+                    Color = Color3.fromRGB(0, 255, 255),
+                    Transparency = 0.3,
+                    Duration = 0.1,
+                    Pulse = true
+                })
+            end
+
+            Debug:Print("SWING", "CHAIN", "Early Chain Target Found")
+            self.swingState.inChainWindow = true
+            self.swingState.chainDetected = true
+            self:EndSwing()
+            self:StartSwing(bestTarget.part)
+            return
+        end
+    end
+
     local targetPosition = self.swingState.pathCurve:CalculatePositionAt(alpha)
     local nextPosition = self.swingState.pathCurve:CalculatePositionAt(math.min(alpha + 0.1, 1))
 
     local toTarget = (targetPosition - humanoidRootPart.Position)
-    local targetVelocity = toTarget.Unit * 30
+    local targetVelocity = toTarget.Unit * CONFIG.SWING.PHYSICS.PATH_FOLLOW_SPEED
 
     local currentVel = self.swingState.bodyVelocity.VectorVelocity
-    local newVel = currentVel:Lerp(targetVelocity, delta * 20)
+    local newVel = currentVel:Lerp(targetVelocity, delta * CONFIG.SWING.PHYSICS.PATH_CORRECTION_RATE)
     self.swingState.bodyVelocity.VectorVelocity = newVel
 
     local lookDir = (nextPosition - targetPosition).Unit
-    humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + lookDir)
+    local targetCFrame = CFrame.new(humanoidRootPart.Position) * CFrame.lookAt(Vector3.new(), lookDir)
+
+    if self.swingState.lastCFrame then
+        local rotationDelta = (targetCFrame.Rotation:ToObjectSpace(self.swingState.lastCFrame.Rotation)).Position.Magnitude
+        if rotationDelta < 1 then
+            humanoidRootPart.CFrame = humanoidRootPart.CFrame:Lerp(targetCFrame, delta * CONFIG.SWING.MOVEMENT.ROTATION_SPEED)
+            self.swingState.lastCFrame = humanoidRootPart.CFrame
+        end
+    end
 end
 
 --[[ Wall Functions ]]
@@ -3193,8 +3808,72 @@ function MovementClient:SetupAttributes()
     end
 end
 
+function MovementClient:CleanupPhysics()
+    if self.swingState then
+        if self.swingState.bodyVelocity then
+            self.swingState.bodyVelocity:Destroy()
+        end
+        if self.swingState.attachment then
+            self.swingState.attachment:Destroy()
+        end
+        self.swingState = nil
+    end
+
+    if self.wallRunState then
+        if self.wallRunState.bodyVelocity then
+            self.wallRunState.bodyVelocity:Destroy()
+        end
+        if self.wallRunState.attachment then
+            self.wallRunState.attachment:Destroy()
+        end
+        self.wallRunState = nil
+    end
+
+    if self.rollState then
+        if self.rollState.bodyVelocity then
+            self.rollState.bodyVelocity:Destroy()
+        end
+        if self.rollState.attachment then
+            self.rollState.attachment:Destroy()
+        end
+        self.rollState = nil
+    end
+
+    if self.airDashState then
+        if self.airDashState.linearVelocity then
+            self.airDashState.linearVelocity:Destroy()
+        end
+        if self.airDashState.attachment then
+            self.airDashState.attachment:Destroy()
+        end
+        self.airDashState = nil
+    end
+
+    if self.slideState then
+        if self.slideState.bodyVelocity then
+            self.slideState.bodyVelocity:Destroy()
+        end
+        if self.slideState.attachment then
+            self.slideState.attachment:Destroy()
+        end
+        self.slideState = nil
+    end
+
+    if self.ledgeState then
+        if self.ledgeState.bodyVelocity then
+            self.ledgeState.bodyVelocity:Destroy()
+        end
+        if self.ledgeState.attachment then
+            self.ledgeState.attachment:Destroy()
+        end
+        self.ledgeState = nil
+    end
+end
+
 function MovementClient:SetupCharacter(character)
     if not character then return end
+
+    self:CleanupPhysics()
 
     animState.currentlyPlaying = { category = nil, name = nil }
 
@@ -3255,6 +3934,7 @@ function MovementClient:SetupCharacter(character)
     self:CheckMove()
 
     humanoid.Died:Connect(function()
+        self:CleanupPhysics()
         self:FadeDeath(true)
 
         if uiState.emoteMenu.isOpen then
@@ -3323,4 +4003,3 @@ end
 MovementClient:Initialize()
 
 return MovementClient
-
