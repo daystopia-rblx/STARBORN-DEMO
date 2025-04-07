@@ -98,6 +98,7 @@ function SpawnService:Init(services, modules)
     Modules = modules
     return true
 end
+
 function SpawnService:Start()
     game:GetService("Players").RespawnTime = math.huge
 

@@ -1,7 +1,7 @@
 --[[ DataModule
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-30
+    @version 1.0.1
+    @date 2025-04-07
 ]]
 local DataModule = {}
 
@@ -48,26 +48,38 @@ DataModule.Templates = {
             level = 1,
             experience = 0
         },
+
         settings = {
             keybinds = {}
         },
-        checkpoint = {
-            type = nil,
-            position = nil,
-            lastActivated = 0
+
+        world = {
+            checkpoint = {
+                type = nil,
+                position = nil,
+                lastActivated = 0
+            },
+            discoveries = {},
+            quests = {
+                active = {},
+                completed = {}
+            }
         }
     }
 }
 
 DataModule.Validation = {
     PlayerData = {
-        required = {"stats", "settings", "checkpoint"},
+        required = {"stats", "skills", "equipment", "progress", "settings", "world"},
         types = {
             stats = "table",
+            skills = "table",
+            equipment = "table",
+            progress = "table",
             settings = "table",
-            checkpoint = "table"
+            world = "table"
         }
-    },
+    }
 }
 
 return DataModule

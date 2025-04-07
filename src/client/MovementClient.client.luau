@@ -740,7 +740,7 @@ end
 
 function MovementClient:ValidateCharacter()
     local startTime = os.clock()
-    local timeout = 3
+    local timeout = 2
 
     while not characterRef and (os.clock() - startTime) < timeout do
         characterRef = self.LocalPlayer.Character
@@ -1290,7 +1290,14 @@ function MovementClient:SetupLedge()
             wallJumpCount = 0,
             initialJumpHeight = 0,
             maxWallJumps = 1,
-            maxJumpHeight = 18
+            maxJumpHeight = 18,
+            isLadder = false,
+            stuckCheckTimer = 0,
+            lastPositionCheck = Vector3.new(0, 0, 0),
+            stuckDuration = 0,
+            forceDropping = false,
+            emergencyReleasePressed = false,
+            lastComplexModelCheck = 0
         }
 
         self.ledgeState.bodyVelocity.Attachment0 = self.ledgeState.attachment
@@ -1305,10 +1312,50 @@ function MovementClient:SetupLedge()
         self.ledgeConnection:Disconnect()
     end
 
-    self.ledgeConnection = RunService.Heartbeat:Connect(function()
+    self.ledgeConnection = RunService.Heartbeat:Connect(function(dt)
         if not self:ValidateCharacter() then return end
 
         if self.swingState and self.swingState.isSwinging then
+            return
+        end
+
+        if self.ledgeState.isClimbing then
+            local currentTime = os.clock()
+            local currentPosition = characterRef.HumanoidRootPart.Position
+
+            if keyStates.Space or keyStates.F then
+                if not self.ledgeState.emergencyReleasePressed then
+                    self.ledgeState.emergencyReleasePressed = true
+                    self.ledgeState.emergencyPressTime = currentTime
+                elseif currentTime - self.ledgeState.emergencyPressTime > 0.5 then
+                    self.ledgeState.forceDropping = true
+                    self:ReleaseLedge()
+                    return
+                end
+            else
+                self.ledgeState.emergencyReleasePressed = false
+            end
+
+            if (currentPosition - self.ledgeState.lastPositionCheck).Magnitude < 0.05 then
+                self.ledgeState.stuckDuration = self.ledgeState.stuckDuration + dt
+                if self.ledgeState.stuckDuration > 3.0 then
+                    self.ledgeState.forceDropping = true
+                    self:ReleaseLedge()
+                    return
+                end
+            else
+                self.ledgeState.stuckDuration = 0
+                self.ledgeState.lastPositionCheck = currentPosition
+            end
+        else
+            self.ledgeState.stuckDuration = 0
+            self.ledgeState.lastPositionCheck = characterRef.HumanoidRootPart.Position
+        end
+
+        local humanoidState = humanoidRef:GetState()
+
+        self.ledgeState.isLadder = (humanoidState == Enum.HumanoidStateType.Climbing)
+        if self.ledgeState.isLadder then
             return
         end
 
@@ -1320,8 +1367,26 @@ function MovementClient:SetupLedge()
 
         if result and not otherResult then
             local hitPart = result.Instance
+            local currentTime = os.clock()
+
+            local isComplexModel = false
+            if currentTime - self.ledgeState.lastComplexModelCheck > 0.5 then
+                self.ledgeState.lastComplexModelCheck = currentTime
+
+                local overlapParams = OverlapParams.new()
+                overlapParams.FilterDescendantsInstances = {characterRef}
+                local nearbyParts = workspace:GetPartBoundsInBox(
+                    CFrame.new(hitPart.Position),
+                    Vector3.new(5, 5, 5),
+                    overlapParams
+                )
+
+                isComplexModel = #nearbyParts > 15
+            end
+
             if hitPart.Size.Y >= 7 and not self.ledgeState.isClimbing and
-               self.ledgeState.ledgeAvailable and self.ledgeState.canLedge then
+               self.ledgeState.ledgeAvailable and self.ledgeState.canLedge and
+               not isComplexModel then
                 local humanoidState = humanoidRef:GetState()
                 if humanoidState == Enum.HumanoidStateType.Freefall or
                    (humanoidState == Enum.HumanoidStateType.Running and keyStates.W) then
@@ -1362,6 +1427,10 @@ function MovementClient:UpdateShuffle()
 
     local humanoidRootPart = characterRef.HumanoidRootPart
 
+    if humanoidRef.AutoRotate then
+        humanoidRef.AutoRotate = false
+    end
+
     if keyStates.A then
         moveDir = -humanoidRootPart.CFrame.RightVector
         isShuffling = true
@@ -1373,6 +1442,8 @@ function MovementClient:UpdateShuffle()
     end
 
     if moveDir.Magnitude > 0 then
+        moveDir = Vector3.new(moveDir.X, 0, moveDir.Z).Unit
+
         local raycastParams = RaycastParams.new()
         raycastParams.FilterDescendantsInstances = {characterRef}
 
@@ -1391,10 +1462,21 @@ function MovementClient:UpdateShuffle()
         if currentWallCheck and nextWallCheck then
             local currentWallHeight = currentWallCheck.Instance.Size.Y
             local nextWallHeight = nextWallCheck.Instance.Size.Y
+            local wallNormal = currentWallCheck.Normal
 
             if nextWallHeight <= currentWallHeight + 1 and nextWallHeight >= CONFIG.LEDGE.WALL_MIN_HEIGHT then
+                local originalCF = humanoidRootPart.CFrame
+                local lookAt = originalCF.LookVector
+                
                 self.ledgeState.shuffleVelocity = moveDir * CONFIG.LEDGE.SHUFFLE_SPEED
                 self.ledgeState.bodyVelocity.VectorVelocity = self.ledgeState.shuffleVelocity
+
+                task.defer(function()
+                    if self.ledgeState and self.ledgeState.isClimbing and humanoidRootPart then
+                        local pos = humanoidRootPart.Position
+                        humanoidRootPart.CFrame = CFrame.new(pos, pos + (lookAt * 10))
+                    end
+                end)
 
                 if shuffleDirection == "left" then
                     if animState.currentlyPlaying.category ~= "LEDGE" or animState.currentlyPlaying.name ~= "SHUFFLE_LEFT" then
@@ -1493,7 +1575,7 @@ function MovementClient:ClimbLedge()
             end
         end)
     end
-    
+
     task.delay(CONFIG.LEDGE.HANG_DURATION, function()
         if self.ledgeState and self.ledgeState.isClimbing then
             self:DropLedge()
@@ -1505,19 +1587,30 @@ function MovementClient:DropLedge()
     if not self:ValidateCharacter() then return end
     if not self.ledgeState then return end
 
+    if self.ledgeState.forceDropping then
+        self:ReleaseLedge()
+        return
+    end
+
     local humanoidRootPart = characterRef.HumanoidRootPart
     local raycastParams = RaycastParams.new()
     raycastParams.FilterDescendantsInstances = {characterRef}
 
     local wallResult = workspace:Raycast(humanoidRootPart.Position, humanoidRootPart.CFrame.LookVector * CONFIG.LEDGE.CHECK_DISTANCE, raycastParams)
-    if not wallResult then return end
+    if not wallResult then
+        self:ReleaseLedge()
+        return
+    end
 
     local wallNormal = wallResult.Normal
     local dropStartPos = wallResult.Position + Vector3.new(0, -1, 0)
     local dropEndPos = dropStartPos + (wallNormal * -1)
 
     local landingCheck = workspace:Raycast(dropEndPos + Vector3.new(0, 5, 0), Vector3.new(0, -10, 0), raycastParams)
-    if not landingCheck then return end
+    if not landingCheck then
+        self:ReleaseLedge()
+        return
+    end
 
     self.ledgeState.grabbingLedge = false
     self.ledgeState.isClimbing = false
@@ -1551,6 +1644,32 @@ function MovementClient:DropLedge()
     local climbTrack = animState.animations["LEDGE_CLIMB"]
     if climbTrack then
         climbTrack.Stopped:Connect(resetPhysics)
+    end
+
+    task.delay(CONFIG.LEDGE.DROP_COOLDOWN, function()
+        if self.ledgeState then
+            self.ledgeState.ledgeAvailable = true
+        end
+    end)
+end
+
+function MovementClient:ReleaseLedge()
+    if not self:ValidateCharacter() or not self.ledgeState then return end
+
+    self.ledgeState.grabbingLedge = false
+    self.ledgeState.isClimbing = false
+    self.ledgeState.forceDropping = false
+
+    self:StopAnimation({"LEDGE"})
+
+    if humanoidRef then
+        humanoidRef.PlatformStand = false
+        humanoidRef.AutoRotate = true
+    end
+
+    if self.ledgeState.bodyVelocity then
+        self.ledgeState.bodyVelocity.Enabled = false
+        self.ledgeState.bodyVelocity.VectorVelocity = Vector3.new(0, 0, 0)
     end
 
     task.delay(CONFIG.LEDGE.DROP_COOLDOWN, function()

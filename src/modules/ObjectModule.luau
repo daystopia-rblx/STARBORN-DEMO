@@ -7,17 +7,10 @@ local ObjectModule = {}
 
 function ObjectModule.GetObject(name: string)
     name = name:upper()
-
-    if ObjectModule.Templates[name] then
-        return ObjectModule.Templates[name]
-    end
-
+    if ObjectModule.Templates[name] then return ObjectModule.Templates[name] end
     for _, category in pairs(ObjectModule.Templates) do
-        if category[name] then
-            return category[name]
-        end
+        if category[name] then return category[name] end
     end
-
     return nil
 end
 

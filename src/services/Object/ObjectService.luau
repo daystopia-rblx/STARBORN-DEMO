@@ -19,7 +19,9 @@ ObjectService.Dependencies = {
 
 --[[ Modules ]]
 ObjectService.Modules = {
-    "Object"
+    "Object",
+    "Weapon",
+    "Equipment"
 }
 
 --[[ Events ]]

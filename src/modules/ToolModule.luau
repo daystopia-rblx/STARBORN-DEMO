@@ -1,7 +1,7 @@
 --[[ ToolModule
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-30
+    @version 1.0.1
+    @date 2025-04-07
 ]]
 local ToolModule = {}
 
@@ -15,6 +15,27 @@ type ToolContext = {
 
 --[[ Tool Types ]]
 ToolModule.Types = {
+    -- Light Weapons
+    FISTS = "fists",
+    DAGGER = "dagger",
+    GUN = "gun",
+    RAPIER = "rapier",
+    NUNCHUCKS = "nunchucks",
+    BOW = "bow",
+
+    -- Medium Weapons
+    LONGSWORD = "longsword",
+    SPEAR = "spear",
+    KATANA = "katana",
+    RIFLE = "rifle",
+    TRIDENT = "trident",
+
+    -- Heavy Weapons
+    GREATAXE = "greataxe",
+    GREATSWORD = "greatsword",
+    SCYTHE = "scythe",
+
+    -- Tools
     FISHING_ROD = "fishing_rod"
 }
 
@@ -98,6 +119,398 @@ ToolModule.Properties = {
 
 --[[ Tool Templates ]]
 ToolModule.Templates = {
+    -- Light Weapons
+    [ToolModule.Types.FISTS] = {
+        ToolTip = "Left click to attack, right click for special moves",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.5,
+                stateOnActivate = "ATTACKING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 1.0,
+                stateOnActivate = "SPECIAL",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"ATTACKING", "SPECIAL"},
+                ATTACKING = {"INACTIVE"},
+                SPECIAL = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.DAGGER] = {
+        ToolTip = "Left click to stab, right click to slash",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.4,
+                stateOnActivate = "STABBING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 0.6,
+                stateOnActivate = "SLASHING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"STABBING", "SLASHING"},
+                STABBING = {"INACTIVE"},
+                SLASHING = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.GUN] = {
+        ToolTip = "Left click to shoot, right click to aim",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.8,
+                stateOnActivate = "SHOOTING",
+                stateOnDeactivate = "INACTIVE",
+                requiresState = {"INACTIVE", "AIMING"}
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "toggle",
+                cooldown = 0.2,
+                stateOnActivate = "AIMING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"AIMING", "SHOOTING"},
+                AIMING = {"INACTIVE", "SHOOTING"},
+                SHOOTING = {"INACTIVE", "AIMING"}
+            }
+        }
+    },
+
+    [ToolModule.Types.RAPIER] = {
+        ToolTip = "Left click to thrust, right click to feint",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.5,
+                stateOnActivate = "THRUSTING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 0.7,
+                stateOnActivate = "FEINTING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"THRUSTING", "FEINTING"},
+                THRUSTING = {"INACTIVE"},
+                FEINTING = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.NUNCHUCKS] = {
+        ToolTip = "Left click to swing, right click to spin",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.4,
+                stateOnActivate = "SWINGING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "continuous",
+                cooldown = 0.1,
+                stateOnActivate = "SPINNING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"SWINGING", "SPINNING"},
+                SWINGING = {"INACTIVE"},
+                SPINNING = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.BOW] = {
+        ToolTip = "Hold left click to charge, release to shoot",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "charge",
+                cooldown = 0.1,
+                holdDuration = 2,
+                stateOnActivate = "CHARGING",
+                stateOnDeactivate = "SHOOTING"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"CHARGING"},
+                CHARGING = {"SHOOTING", "INACTIVE"},
+                SHOOTING = {"INACTIVE"}
+            }
+        }
+    },
+
+    -- Medium Weapons
+    [ToolModule.Types.LONGSWORD] = {
+        ToolTip = "Left click to slash, right click for overhead",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.7,
+                stateOnActivate = "SLASHING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 1.0,
+                stateOnActivate = "OVERHEAD",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"SLASHING", "OVERHEAD"},
+                SLASHING = {"INACTIVE"},
+                OVERHEAD = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.SPEAR] = {
+        ToolTip = "Left click to thrust, right click to sweep",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.6,
+                stateOnActivate = "THRUSTING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 0.9,
+                stateOnActivate = "SWEEPING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"THRUSTING", "SWEEPING"},
+                THRUSTING = {"INACTIVE"},
+                SWEEPING = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.KATANA] = {
+        ToolTip = "Left click to slash, right click for draw attack",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.5,
+                stateOnActivate = "SLASHING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 1.2,
+                stateOnActivate = "DRAWING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"SLASHING", "DRAWING"},
+                SLASHING = {"INACTIVE"},
+                DRAWING = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.RIFLE] = {
+        ToolTip = "Left click to shoot, right click to aim",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 1.0,
+                stateOnActivate = "SHOOTING",
+                stateOnDeactivate = "INACTIVE",
+                requiresState = {"INACTIVE", "AIMING"}
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "toggle",
+                cooldown = 0.2,
+                stateOnActivate = "AIMING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"AIMING", "SHOOTING"},
+                AIMING = {"INACTIVE", "SHOOTING"},
+                SHOOTING = {"INACTIVE", "AIMING"}
+            }
+        }
+    },
+
+    [ToolModule.Types.TRIDENT] = {
+        ToolTip = "Left click to thrust, right click to sweep",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.6,
+                stateOnActivate = "THRUSTING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 0.9,
+                stateOnActivate = "SWEEPING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"THRUSTING", "SWEEPING"},
+                THRUSTING = {"INACTIVE"},
+                SWEEPING = {"INACTIVE"}
+            }
+        }
+    },
+
+    -- Heavy Weapons
+    [ToolModule.Types.GREATAXE] = {
+        ToolTip = "Left click to chop, right click to sweep",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 1.2,
+                stateOnActivate = "CHOPPING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 1.5,
+                stateOnActivate = "SWEEPING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"CHOPPING", "SWEEPING"},
+                CHOPPING = {"INACTIVE"},
+                SWEEPING = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.GREATSWORD] = {
+        ToolTip = "Left click to slash, right click for overhead",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 1.0,
+                stateOnActivate = "SLASHING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 1.3,
+                stateOnActivate = "OVERHEAD",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"SLASHING", "OVERHEAD"},
+                SLASHING = {"INACTIVE"},
+                OVERHEAD = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.SCYTHE] = {
+        ToolTip = "Left click to slash, right click to sweep",
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.9,
+                stateOnActivate = "SLASHING",
+                stateOnDeactivate = "INACTIVE"
+            },
+            secondary = {
+                type = "MouseButton2",
+                usageType = "single",
+                cooldown = 1.2,
+                stateOnActivate = "SWEEPING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"SLASHING", "SWEEPING"},
+                SLASHING = {"INACTIVE"},
+                SWEEPING = {"INACTIVE"}
+            }
+        }
+    },
+
+    -- Tools
     [ToolModule.Types.FISHING_ROD] = {
         ToolTip = "Left click to cast, hold to reel",
         inputs = {
