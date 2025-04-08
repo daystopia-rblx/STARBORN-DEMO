@@ -7,6 +7,11 @@
 ]]
 
 local PlayerService = {}
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Modules = {
+    Animation = require(ReplicatedStorage.Modules.AnimationModule),
+}
 
 PlayerService.Dependencies = {
     "Event"
@@ -35,10 +40,19 @@ PlayerService.Listeners = {
                 healthScript:Destroy()
             end
 
+            --[[ Animate script is quite useful
             local animateScript = character:FindFirstChild("Animate")
             if animateScript then
                 animateScript:Destroy()
             end
+            ]]
+
+            local animateScript = character:FindFirstChild("Animate")
+            animateScript.idle.Animation1.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.IDLE.id
+            animateScript.idle.Animation2.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.IDLE_2.id
+            animateScript.walk.WalkAnim.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.WALK.id
+            animateScript.jump.JumpAnim.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.JUMP.id
+            animateScript.fall.FallAnim.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.FALL.id
 
             player.DevEnableMouseLock = false
         end)
