@@ -2,8 +2,8 @@
     Advanced data persistence system with caching, validation, and analytics.
     Manages data storage, backups, migrations, and performance monitoring.
     @author @Daystopia
-    @version 1.0.5
-    @date 2025-01-05
+    @version 1.0.6
+    @date 2025-04-09
 ]]
 local DataStoreService = game:GetService("DataStoreService")
 
@@ -22,13 +22,15 @@ local AUTOSAVE_INTERVAL = 300
 local MAX_RETRIES = 3
 local RETRY_DELAY = 1
 local DATASTORE_NAME = "PlayerData_V1"
+local MIN_SAVE_INTERVAL = 10
 
 -- State
 local Services
 local Modules
 local dataStore
 local cache = {
-    players = {}
+    players = {},
+    lastSaved = {}
 }
 
 -- [[ Core Functions ]]
@@ -145,18 +147,37 @@ function DataService:SaveAllData(player)
     if not player then return end
 
     local userId = tostring(player.UserId)
-    if not cache.players[userId] then return end
+    if not cache.players or not cache.players[userId] then
+        return
+    end
 
-    local success = self:SaveData(userId, cache.players[userId])
+    local currentTime = os.time()
+    local lastSaveTime = cache.lastSaved[userId] or 0
+    if (currentTime - lastSaveTime) < MIN_SAVE_INTERVAL then
+        return
+    end
+
+    local playerData = cache.players[userId]
+    if type(playerData) ~= "table" then
+        return
+    end
+
+    local success = self:SaveData(userId, playerData)
 
     if success then
-        for dataType, data in pairs(cache.players[userId]) do
-            Services.Event:Fire("Data.Save", {
-                player = player,
-                userId = userId,
-                data = data,
-                dataType = dataType
-            })
+        cache.lastSaved[userId] = currentTime
+
+        if Services and Services.Event and Services.Event._isInitialized then
+            for dataType, data in pairs(playerData) do
+                pcall(function()
+                    Services.Event:Fire("Data.Save", {
+                        player = player,
+                        userId = userId,
+                        data = data,
+                        dataType = dataType
+                    })
+                end)
+            end
         end
     end
 end
@@ -182,8 +203,9 @@ function DataService:SaveData(userId, data)
 end
 
 function DataService:AutoSave()
-    for _, player in ipairs(game.Players:GetPlayers()) do
+    for i, player in ipairs(game.Players:GetPlayers()) do
         task.spawn(function()
+            task.wait(i * 0.5)
             self:SaveAllData(player)
         end)
     end
@@ -224,7 +246,9 @@ end
 
 function DataService:ClearCache(player)
     if not player then return end
-    cache.players[tostring(player.UserId)] = nil
+    local userId = tostring(player.UserId)
+    cache.players[userId] = nil
+    cache.lastSaved[userId] = nil
 end
 
 return DataService

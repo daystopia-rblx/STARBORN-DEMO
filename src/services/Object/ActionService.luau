@@ -38,7 +38,7 @@ local Modules
 local DEFAULT_COOLDOWN = 0.1
 
 --[[ Types ]]
-local Types = require(script.Parent.Parent.Parent.Modules.ActionModule)
+local Types = require(game:GetService("ReplicatedStorage").Modules.ActionModule)
 type ActionConfig = Types.ActionConfig
 type ActionContext = Types.ActionContext
 type ActionHandler = Types.ActionHandler

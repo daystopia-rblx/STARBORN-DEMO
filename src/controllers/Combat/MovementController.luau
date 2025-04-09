@@ -12,14 +12,23 @@ local MovementController = {
     Debounce = false :: boolean
 }
 
+MovementController.Dependencies = {
+    "Event"
+}
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
---[[ Dependencies ]]
-local Services = {
-    Event = require(ReplicatedStorage.Services.Network.EventService),
-    --Movement = require(ReplicatedStorage.Services.Character.MovementService)
-}
+--[[ State ]]
+local Controllers
+local Modules
+
+--[[ Core Functions ]]
+function MovementController:Init(controllers, modules)
+    Controllers = controllers
+    Modules = modules
+    return true
+end
 
 --[[ Running ]]
 function MovementController:HandlePressed()

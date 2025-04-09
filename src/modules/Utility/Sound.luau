@@ -5,8 +5,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
 --[[ Dependencies ]]
-local Services = {
-    Audio = require(ReplicatedStorage.Services.Asset.AudioService)
+local Controllers = {
+    Event = require(ReplicatedStorage.Controllers.Network.EventController)
 }
 
 local Modules = {

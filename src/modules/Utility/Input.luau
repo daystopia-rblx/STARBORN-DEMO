@@ -5,9 +5,6 @@
 ]]
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local DataService = require(ReplicatedStorage.Services.Network.DataService)
 
 local Input = {}
 
@@ -443,29 +440,6 @@ function Input.DeserializeKeybinds(data: {[string]: {string}})
         if #keys > 0 then
             Input.SetKeybind(action, keys)
         end
-    end
-end
-
-function Input.SaveKeybinds()
-    local player = game.Players.LocalPlayer
-    if not player then return end
-
-    local serialized = Input.SerializeKeybinds()
-    local playerData = DataService:GetData(tostring(player.UserId), "PlayerData")
-
-    if playerData and playerData.settings then
-        playerData.settings.keybinds = serialized
-        DataService:SetData(tostring(player.UserId), playerData, "PlayerData")
-    end
-end
-
-function Input.LoadKeybinds()
-    local player = game.Players.LocalPlayer
-    if not player then return end
-
-    local playerData = DataService:GetData(tostring(player.UserId), "PlayerData")
-    if playerData and playerData.settings and playerData.settings.keybinds then
-        Input.DeserializeKeybinds(playerData.settings.keybinds)
     end
 end
 

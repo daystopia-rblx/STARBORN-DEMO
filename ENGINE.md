@@ -4,9 +4,9 @@
 A service-oriented game framework for Roblox that provides robust architecture, performance optimization, and developer productivity through modular services and comprehensive utilities for streamlined game development.
 
 **Author**: Daystopia  
-**Version**: 1.1.0 (ASCENDIUM Version)
+**Version**: 1.2.0 (ASCENDIUM Version)
 **Created**: 2024-12-26
-**Updated**: 2025-03-30
+**Updated**: 2025-04-09
 
 ## Overview
 
@@ -112,15 +112,6 @@ A service-oriented game framework for Roblox that provides robust architecture, 
   - Regeneration mechanics
   - Stat modification rules
 
-- **StateService**
-  - State transition validation
-  - Exclusive state management
-  - State duration tracking
-  - Cooldown management
-  - Category-based state grouping
-  - State effect handling
-  - Conditional state transitions
-
 - **TeleportService**
   - Server matchmaking
   - Queue priority system
@@ -135,27 +126,51 @@ A service-oriented game framework for Roblox that provides robust architecture, 
   - Boundary detection
   - Region attributes
 
+### Modules System
+
+The framework features an automatic module importing system that handles dependency resolution and loading:
+
+```lua
+-- Simple category imports
+Component.Tool = {"Promise", "Input"}
+
+-- Path-based imports
+Component.Data = {Citizens = "Dialogue/Citizens"}
+
+-- Wildcard loading (all modules in the folder)
+Component.Dialogue = {All = "Dialogue/*"}
+
+local Services
+local Modules
+
+function Component:Init(services, modules)
+    Services = services
+    Modules = modules
+    return true
+end
+```
+
 ### Event System
 
 The framework supports three types of event listeners with built-in validation and throttling:
 
-1. **Service Events**
-   - Inter-service communication
+1. **Service/Controller Events**
+   - Inter-component communication
    - Automatic dependency handling
    - Optional schema validation for type safety
       ```lua
-      ["ServiceName.Event"] = {
+      ["ComponentName.Event"] = {
           validate = true,
           schema = { field = "type" }
       }
       ```
 
-2. **Service Listeners**
-   - Built-in event handling through service listeners
+2. **Listeners**
+   - Built-in event handling through service/controller listeners
    - Automatic lifecycle management
    - Data validation and error handling
       ```lua
-      ServiceName.Listeners = {
+      ComponentName.Listeners = {
           ["Event.Name"] = function(self, data)
               -- Handle event
           end
@@ -172,7 +187,7 @@ The framework supports three types of event listeners with built-in validation a
 Events can be configured with the following options:
 
 ```lua
-ExampleService.Events = {
+ComponentName.Events = {
     BasicEvent = true,     -- Equivalent to { server = true, client = true }
 
     CustomEvent = {
@@ -198,7 +213,7 @@ ExampleService.Events = {
 ## Core Components
 
 ### Services
-Services are modules that create core game systems with state, logic and events.
+Services are server-side modules that create core game systems with state, logic and events.
 
 ```Lua
 local ExampleService = {}
@@ -228,8 +243,12 @@ ExampleService.Listeners = {
     end
 }
 
-function ExampleService:Init(services)
+local Services
+local Modules
+
+function ExampleService:Init(services, modules)
     Services = services
+    Modules = modules
     return true
 end
 
@@ -246,88 +265,62 @@ end
 return ExampleService
 ```
 
-### Handlers
-Handlers are server scripts that process game events, handling specific tasks like player management while services manage core logic.
+### Controllers
+Controllers are client-side modules that handle user interface, input, and local game state.
 
 ```lua
-local ExampleHandler = {}
+local ExampleController = {}
 
--- Import required services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Services = {
-    Event = require(ReplicatedStorage.Services.Network.EventService)
+ExampleController.Dependencies = {
+    "Event"
 }
 
--- Define event handlers
-local Events = {
-    ["Client.Example.Action"] = {
-        handler = function(player, data)
-            -- Handle player action request
-            -- Validate action data
-            if not data.actionType then return end
-            print(string.format("Player %s performed action: %s", player.Name, data.actionType))
-        end
-    },
-    
-    ["Client.Example.Request"] = {
-        handler = function(player, data)
-            -- Handle player request
-            -- Validate request data
-            if not data.requestType then return end
-            print(string.format("Player %s made request: %s", player.Name, data.requestType))
-        end
+ExampleController.Events = {
+    LocalUpdate = {
+        server = false,
+        client = true,
+        local_only = true
     }
 }
 
--- Initialize event listeners
-local function Initialize()
-    for eventName, event in pairs(Events) do
-        Services.Event:OnServerEvent(eventName, event.handler)
+local Controllers
+local Modules
+
+ExampleController.Listeners = {
+    ["Service.Event"] = function(self, data)
+        -- Handle server event
+        print("Received event from server:", data)
+        -- Update local state
+        self:UpdateFrame(data)
     end
-end
-
-Initialize()
-
-return ExampleHandler
-```
-
-### Clients
-Clients are local scripts that handle game state, user input, and user interface while communicating with the server.
-
-```lua
-local ExampleClient = {}
-
--- Import required services
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Services = {
-    Event = require(ReplicatedStorage.Services.Network.EventService)
 }
 
--- Define event handlers
-local Events = {
-    ["Client.Example.Update"] = {
-        handler = function(data)
-            print("Received update:", data)
-            -- Handle event data
-        end
-    },
-    
-    ["Client.Example.Get"] = {
-        handler = function(data)
-            -- Process received data
-            return true
-        end
-    }
-}
-
--- Initialize event listeners
-local function Initialize()
-    for eventName, handler in pairs(Events) do
-        Services.Event:OnClientEvent(eventName, handler.handler)
-    end
+function ExampleController:Init(controllers, modules)
+    Controllers = controllers
+    Modules = modules
+    return true
 end
 
-Initialize()
+function ExampleController:Start()
+    -- Initialize UI elements
+    self:CreateFrame()
+    return true
+end
+
+function ExampleController:CreateFrame()
+    -- Create user interface elements
+end
+
+function ExampleController:UpdateFrame(data)
+    -- Update interface based on data
+end
+
+function ExampleController:RequestData(type)
+    -- Send request to server
+    Controllers.Event:FireServer("Service.Request", type)
+end
+
+return ExampleController
 ```
 
 ### Interface Utilities
@@ -335,7 +328,7 @@ The framework includes a comprehensive set of interface creation utilities:
 
 - **Animation**
   ```lua
-  local Animation = require(client.Utility.Animation)
+  local Animation = require(ReplicatedStorage.Modules.Utility.Animation)
   
   -- Create smooth transitions
   Animation.Tween(frame, {
@@ -348,7 +341,7 @@ The framework includes a comprehensive set of interface creation utilities:
 
 - **Input**
   ```lua
-  local Input = require(client.Utility.Input)
+  local Input = require(ReplicatedStorage.Modules.Utility.Input)
   
   -- Multi-platform input handling (PC, Console, Mobile)
   Input.HandleInput({
@@ -375,7 +368,7 @@ The framework includes a comprehensive set of interface creation utilities:
       axes = {
           name = "Zoom",
           keys = {
-              [Enum.UserInputType.MouseWheel] = 1
+              [Enum.UserInputType.MouseWheel] = 1,
               [Enum.KeyCode.DPadUp] = 0.5,
               [Enum.KeyCode.DPadDown] = -0.5,
               [Enum.UserInputType.TouchPinch] = 0.5
@@ -388,7 +381,7 @@ The framework includes a comprehensive set of interface creation utilities:
 
 - **Scale**
   ```lua
-  local Scale = require(client.Utility.Scale)
+  local Scale = require(ReplicatedStorage.Modules.Utility.Scale)
   
   -- Automatic UI scaling
   Scale.AutoScale(frame)
@@ -396,7 +389,7 @@ The framework includes a comprehensive set of interface creation utilities:
 
 - **Sound**
   ```lua
-  local Sound = require(client.Utility.Sound)
+  local Sound = require(ReplicatedStorage.Modules.Utility.Sound)
   
   -- Play UI sound effects
   Sound.Button("Primary")
@@ -410,7 +403,7 @@ The framework includes a comprehensive set of interface creation utilities:
 
 - **Tab**
   ```lua
-  local Tab = require(client.Utility.Tab)
+  local Tab = require(ReplicatedStorage.Modules.Utility.Tab)
   
   -- Register a new tab with open/close callbacks
   Tab.Create("Inventory", 

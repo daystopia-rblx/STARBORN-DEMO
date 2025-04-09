@@ -1,4 +1,4 @@
---[[ Animation
+--[[ Controller
     @author @Daystopia
     @version 1.0.1
     @date 2025-04-02
@@ -49,7 +49,7 @@ Controller.Duration = {
     Shortest = 0.15,
     Short = 0.2,
     Medium = 0.3,
-    Normal = 0.3, -- Alias for Medium
+    Normal = 0.3,
     Long = 0.5,
     Longest = 0.8
 }
@@ -233,7 +233,7 @@ Controller.Presets = {
 
 local ActiveTweens = {}
 
---[[ Utility Functions from Animation module ]]
+--[[ Utility Functions ]]
 function Controller.Stop(instance: Instance)
     if not instance then return end
     if ActiveTweens[instance] then

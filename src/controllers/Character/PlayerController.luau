@@ -1,38 +1,58 @@
---[[ PlayerClient
+--[[ PlayerController
     Client-side player management with character customization and state tracking.
     Handles player UI, animations, and real-time state synchronization.
     @author @Daystopia
-    @version 1.0.3
-    @date 2025-04-02
+    @version 1.0.4
+    @date 2025-04-09
 ]]
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PlayerController = {}
+
 local StarterGui = game:GetService("StarterGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local Services = {
-    Event = require(ReplicatedStorage.Services.Network.EventService)
+PlayerController.Dependencies = {
+    "Event"
 }
+
+--[[ State ]]
+local Controllers
+local Modules
 local Utility = {
-    Controller = require(script.Parent.Utility.Controller),
-    Input = require(script.Parent.Utility.Input),
-    Sound = require(script.Parent.Utility.Sound)
+    Input = require(ReplicatedStorage.Modules.Utility.Input),
 }
 
-local Events = {
-    ["Player.Join"] = {
-        handler = function(data)
-            -- No action needed
-        end
-    },
-
-    ["Player.Left"] = {
-        handler = function(data)
-            -- No action needed
-        end
-    }
+--[[ Events ]]
+PlayerController.Events = {
+    Join = true,
+    Left = true
 }
 
---[[ Input Handling ]]
-local function SetupInput()
+--[[ Listeners ]]
+PlayerController.Listeners = {
+    ["Player.Join"] = function(self, data)
+        -- No action needed
+    end,
+
+    ["Player.Left"] = function(self, data)
+        -- No action needed
+    end
+}
+
+--[[ Core Functions ]]
+function PlayerController:Init(controllers, modules)
+    Controllers = controllers
+    Modules = modules
+    return true
+end
+
+function PlayerController:Start()
+    self:SetupInput()
+    self:DisableDefault()
+    return true
+end
+
+--[[ Player Functions ]]
+function PlayerController:SetupInput()
     Utility.Input.HandleInput({
         id = "Player",
         actions = {
@@ -45,7 +65,7 @@ local function SetupInput()
     })
 end
 
-local function DisableDefault()
+function PlayerController:DisableDefault()
     StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
     StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
     StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
@@ -71,13 +91,4 @@ local function DisableDefault()
     end)
 end
 
-local function Initialize()
-    for eventName, handler in pairs(Events) do
-        Services.Event:OnClientEvent(eventName, handler.handler)
-    end
-
-    task.spawn(SetupInput)
-    task.spawn(DisableDefault)
-end
-
-Initialize()
+return PlayerController

@@ -1,33 +1,114 @@
---[[ TeleportClient
+--[[ TeleportController
     Client-side teleportation system with loading screens and transitions.
     Manages teleport animations, progress indicators, and server transitions.
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-02-06
+    @version 1.0.1
+    @date 2025-04-09
 ]]
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Services = {
-    Event = require(ReplicatedStorage.Services.Network.EventService)
+local TeleportController = {}
+
+TeleportController.Dependencies = {
+    "Event"
 }
 
-local Utility = {
-    Controller = require(script.Parent.Utility.Controller),
-    Sound = require(script.Parent.Utility.Sound)
-}
+--[[ Modules ]]
+local Controllers
+local Modules
 
-local state = {
+--[[ State ]]
+local State = {
     activeScreen = nil,
     loadingScreens = {},
     isLoading = false
 }
 
-local function CreateLoadingScreen(config)
+--[[ Events ]]
+TeleportController.Events = {
+    Init = true,
+    Success = true,
+    Fail = true,
+    Queue = true,
+    Retry = true
+}
+
+--[[ Listeners ]]
+TeleportController.Listeners = {
+    ["Teleport.Init"] = function(self, data)
+        if State.isLoading then return end
+        State.isLoading = true
+
+        local config = data.config or {}
+        local screen = self:CreateLoadingScreen(config)
+        State.activeScreen = screen
+
+        self:AnimateLoadingScreen(screen, true)
+        Modules.Utility.Sound.Play("Teleport")
+    end,
+
+    ["Teleport.Success"] = function(self, data)
+        if not State.activeScreen then return end
+        State.isLoading = false
+
+        self:AnimateLoadingScreen(State.activeScreen, false)
+        task.wait(0.5)
+
+        if State.activeScreen and State.activeScreen.gui then
+            State.activeScreen.gui:Destroy()
+        end
+        State.activeScreen = nil
+    end,
+
+    ["Teleport.Fail"] = function(self, data)
+        if not State.activeScreen then return end
+        State.isLoading = false
+
+        State.activeScreen.message.Text = data.error or "Teleport failed"
+        task.wait(2)
+
+        self:AnimateLoadingScreen(State.activeScreen, false)
+        task.wait(0.5)
+
+        if State.activeScreen and State.activeScreen.gui then
+            State.activeScreen.gui:Destroy()
+        end
+        State.activeScreen = nil
+    end,
+
+    ["Teleport.Queue"] = function(self, data)
+        if not State.activeScreen then return end
+        State.activeScreen.message.Text = "Waiting in queue..."
+    end,
+
+    ["Teleport.Retry"] = function(self, data)
+        if not State.activeScreen then return end
+        State.activeScreen.message.Text = string.format("Retrying... (Attempt %d)", data.attempt)
+    end
+}
+
+--[[ Core Functions ]]
+function TeleportController:Init(controllers, modules)
+    Controllers = controllers
+    Modules = modules
+    return true
+end
+
+--[[ State Functions ]]
+function TeleportController:IsLoading()
+    return State.isLoading
+end
+
+function TeleportController:GetActiveScreen()
+    return State.activeScreen
+end
+
+--[[ Interface Functions ]]
+function TeleportController:CreateLoadingScreen(config)
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "TeleportLoadingScreen"
     screenGui.IgnoreGuiInset = true
     screenGui.Parent = game.Players.LocalPlayer.PlayerGui
 
-    local background = Utility.Component.CreateFrame({
+    local background = Modules.Utility.Component.CreateFrame({
         Name = "Background",
         Size = UDim2.fromScale(1, 1),
         BackgroundColor3 = Color3.fromRGB(20, 20, 25),
@@ -35,7 +116,7 @@ local function CreateLoadingScreen(config)
         Parent = screenGui
     })
 
-    local container = Utility.Component.CreateFrame({
+    local container = Modules.Utility.Component.CreateFrame({
         Name = "Container",
         Size = UDim2.fromOffset(400, 200),
         Position = UDim2.fromScale(0.5, 0.5),
@@ -53,7 +134,7 @@ local function CreateLoadingScreen(config)
     icon.Image = config.icon or ""
     icon.Parent = container
 
-    local message = Utility.Component.CreateLabel({
+    local message = Modules.Utility.Component.CreateLabel({
         Name = "Message",
         Size = UDim2.new(1, 0, 0, 30),
         Position = UDim2.new(0, 0, 1, -60),
@@ -65,7 +146,7 @@ local function CreateLoadingScreen(config)
         Parent = container
     })
 
-    local dots = Utility.Component.CreateLabel({
+    local dots = Modules.Utility.Component.CreateLabel({
         Name = "Dots",
         Size = UDim2.new(1, 0, 0, 20),
         Position = UDim2.new(0, 0, 1, -30),
@@ -88,25 +169,25 @@ local function CreateLoadingScreen(config)
     }
 end
 
-local function AnimateLoadingScreen(screen, showing)
+function TeleportController:AnimateLoadingScreen(screen, showing)
     local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
     local transparency = if showing then 0 else 1
 
-    Utility.Controller.Update({
+    Modules.Utility.Controller.Update({
         instance = screen.background,
         properties = { BackgroundTransparency = transparency },
         duration = 0.5,
         easingStyle = Enum.EasingStyle.Quad
     })
 
-    Utility.Controller.Update({
+    Modules.Utility.Controller.Update({
         instance = screen.message,
         properties = { TextTransparency = transparency },
         duration = 0.5,
         easingStyle = Enum.EasingStyle.Quad
     })
 
-    Utility.Controller.Update({
+    Modules.Utility.Controller.Update({
         instance = screen.dots,
         properties = { TextTransparency = transparency },
         duration = 0.5,
@@ -148,63 +229,4 @@ local function AnimateLoadingScreen(screen, showing)
     end
 end
 
-local Events = {
-    ["Client.Teleport.Init"] = {handler = function(data)
-        if state.isLoading then return end
-        state.isLoading = true
-
-        local config = data.config or {}
-        local screen = CreateLoadingScreen(config)
-        state.activeScreen = screen
-
-        AnimateLoadingScreen(screen, true)
-        Utility.Sound.Play("Teleport")
-    end},
-
-    ["Client.Teleport.Success"] = {handler = function(data)
-        if not state.activeScreen then return end
-        state.isLoading = false
-
-        AnimateLoadingScreen(state.activeScreen, false)
-        task.wait(0.5)
-
-        if state.activeScreen and state.activeScreen.gui then
-            state.activeScreen.gui:Destroy()
-        end
-        state.activeScreen = nil
-    end},
-
-    ["Client.Teleport.Fail"] = {handler = function(data)
-        if not state.activeScreen then return end
-        state.isLoading = false
-
-        state.activeScreen.message.Text = data.error or "Teleport failed"
-        task.wait(2)
-
-        AnimateLoadingScreen(state.activeScreen, false)
-        task.wait(0.5)
-
-        if state.activeScreen and state.activeScreen.gui then
-            state.activeScreen.gui:Destroy()
-        end
-        state.activeScreen = nil
-    end},
-
-    ["Client.Teleport.Queue"] = {handler = function(data)
-        if not state.activeScreen then return end
-        state.activeScreen.message.Text = "Waiting in queue..."
-    end},
-
-    ["Client.Teleport.Retry"] = {handler = function(data)
-        if not state.activeScreen then return end
-        state.activeScreen.message.Text = string.format("Retrying... (Attempt %d)", data.attempt)
-    end}
-}
-
-local function Initialize()
-    for eventName, handler in pairs(Events) do
-        Services.Event:OnClientEvent(eventName, handler.handler)
-    end
-end
-
-Initialize()
+return TeleportController
