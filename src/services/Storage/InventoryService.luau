@@ -1,7 +1,7 @@
 --[[ InventoryService
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-03-31
+    @version 1.0.1
+    @date 2025-04-11
 ]]
 local InventoryService = {}
 
@@ -12,7 +12,11 @@ InventoryService.Dependencies = {
 }
 
 InventoryService.Modules = {
-    "Equipment"
+    "Object",
+    "Weapon",
+    "Equipment",
+    "Craft",
+    "Food"
 }
 
 InventoryService.Events = {
@@ -43,6 +47,44 @@ function InventoryService:Cleanup()
     table.clear(State.inventories)
 end
 
+--[[ Utility Functions ]]
+function InventoryService:GetTemplate(itemId: string): (any?, string?)
+    if not itemId then return nil, nil end
+
+    local itemTemplate = nil
+    local sourceModule = nil
+
+    for moduleName, moduleObj in pairs(Modules) do
+        if moduleObj.Templates and moduleObj.Templates[itemId] then
+            itemTemplate = moduleObj.Templates[itemId]
+            sourceModule = moduleName
+            break
+        elseif moduleObj.Templates then
+            for _, category in pairs(moduleObj.Templates) do
+                if type(category) == "table" and category[itemId] then
+                    itemTemplate = category[itemId]
+                    sourceModule = moduleName
+                    break
+                end
+            end
+            if itemTemplate then break end
+        end
+
+        local getterFn = moduleObj["Get" .. moduleName]
+        if type(getterFn) == "function" then
+            local result = getterFn(itemId)
+            if result then
+                itemTemplate = result
+                sourceModule = moduleName
+                break
+            end
+        end
+    end
+
+    return itemTemplate, sourceModule
+end
+
+
 --[[ Inventory Functions ]]
 function InventoryService:AddItem(entity: any, itemId: string, quantity: number?): (boolean, string?)
     if not (entity and itemId) then return false, "Invalid input" end
@@ -53,8 +95,8 @@ function InventoryService:AddItem(entity: any, itemId: string, quantity: number?
     State.inventories[entity] = State.inventories[entity] or {}
     local inventory = State.inventories[entity]
 
-    local template = Modules.Equipment.Templates[itemId]
-    if not template then return false, "Invalid item" end
+    local itemTemplate, sourceModule = self:GetTemplate(itemId)
+    if not itemTemplate then return false, "Invalid item" end
 
     inventory[itemId] = (inventory[itemId] or 0) + quantity
 
@@ -62,7 +104,8 @@ function InventoryService:AddItem(entity: any, itemId: string, quantity: number?
         entity = entity,
         itemId = itemId,
         quantity = quantity,
-        newTotal = inventory[itemId]
+        newTotal = inventory[itemId],
+        moduleSource = sourceModule
     })
 
     return true
@@ -122,6 +165,139 @@ function InventoryService:ClearInventory(entity: any): boolean
     end
 
     return false
+end
+
+function InventoryService:UseItem(entity: any, itemId: string, variant: string?): (boolean, string?)
+    if not (entity and itemId) then return false, "Invalid input" end
+
+    if not self:GetItem(entity, itemId, 1) then
+        return false, "Item not in inventory"
+    end
+
+    local itemTemplate, sourceModule = self:GetTemplate(itemId)
+    if not itemTemplate then return false, "Invalid item" end
+
+    local variantData = nil
+    local defaults = {}
+
+    if itemTemplate.defaults then
+        defaults = itemTemplate.defaults
+        if variant and itemTemplate.variants and itemTemplate.variants[variant] then
+            variantData = itemTemplate.variants[variant]
+        end
+    end
+
+    local success = false
+    local effects = {}
+    local buffList = {}
+
+    if defaults.statEffects then
+        for stat, value in pairs(defaults.statEffects) do
+            local finalValue = value
+            if variantData and variantData.statEffects and variantData.statEffects[stat] then
+                finalValue = variantData.statEffects[stat]
+            end
+
+            local statKey = stat:upper()
+            local duration = defaults.duration
+            if variantData and variantData.duration then
+                duration = variantData.duration
+            end
+
+            local isInstantEffect = not duration or duration <= 0
+
+            if isInstantEffect then
+                Services.Stat:ModifyStat(entity, statKey, {
+                    operation = "add",
+                    value = finalValue,
+                    metadata = {
+                        source = "item_use",
+                        item = itemId,
+                        variant = variant
+                    }
+                })
+
+                table.insert(effects, {
+                    stat = statKey,
+                    value = finalValue,
+                    type = "instant"
+                })
+                success = true
+            else
+                if entity.UserId then
+                    local buffId = itemId .. "_" .. statKey
+                    local multiplier = 1 + (finalValue / 100)
+
+                    Services.Stat:ApplyBuff(tostring(entity.UserId), statKey, multiplier, buffId, duration)
+
+                    table.insert(effects, {
+                        stat = statKey,
+                        value = finalValue,
+                        duration = duration,
+                        type = "buff"
+                    })
+
+                    table.insert(buffList, {
+                        id = buffId,
+                        stat = statKey,
+                        multiplier = multiplier,
+                        duration = duration
+                    })
+                    success = true
+                end
+            end
+        end
+    elseif itemTemplate.onUse and type(itemTemplate.onUse) == "function" then
+        local useSuccess, result = pcall(itemTemplate.onUse, entity)
+        if useSuccess then
+            effects = result
+            success = true
+        else
+            return false, "Error using item"
+        end
+    elseif itemTemplate.effects then
+        for effectType, effectData in pairs(itemTemplate.effects) do
+            if effectType == "stats" then
+                for stat, value in pairs(effectData) do
+                    Services.Stat:ModifyStat(entity, stat, {
+                        operation = effectData.operation or "add",
+                        value = value,
+                        metadata = {
+                            source = "item_use",
+                            item = itemId
+                        }
+                    })
+
+                    table.insert(effects, {
+                        stat = stat,
+                        value = value,
+                        operation = effectData.operation or "add"
+                    })
+                    success = true
+                end
+            end
+        end
+    elseif itemTemplate.usable then
+        success = true
+        effects = { message = "Item used" }
+    else
+        return false, "Item cannot be used"
+    end
+
+    if success then
+        self:RemoveItem(entity, itemId, 1)
+
+        Services.Event:Fire("Inventory.Use", {
+            entity = entity,
+            itemId = itemId,
+            variant = variant,
+            moduleSource = sourceModule,
+            effects = effects,
+            buffs = buffList
+        })
+    end
+
+    return success, { effects = effects, buffs = buffList }
 end
 
 --[[ Equipment Functions ]]

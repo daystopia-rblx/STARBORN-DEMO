@@ -18,8 +18,20 @@ PlayerService.Dependencies = {
 }
 
 PlayerService.Events = {
-    Join = true,
-    Left = true
+    Join = {
+        validate = true,
+        schema = {
+            userId = "userId",
+            player = "playerInstance"
+        }
+    },
+    Left = {
+        validate = true,
+        schema = {
+            userId = "userId",
+            player = "playerInstance"
+        }
+    }
 }
 
 local Services

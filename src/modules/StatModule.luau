@@ -1,7 +1,7 @@
 --[[ StatModule
     @author @Daystopia
-    @version 1.0.3
-    @date 2025-04-03
+    @version 1.0.4
+    @date 2025-04-10
 ]]
 local StatModule = {}
 
@@ -58,6 +58,14 @@ export type Stat = {
         conditions: {[string]: (entity: any) -> boolean}?
     }?,
 
+    syncProperties: {[string]: {
+        class: string,
+        property: string,
+        condition: ((entity: any, value: any, metadata: any) -> boolean)?
+    }}?,
+
+    storageType: string?,
+    playerSpecific: boolean?,
     metadata: {[string]: any}?
 }
 
@@ -71,7 +79,16 @@ StatModule.Constants = {
         COMBAT = "COMBAT",
         PROGRESSION = "PROGRESSION",
         SURVIVAL = "SURVIVAL",
-        WEAPON = "WEAPON"
+        WEAPON = "WEAPON",
+        MEMORY = "MEMORY",
+        CRAFT = "CRAFT"
+    },
+
+    STORAGE_TYPE = {
+        ATTRIBUTE = "ATTRIBUTE",
+        PLAYER_DATA = "PLAYER_DATA",
+        BOTH = "BOTH",
+        WORLD_DATA = "WORLD_DATA"
     },
 
     OPERATIONS = {
@@ -198,12 +215,92 @@ StatModule.Constants = {
         REPAIR_COST_MULTIPLIER = 1.5,
         MIN_DURABILITY_DAMAGE_MULT = 0.5,
         MAX_SHARPNESS_CRIT_MULT = 1.2
+    },
+
+    -- Crafting Constants
+    CRAFT = {
+        BASE_SUCCESS_RATE = 0.8,
+        SKILL_SUCCESS_BONUS = 0.01,
+        MAX_SUCCESS_RATE = 0.99,
+        BASE_MATERIAL_RETURN = 0.5,
+        SKILL_RETURN_BONUS = 0.01,
+        SKILL_PROGRESS_MULTIPLIER = 2.0,
+        MAX_SKILL_LEVEL = 100
+    }
+}
+
+--[[ Entity Profiles ]]
+StatModule.EntityProfiles = {
+    CHARACTER = {
+        stats = {
+            "HEALTH",
+            "BLOOD",
+            "OXYGEN",
+            "MANA",
+            "STAMINA",
+            "POSTURE",
+            "RESONANCE",
+            "SPEED",
+            "JUMP_POWER",
+            "HUNGER",
+            "THIRST",
+            "FORGING",
+            "SMITHING",
+            "COOKING",
+            "ALCHEMY"
+        },
+        cycles = {
+            "HEALTH",
+            "BLOOD",
+            "MANA",
+            "STAMINA",
+            "POSTURE",
+            "HUNGER",
+            "THIRST",
+            "OXYGEN"
+        }
+    },
+
+    PERSON = {
+        stats = {
+            "HEALTH",
+            "MANA",
+            "STAMINA",
+            "POSTURE",
+            "RESONANCE",
+            "SPEED",
+            "TRUST",
+            "MEMORY",
+            "EMOTION"
+        },
+        cycles = {
+            "HEALTH",
+            "MANA",
+            "STAMINA",
+            "POSTURE",
+            "TRUST",
+            "MEMORY",
+            "EMOTION"
+        }
+    },
+
+    WEAPON = {
+        stats = {
+            "DURABILITY",
+            "SHARPNESS",
+            "DAMAGE",
+            "CRITICAL"
+        },
+        cycles = {
+            "DURABILITY",
+            "SHARPNESS"
+        }
     }
 }
 
 --[[ Templates ]]
 StatModule.Templates = {
-    -- Level/Progression
+    -- Levels
     LEVEL = {
         baseValue = 1,
         minValue = 1,
@@ -231,6 +328,199 @@ StatModule.Templates = {
         }
     },
 
+    FORGING = {
+        baseValue = 1,
+        minValue = 1,
+        maxValue = StatModule.Constants.CRAFT.MAX_SKILL_LEVEL,
+        category = "CRAFT",
+        displayName = "Weapon Forging",
+        description = "Skill at crafting weapons",
+        icon = "",
+        color = Color3.fromRGB(150, 75, 0),
+        format = "%.0f",
+        playerSpecific = true,
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        effects = {
+            WEAPON_FORGING_SUCCESS_RATE = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("FORGING") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_SUCCESS_BONUS
+                end
+            },
+            WEAPON_FORGING_MATERIAL_RETURN = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("FORGING") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_RETURN_BONUS
+                end
+            },
+            LEVEL_PROGRESS = {
+                type = "ADD",
+                value = function(entity)
+                    return 0.5
+                end
+            }
+        }
+    },
+
+    SMITHING = {
+        baseValue = 1,
+        minValue = 1,
+        maxValue = StatModule.Constants.CRAFT.MAX_SKILL_LEVEL,
+        category = "CRAFT",
+        displayName = "Armor Smithing",
+        description = "Skill at crafting armor and protective equipment",
+        icon = "",
+        color = Color3.fromRGB(100, 100, 150),
+        format = "%.0f",
+        playerSpecific = true,
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        effects = {
+            ARMOR_SMITHING_SUCCESS_RATE = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("SMITHING") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_SUCCESS_BONUS
+                end
+            },
+            ARMOR_SMITHING_MATERIAL_RETURN = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("SMITHING") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_RETURN_BONUS
+                end
+            },
+            LEVEL_PROGRESS = {
+                type = "ADD",
+                value = function(entity)
+                    return 0.5
+                end
+            }
+        }
+    },
+
+    COOKING = {
+        baseValue = 1,
+        minValue = 1,
+        maxValue = StatModule.Constants.CRAFT.MAX_SKILL_LEVEL,
+        category = "CRAFT",
+        displayName = "Cooking",
+        description = "Skill at preparing food and consumables",
+        icon = "",
+        color = Color3.fromRGB(255, 160, 0),
+        format = "%.0f",
+        playerSpecific = true,
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        effects = {
+            COOKING_SUCCESS_RATE = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("COOKING") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_SUCCESS_BONUS
+                end
+            },
+            COOKING_MATERIAL_RETURN = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("COOKING") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_RETURN_BONUS
+                end
+            },
+            LEVEL_PROGRESS = {
+                type = "ADD",
+                value = function(entity)
+                    return 0.5
+                end
+            }
+        }
+    },
+
+    ALCHEMY = {
+        baseValue = 1,
+        minValue = 1,
+        maxValue = StatModule.Constants.CRAFT.MAX_SKILL_LEVEL,
+        category = "CRAFT",
+        displayName = "Alchemy",
+        description = "Skill at brewing potions and mixing ingredients",
+        icon = "",
+        color = Color3.fromRGB(120, 0, 180),
+        format = "%.0f",
+        playerSpecific = true,
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        effects = {
+            ALCHEMY_SUCCESS_RATE = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("ALCHEMY") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_SUCCESS_BONUS
+                end
+            },
+            ALCHEMY_MATERIAL_RETURN = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("ALCHEMY") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_RETURN_BONUS
+                end
+            },
+            LEVEL_PROGRESS = {
+                type = "ADD",
+                value = function(entity)
+                    return 0.5
+                end
+            }
+        }
+    },
+
+    -- Progression
+    REPUTATION = {
+        baseValue = 0,
+        minValue = -100,
+        maxValue = 100,
+        decay = {
+            amount = 0.05,
+            interval = 86400
+        },
+        category = "MEMORY",
+        displayName = "Global Reputation",
+        description = "Overall standing in the world affecting how all NPCs view you initially",
+        icon = "",
+        color = Color3.fromRGB(255, 223, 0),
+        format = "%.0f",
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        playerSpecific = true,
+        effects = {
+            TRUST_GAIN = {
+                type = "MULTIPLY",
+                value = function(entity)
+                    local reputation = entity:GetAttribute("REPUTATION") or 0
+                    return 1 + (reputation / 200)
+                end
+            },
+            FACTION_STANDING_GAIN = {
+                type = "MULTIPLY",
+                value = function(entity)
+                    local reputation = entity:GetAttribute("REPUTATION") or 0
+                    return 1 + (reputation / 200)
+                end
+            }
+        },
+        metadata = {
+            reputationThresholds = {
+                INFAMOUS = -80,
+                NOTORIOUS = -50,
+                SUSPICIOUS = -20,
+                NEUTRAL = 0,
+                RESPECTED = 20,
+                RENOWNED = 50,
+                LEGENDARY = 80
+            },
+            decayRate = 0.05,
+            gainRate = 1.0,
+            lossRate = 2.0
+        }
+    },
+
     -- Vital Stats
     HEALTH = {
         baseValue = StatModule.Constants.RESOURCE.BASE_HEALTH,
@@ -248,7 +538,17 @@ StatModule.Templates = {
         description = "Character's life force",
         icon = "",
         color = Color3.fromRGB(255, 0, 0),
-        format = "%.0f/%.0f"
+        format = "%.0f/%.0f",
+        syncProperties = {
+            default = {
+                class = "Humanoid",
+                property = "Health"
+            },
+            max = {
+                class = "Humanoid",
+                property = "MaxHealth"
+            }
+        }
     },
 
     BLOOD = {
@@ -412,6 +712,12 @@ StatModule.Templates = {
                 value = StatModule.Constants.MOVEMENT.SWIM_MULTIPLIER,
                 type = "MULTIPLY"
             }
+        },
+        syncProperties = {
+            default = {
+                class = "Humanoid",
+                property = "WalkSpeed"
+            }
         }
     },
 
@@ -435,6 +741,109 @@ StatModule.Templates = {
                 id = "SWIMMING",
                 value = 0.25,
                 type = "MULTIPLY"
+            }
+        },
+        syncProperties = {
+            default = {
+                class = "Humanoid",
+                property = "JumpPower"
+            }
+        }
+    },
+
+    -- Core Attributes
+    STRENGTH = {
+        baseValue = 10,
+        minValue = 1,
+        maxValue = 100,
+        category = StatModule.Constants.CATEGORIES.ATTRIBUTE,
+        displayName = "Strength",
+        description = "Physical strength.",
+        icon = "",
+        color = Color3.fromRGB(200, 50, 50),
+        format = "%.0f",
+        effects = {
+            PENETRATION = {
+                type = "PERCENT",
+                value = function(entity)
+                    local strength = entity:GetAttribute("STRENGTH") or 10
+                    return math.floor(strength / 10)
+                end
+            }
+        }
+    },
+
+    GRIT = {
+        baseValue = 10,
+        minValue = 1,
+        maxValue = 100,
+        category = StatModule.Constants.CATEGORIES.ATTRIBUTE,
+        displayName = "Grit",
+        description = "Resilience against threats.",
+        icon = "",
+        color = Color3.fromRGB(100, 100, 100),
+        format = "%.0f",
+        effects = {
+            MAX_HEALTH_ADD = {
+                type = "ADD",
+                value = function(entity)
+                    local grit = entity:GetAttribute("GRIT") or 10
+                    return grit * 0.5
+                end
+            }
+        }
+    },
+
+    DEXTERITY = {
+        baseValue = 10,
+        minValue = 1,
+        maxValue = 100,
+        category = StatModule.Constants.CATEGORIES.ATTRIBUTE,
+        displayName = "Dexterity",
+        description = "Sleight of Hand and Nimbleness.",
+        icon = "",
+        color = Color3.fromRGB(50, 200, 50),
+        format = "%.0f",
+        effects = {
+            STEALTH_SKILL = {
+                type = "ADD",
+                value = 0.1 
+            }
+        }
+    },
+
+    INTELLIGENCE = {
+        baseValue = 10,
+        minValue = 1,
+        maxValue = 100,
+        category = StatModule.Constants.CATEGORIES.ATTRIBUTE,
+        displayName = "Intelligence",
+        description = "Logic and problem-solving skills.",
+        icon = "",
+        color = Color3.fromRGB(50, 50, 200),
+        format = "%.0f",
+        effects = {
+            MAX_ETHER_ADD = {
+                type = "ADD",
+                value = 2
+            }
+        }
+    },
+
+    RESOLVE = {
+        baseValue = 10,
+        minValue = 1,
+        maxValue = 100,
+        category = StatModule.Constants.CATEGORIES.ATTRIBUTE,
+        displayName = "Resolve",
+        description = "Capacity for mental stability and integrity.",
+        icon = "",
+        color = Color3.fromRGB(150, 50, 150),
+        format = "%.0f",
+        effects = {
+            TEMPO_ADD = {
+                type = "ADD",
+                value = 0.5
             }
         }
     },
@@ -472,23 +881,7 @@ StatModule.Templates = {
     RESONANCE = {
         baseValue = 0,
         minValue = 0,
-        maxValue = 100,
-        decay = {
-            amount = 5,
-            interval = 1,
-            condition = function(entity)
-                return not entity:GetAttribute("ATTACKING")
-            end
-        },
-        category = "COMBAT",
-        displayName = "Resonance",
-        description = "Combat momentum meter",
-        icon = "",
-        color = Color3.fromRGB(255, 128, 0),
-        format = "%.0f/%.0f",
-        effects = {
-            DAMAGE_MULTIPLIER = { type = "MULTIPLY", value = 1.5 }
-        }
+        maxValue = 100
     },
 
     -- Survival Stats
@@ -638,6 +1031,102 @@ StatModule.Templates = {
                 type = "MULTIPLY",
                 value = 0.01
             }
+        }
+    },
+
+    -- Memory Stats
+    TRUST = {
+        baseValue = 0,
+        minValue = -100,
+        maxValue = 100,
+        decay = {
+            amount = 0.05,
+            interval = 86400
+        },
+        category = "MEMORY",
+        displayName = "Trust",
+        description = "Level of trust in relationship, including forgiveness behavior",
+        icon = "",
+        color = Color3.fromRGB(0, 100, 200),
+        format = "%.0f",
+        metadata = {
+            moodThresholds = {
+                HOSTILE = -50,
+                SUSPICIOUS = -20,
+                NEUTRAL = 0,
+                FRIENDLY = 30,
+                TRUSTED = 70
+            },
+            forgivenessThreshold = 30,
+            trustGainRate = 1.0,
+            trustLossRate = 1.0
+        },
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        playerSpecific = true
+    },
+
+    MEMORY = {
+        baseValue = 604800,
+        minValue = 3600,
+        maxValue = 9999999,
+        decay = {
+            amount = 86400,
+            interval = 86400
+        },
+        category = "MEMORY",
+        displayName = "Memory Duration",
+        description = "How long an NPC remembers interactions",
+        icon = "",
+        color = Color3.fromRGB(150, 120, 180),
+        format = "%.0f",
+        storageType = StatModule.Constants.STORAGE_TYPE.ATTRIBUTE,
+        playerSpecific = false,
+        fixed = true
+    },
+
+    EMOTION = {
+        baseValue = 0,
+        minValue = -100,
+        maxValue = 100,
+        decay = {
+            amount = 0.1,
+            interval = 3600
+        },
+        category = "MEMORY",
+        displayName = "Emotion",
+        description = "Current emotional state affecting dialogue and interactions",
+        icon = "",
+        color = Color3.fromRGB(255, 165, 0),
+        format = "%.0f",
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        playerSpecific = true,
+        effects = {
+            DIALOGUE_RESPONSE = {
+                type = "MULTIPLY",
+                value = function(entity)
+                    local emotion = entity:GetAttribute("EMOTION") or 0
+                    return 1 + (emotion / 100)
+                end
+            },
+            RELATIONSHIP_GAIN = {
+                type = "MULTIPLY",
+                value = function(entity)
+                    local emotion = entity:GetAttribute("EMOTION") or 0
+                    return 1 + (emotion / 200)
+                end
+            }
+        },
+        metadata = {
+            emotionThresholds = {
+                BETRAYED = -50,
+                DISTRUSTFUL = -20,
+                NEUTRAL = 0,
+                FRIENDLY = 30,
+                DEVOTED = 70
+            },
+            decayRate = 0.1,
+            gainRate = 1.0,
+            lossRate = 1.0
         }
     }
 }

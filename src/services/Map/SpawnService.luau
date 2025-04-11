@@ -1,8 +1,8 @@
 --[[ SpawnService
     Manages checkpoint activation, respawning, and associated effects.
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-03-31
+    @version 1.0.2
+    @date 2025-04-11
 ]]
 local SpawnService = {}
 
@@ -30,16 +30,6 @@ local State = {
 }
 
 SpawnService.Listeners = {
-    ["Player.Join"] = function(self, data)
-        if data and data.player then
-            task.delay(0.1, function()
-                if data.player.Parent then
-                    self:RespawnCheckpoint(data.player)
-                end
-            end)
-        end
-    end,
-
     ["Combat.Death"] = function(self, data)
         if data and data.player then
             task.wait(1)
@@ -59,17 +49,34 @@ SpawnService.Listeners = {
 
     ["Data.Init"] = function(self, data)
         if not data or not data.player then return end
+        local userId = data.userId
+        local player = data.player
 
-        local playerData = Services.Data:GetData(data.userId, "PlayerData")
-        if not playerData or not playerData.checkpoint or not playerData.checkpoint.id then return end
+        local playerData = Services.Data:GetData(userId, "PlayerData")
 
-        local checkpointData = State.activeCheckpoints[playerData.checkpoint.id]
-        if checkpointData and checkpointData.instance:IsDescendantOf(game) then
-            State.playerCheckpoints[data.player.UserId] = {
+        local checkpointInfo = nil
+        if playerData and playerData.world and playerData.world.checkpoint and type(playerData.world.checkpoint) == "table" then
+            checkpointInfo = playerData.world.checkpoint
+        end
+
+        local checkpointId = checkpointInfo and checkpointInfo.id
+
+        if not checkpointId then
+            self:RespawnCheckpoint(player)
+            return
+        end
+
+        local checkpointData = State.activeCheckpoints[checkpointId]
+
+        if checkpointData and checkpointData.instance and checkpointData.instance:IsDescendantOf(game) then
+            State.playerCheckpoints[userId] = {
                 lastCheckpoint = checkpointData.instance,
                 position = checkpointData.position
             }
-            self:RespawnCheckpoint(data.player)
+            self:RespawnCheckpoint(player)
+        else
+            State.playerCheckpoints[userId] = nil
+            self:RespawnCheckpoint(player)
         end
     end,
 
@@ -162,7 +169,9 @@ function SpawnService:CheckOccupation(spawnPart: BasePart): boolean
 end
 
 function SpawnService:GetPosition(model: Instance): Vector3
-    if not model then return Vector3.new(0, 10, 0) end
+    if not model then
+        return Vector3.new(0, 10, 0)
+    end
 
     local spawnParts = {}
     local occupiedParts = {}
@@ -260,6 +269,7 @@ end
 
 function SpawnService:ActivateCheckpoint(player: Player, checkpoint: Instance)
     if not (player and checkpoint) then return false end
+    local userId = player.UserId
 
     local checkpointType = checkpoint:GetAttribute("TYPE")
     local spawnLocation = checkpoint:GetAttribute("SPAWN")
@@ -269,17 +279,25 @@ function SpawnService:ActivateCheckpoint(player: Player, checkpoint: Instance)
     local positionString = tostring(position):gsub("[^%d]", "")
     local checkpointId = checkpointType .. "_" .. spawnLocation .. "_" .. positionString
 
-    if not State.activeCheckpoints[checkpointId] then return false end
+    if not State.activeCheckpoints[checkpointId] then
+        if not self:RegisterCheckpoint(checkpoint) then
+             return false
+        end
+        if not State.activeCheckpoints[checkpointId] then
+            return false
+        end
+    end
 
     local checkpointData = State.activeCheckpoints[checkpointId]
 
-    State.playerCheckpoints[player.UserId] = {
+    State.playerCheckpoints[userId] = {
         lastCheckpoint = checkpoint,
         position = checkpointData.position
     }
 
     Services.Data:UpdateData(tostring(player.UserId), "PlayerData", function(data)
-        data.checkpoint = {
+        data.world = data.world or {}
+        data.world.checkpoint = {
             id = checkpointId,
             type = checkpointData.type,
             location = checkpointData.location,
@@ -323,36 +341,55 @@ end
 
 function SpawnService:GetCheckpoint(player: Player)
     if not player then return nil end
-    return State.playerCheckpoints[player.UserId]
+    local userId = player.UserId
+    local checkpointInfo = State.playerCheckpoints[userId]
+
+    local infoString = "nil"
+    if checkpointInfo then
+        infoString = string.format("{lastCheckpoint=%s, position=%s}",
+            checkpointInfo.lastCheckpoint and checkpointInfo.lastCheckpoint.Name or "nil",
+            tostring(checkpointInfo.position or "nil"))
+    end
+
+    return checkpointInfo
 end
 
 function SpawnService:RespawnCheckpoint(player: Player)
     if not player then return false end
 
     local checkpointData = self:GetCheckpoint(player)
-    local spawnPosition = Vector3.new(0, 10, 0)
+    local spawnPosition = Vector3.new(0, 10, 0) 
     local spawnCheckpoint = nil
+    local spawnReason = "Default (Fallback)"
+
+    if not State.defaultSpawn then
+        State.defaultSpawn = workspace:FindFirstChild("SpawnLocation", true)
+    end
 
     if State.defaultSpawn then
         spawnPosition = self:GetPosition(State.defaultSpawn)
+        spawnReason = "Default Spawn"
+    else
     end
 
-    if checkpointData and checkpointData.lastCheckpoint:IsDescendantOf(game) then
+    if checkpointData and checkpointData.lastCheckpoint and checkpointData.lastCheckpoint:IsDescendantOf(game) then
         spawnPosition = self:GetPosition(checkpointData.lastCheckpoint)
         spawnCheckpoint = checkpointData.lastCheckpoint
+        spawnReason = "Player Checkpoint"
     else
-        State.playerCheckpoints[player.UserId] = nil
+        State.playerCheckpoints[player.UserId] = nil 
     end
 
     Services.Stat:ModifyStat(player, "HEALTH", {
         operation = "set",
-        value = player:GetAttribute("HEALTH_MAX"),
+        value = player:GetAttribute("HEALTH_MAX") or 100,
         metadata = { source = "respawn" }
     })
 
     local character = player.Character
     if character and character.PrimaryPart then
-        character:PivotTo(CFrame.new(spawnPosition + Vector3.new(0, 3, 0)))
+        local targetCFrame = CFrame.new(spawnPosition + Vector3.new(0, 3, 0))
+        character:PivotTo(targetCFrame)
     end
 
     Services.Event:Fire("Spawn.Spawn", {

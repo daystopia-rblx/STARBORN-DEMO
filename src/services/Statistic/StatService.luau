@@ -2,18 +2,18 @@
     Comprehensive stat system with multipliers, regeneration, and progression.
     Manages player attributes, experience gains, and real-time stat updates.
     @author @Daystopia
-    @version 1.1.2
-    @date 2025-04-01
+    @version 1.1.3
+    @date 2025-04-10
 ]]
 local StatService = {}
 
 StatService.Dependencies = {
-    "Data",
     "Event"
 }
 
 StatService.Modules = {
-    "Stat"
+    "Stat",
+    "Person"
 }
 
 StatService.Events = {
@@ -26,6 +26,23 @@ StatService.Events = {
 local Players = game:GetService("Players")
 local Services
 local Modules
+
+local State = {
+    players = {},
+    multipliers = {},
+    cycles = setmetatable({}, {__mode = "k"}),
+    connections = setmetatable({}, {__mode = "k"}),
+    points = setmetatable({}, {
+        __index = function(self, key)
+            if not rawget(self, key) then
+                rawset(self, key, {})
+            end
+            return rawget(self, key)
+        end
+    }),
+    buffs = {}
+}
+
 
 StatService.Listeners = {
     [workspace.DescendantAdded] = function(self, instance: Instance)
@@ -48,22 +65,88 @@ StatService.Listeners = {
         player.CharacterAdded:Connect(function(character)
             self:RegisterEntity(character)
         end)
-    end
-}
+    end,
 
---[[ State Management ]]
-local State = {
-    multipliers = {},
-    cycles = setmetatable({}, {__mode = "k"}),
-    connections = setmetatable({}, {__mode = "k"}),
-    points = setmetatable({}, {
-        __index = function(self, key)
-            if not rawget(self, key) then
-                rawset(self, key, {})
+    ["Data.Init"] = function(self, data)
+        local player = data.player
+        local userId = data.userId
+        local playerData = data.data and data.data.PlayerData
+
+        if not playerData or not playerData.stats then return end
+
+        State.players[userId] = {}
+
+        for statKey, template in pairs(Modules.Stat.Templates) do
+            if template.playerSpecific then
+                local storageType = self:GetStorage(template)
+
+                if storageType == Modules.Stat.Constants.STORAGE_TYPE.PLAYER_DATA or
+                   storageType == Modules.Stat.Constants.STORAGE_TYPE.BOTH then
+
+                    for targetId, relationshipData in pairs(playerData.relationships or {}) do
+                        if not State.players[userId][targetId] then
+                            State.players[userId][targetId] = {}
+                        end
+
+                        local dataKey = statKey:lower()
+                        if relationshipData[dataKey] ~= nil then
+                           State.players[userId][targetId][statKey] = {
+                               value = relationshipData[dataKey],
+                               timestamp = relationshipData.lastInteraction or os.time()
+                           }
+                        end
+                    end
+                end
             end
-            return rawget(self, key)
         end
-    })
+
+        if player.Character then
+            self:RegisterEntity(player.Character)
+        end
+    end,
+
+    ["Weather.Update"] = function(self, data)
+        local weatherType = data.type
+        local intensity = data.intensity
+        local weatherEffects = {
+            ["Rain"] = {
+                stat = "STAMINA",
+                multiplier = 1 - (0.05 * intensity)
+            },
+            ["Thunderstorm"] = {
+                stat = "STAMINA",
+                multiplier = 1 - (0.1 * intensity)
+            },
+            ["Snow"] = {
+                stat = "SPEED",
+                multiplier = 0.8
+            },
+            ["Windy"] = {
+                stat = "STAMINA",
+                multiplier = 1 - (0.03 * intensity)
+            }
+        }
+
+        for _, player in ipairs(Players:GetPlayers()) do
+            local character = player.Character
+            if not character then continue end
+
+            local playerId = tostring(player.UserId)
+            local effect = weatherEffects[weatherType]
+
+            if effect then
+                self:ApplyBuff(playerId, effect.stat, effect.multiplier, "weather_" .. weatherType)
+            else
+                for stat, buffs in pairs(State.buffs[playerId] or {}) do
+                    for i, buff in ipairs(buffs) do
+                        if buff.reason:find("weather_") then
+                            self:RemoveBuff(playerId, stat, buff.reason)
+                        end
+                    end
+                end
+            end
+        end
+    end
 }
 
 -- [[ Core Functions ]]
@@ -90,12 +173,14 @@ function StatService:Start()
     end
 
     self:StartCycle()
+
     return true
 end
 
 function StatService:Cleanup()
     table.clear(State.multipliers)
     table.clear(State.cycles)
+    table.clear(State.players)
 
     for entity, entityConnections in pairs(State.connections) do
         for _, typeConnections in pairs(entityConnections) do
@@ -275,152 +360,319 @@ local StatOperations = {
     max = function(current, value) return math.max(current, value) end
 }
 
-function StatService:SetStat(entity: {GetAttribute: (string) -> any, SetAttribute: (string, any) -> nil}, statName: string, value: number, metadata: {[string]: any}?): (boolean, any?)
-    if not (entity and statName) then
-        return false, "Missing required parameters"
+function StatService:GetStorage(template, entity)
+    if not template.storageType then
+        local isUnique = entity and typeof(entity) == "Instance" and entity:GetAttribute("UNIQUE")
+        if template.playerSpecific and isUnique then
+            return Modules.Stat.Constants.STORAGE_TYPE.PLAYER_DATA
+        else
+            return template.playerSpecific
+                and Modules.Stat.Constants.STORAGE_TYPE.PLAYER_DATA
+                or Modules.Stat.Constants.STORAGE_TYPE.ATTRIBUTE
+        end
     end
 
-    local attrName = statName:upper()
-    local template = Modules.Stat.Templates[attrName]
+    return template.storageType
+end
 
-    if not template then
-        return false, "Invalid stat"
+function StatService:GetStat(target, statName, options)
+    if not (target and statName) then return nil end
+
+    local statKey = statName:upper()
+    local template = Modules.Stat.Templates[statKey]
+    if not template then return nil end
+
+    local isUnique = typeof(target) == "Instance" and target:GetAttribute("UNIQUE")
+    local storageType = self:GetStorage(template, target)
+
+    if template.playerSpecific then
+        local player, targetId
+
+        if type(options) == "table" then
+            player = options.player
+            targetId = options.targetId
+        end
+
+        if not (player and targetId) then return nil end
+
+        local userId = tostring(player.UserId)
+        local baseValue = self:GetBaseStat(target, statName, options)
+        local buffMultiplier = self:GetBuff(userId, statKey)
+
+        return baseValue * buffMultiplier
+    else
+        if typeof(target) ~= "Instance" then return nil end
+
+        local baseValue = target:GetAttribute(statKey) or template.baseValue
+        local buffMultiplier = 1 -- No buffs for non-player-specific stats
+
+        return baseValue * buffMultiplier
     end
+end
 
-    if template.fixed then
-        return false, "Cannot modify fixed stat"
-    end
+function StatService:SetStat(target, statName, value, options)
+    if not (target and statName) then return false end
 
-    local oldValue = entity:GetAttribute(attrName)
-    entity:SetAttribute(attrName, value)
+    local statKey = statName:upper()
+    local template = Modules.Stat.Templates[statKey]
+    if not template then return false end
 
-    if template.effects then
-        for effectName, effect in pairs(template.effects) do
-            local targetStat, effectType = effectName:match("(.+)_(.+)")
-            if targetStat and effectType then
-                local effectValue = type(effect.value) == "function" and effect.value(entity) or effect.value
-                if effect.type == "MULTIPLY" then
-                    effectValue = value * effectValue
-                elseif effect.type == "PERCENT" then
-                    effectValue = value * (effectValue / 100)
+    local isUnique = typeof(target) == "Instance" and target:GetAttribute("UNIQUE")
+    local storageType = self:GetStorage(template, target)
+
+    if template.playerSpecific then
+        local player, targetId
+
+        if type(options) == "table" then
+            player = options.player
+            targetId = options.targetId
+        end
+
+        if not (player and targetId) then return false end
+
+        local oldValue = nil
+        local shouldUpdatePlayerData = storageType == Modules.Stat.Constants.STORAGE_TYPE.PLAYER_DATA or
+                                      storageType == Modules.Stat.Constants.STORAGE_TYPE.BOTH
+
+        local shouldUpdateAttribute = storageType == Modules.Stat.Constants.STORAGE_TYPE.ATTRIBUTE or
+                                     storageType == Modules.Stat.Constants.STORAGE_TYPE.BOTH
+
+        if template.minValue ~= nil then
+            value = math.max(template.minValue, value)
+        end
+
+        if template.maxValue ~= nil then
+            value = math.min(template.maxValue, value)
+        end
+
+        if shouldUpdatePlayerData or isUnique then
+            local userId = tostring(player.UserId)
+
+            State.players[userId] = State.players[userId] or {}
+            State.players[userId][targetId] = State.players[userId][targetId] or {}
+
+            if State.players[userId][targetId][statKey] then
+                oldValue = State.players[userId][targetId][statKey].value
+            else
+                State.players[userId][targetId][statKey] = {
+                    value = template.baseValue or 0,
+                    timestamp = os.time()
+                }
+                oldValue = State.players[userId][targetId][statKey].value
+            end
+
+            State.players[userId][targetId][statKey].value = value
+            State.players[userId][targetId][statKey].timestamp = os.time()
+        end
+
+        if shouldUpdateAttribute and not isUnique then
+            if typeof(target) == "Instance" then
+                if oldValue == nil then
+                    oldValue = target:GetAttribute(statKey) or template.baseValue or 0
                 end
-                entity:SetAttribute(targetStat .. "_" .. effectType, effectValue)
+                target:SetAttribute(statKey, value)
             end
         end
-    end
 
-    if template.global and template.type == "MULTIPLIER" then
-        for affectedStat, statTemplate in pairs(Modules.Stat.Templates) do
-            if statTemplate.multiplier and affectedStat ~= attrName then
-                local currentMultiplier = entity:GetAttribute(affectedStat .. "_MULTIPLIER") or Modules.Stat.Constants.MULTIPLIER
-                entity:SetAttribute(affectedStat .. "_MULTIPLIER", currentMultiplier * value)
-            end
+        Services.Event:Fire("Stat.Update", {
+            player = player,
+            target = targetId,
+            stat = statKey,
+            type = "player_stat",
+            value = value,
+            previousValue = oldValue or 0,
+            metadata = options and options.metadata
+        })
+
+        return true
+    else
+        if typeof(target) ~= "Instance" then return false end
+
+        local attrName = statKey
+        local oldValue = target:GetAttribute(attrName)
+
+        if template.fixed then
+            return false, "Cannot modify fixed stat"
         end
-    end
 
-    if not (metadata and metadata.skipSync) then
-        if entity:IsA("Model") then
-            local humanoid = entity:FindFirstChild("Humanoid")
-            if humanoid then
-                if attrName == "HEALTH" then
-                    if metadata and metadata.operation == "max" then
-                        humanoid.MaxHealth = value
-                    else
-                        humanoid.Health = value
+        target:SetAttribute(attrName, value)
+
+        if template.effects then
+            for effectName, effect in pairs(template.effects) do
+                local targetStat, effectType = effectName:match("(.+)_(.+)")
+                if targetStat and effectType then
+                    local effectValue = type(effect.value) == "function" and effect.value(target) or effect.value
+                    if effect.type == "MULTIPLY" then
+                        effectValue = value * effectValue
+                    elseif effect.type == "PERCENT" then
+                        effectValue = value * (effectValue / 100)
                     end
-                elseif attrName == "SPEED" then
-                    humanoid.WalkSpeed = value
-                elseif attrName == "JUMP_POWER" then
-                    humanoid.JumpPower = value
+                    target:SetAttribute(targetStat .. "_" .. effectType, effectValue)
                 end
             end
         end
-    end
 
-    local eventData = {
-        entity = entity,
-        stat = attrName,
-        value = value,
-        previousValue = oldValue,
-        effects = template.effects,
-        metadata = metadata
-    }
+        if not (options and options.skipSync) then
+            if target:IsA("Model") and template.syncProperties then
+                for actionType, syncData in pairs(template.syncProperties) do
+                    if actionType ~= "default" then
+                        local instance
 
-    if attrName == "HEALTH" and entity:IsA("Model") then
-        local humanoid = entity:FindFirstChild("Humanoid")
-        if humanoid then
-            eventData.maxValue = humanoid.MaxHealth
+                        if syncData.class == "Humanoid" then
+                            instance = target:FindFirstChildOfClass("Humanoid")
+                        elseif syncData.class == "Self" then
+                            instance = target
+                        else
+                            instance = target:FindFirstChildOfClass(syncData.class)
+                        end
+
+                        if instance then
+                            local shouldSync = true
+                            if syncData.condition then
+                                shouldSync = syncData.condition(target, value, options)
+                            end
+
+                            if shouldSync then
+                                instance[syncData.property] = value
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        local eventData = {
+            entity = target,
+            stat = attrName,
+            value = value,
+            previousValue = oldValue,
+            effects = template.effects,
+            metadata = options
+        }
+
+        if attrName == "HEALTH" and target:IsA("Model") then
+            local humanoid = target:FindFirstChild("Humanoid")
+            if humanoid then
+                eventData.maxValue = humanoid.MaxHealth
+            else
+                eventData.maxValue = template.maxValue
+            end
         else
             eventData.maxValue = template.maxValue
         end
-    else
-        eventData.maxValue = template.maxValue
+
+        Services.Event:Fire("Stat.Update", eventData)
+
+        return true, value
     end
-
-    Services.Event:Fire("Stat.Update", eventData)
-
-    return true, value
 end
 
-function StatService:ModifyStat(entity: {GetAttribute: (string) -> any, SetAttribute: (string, any) -> nil}, statName: string, modification: {operation: string?, value: number, clamp: boolean?, metadata: {[string]: any}?}): (boolean, any?)
-    if not (entity and statName) then
-        return false, "Missing required parameters"
+
+function StatService:SetMultiple(targets, statName, amount, options)
+    local template = Modules.Stat.Templates[statName]
+    if not template then return false end
+
+    for _, target in ipairs(targets) do
+        self:SetStat(target, statName, amount, options)
     end
 
-    local attrName = statName:upper()
-    local currentValue = entity:GetAttribute(attrName)
-    local template = Modules.Stat.Templates[attrName]
+    return true
+end
 
-    if not currentValue then
-        return false, "Stat not initialized"
-    end
+function StatService:ModifyStat(target, statName, modification)
+    if not (target and statName and modification) then return false end
 
-    if not template then
-        return false, "Invalid stat"
-    end
-
-    if template.fixed then
-        return false, "Cannot modify fixed stat"
-    end
+    local statKey = statName:upper()
+    local template = Modules.Stat.Templates[statKey]
+    if not template then return false end
 
     local operation = modification.operation or "add"
     local operationFunc = StatOperations[operation]
-    if not operationFunc then
-        return false, "Invalid operation"
-    end
+    if not operationFunc then return false end
 
-    local newValue = operationFunc(currentValue, modification.value)
+    if template.playerSpecific then
+        local player, targetId
 
-    newValue = self:ApplyEffects(entity, attrName, newValue)
-
-    if modification.clamp ~= false then
-        newValue = math.max(newValue, template.minValue or 0)
-        if template.maxValue then
-            newValue = math.min(newValue, template.maxValue)
+        if type(modification.metadata) == "table" then
+            player = modification.metadata.player
+            targetId = modification.metadata.targetId
         end
-    end
 
-    local success, result = self:SetStat(entity, attrName, newValue, {
-        operation = operation,
-        change = modification.value,
-        previousValue = currentValue,
-        metadata = modification.metadata
-    })
+        if not (player and targetId) then return false end
 
-    if success then
-        Services.Event:Fire("Stat.Update", {
-            entity = entity,
-            stat = attrName,
-            type = "modify",
-            value = newValue,
-            previousValue = currentValue,
+        local currentValue = self:GetStat(target, statName, {player = player, targetId = targetId})
+        if currentValue == nil then return false end
+
+        local newValue = operationFunc(currentValue, modification.value)
+
+        local success = self:SetStat(target, statName, newValue, {
+            player = player,
+            targetId = targetId,
             operation = operation,
             change = modification.value,
+            previousValue = currentValue,
             metadata = modification.metadata
         })
+
+        return success
+    else
+        if typeof(target) ~= "Instance" then return false end
+
+        local attrName = statKey
+        local currentValue = target:GetAttribute(attrName)
+
+        if not currentValue then
+            return false, "Stat not initialized"
+        end
+
+        if template.fixed then
+            return false, "Cannot modify fixed stat"
+        end
+
+        local newValue = operationFunc(currentValue, modification.value)
+
+        newValue = self:ApplyEffects(target, attrName, newValue)
+
+        if modification.clamp ~= false then
+            newValue = math.max(newValue, template.minValue or 0)
+            if template.maxValue then
+                newValue = math.min(newValue, template.maxValue)
+            end
+        end
+
+        local success, result = self:SetStat(target, attrName, newValue, {
+            operation = operation,
+            change = modification.value,
+            previousValue = currentValue,
+            metadata = modification.metadata
+        })
+
+        if success then
+            Services.Event:Fire("Stat.Update", {
+                entity = target,
+                stat = attrName,
+                type = "modify",
+                value = newValue,
+                previousValue = currentValue,
+                operation = operation,
+                change = modification.value,
+                metadata = modification.metadata
+            })
+        end
+
+        return success, result
+    end
+end
+
+function StatService:ModifyMultiple(targets, statName, modification)
+    local template = Modules.Stat.Templates[statName]
+    if not template then return end
+
+    for _, target in ipairs(targets) do
+        self:ModifyStat(target, statName, modification)
     end
 
-    return success, result
+    return true
 end
 
 --[[ Effect Functions ]]--
@@ -582,10 +834,85 @@ function StatService:CycleStat(entity: {GetAttribute: (string) -> any}, statName
     return true
 end
 
+function StatService:ApplyStat(target, player, statName, operation, amount, options)
+    if not (target and statName and operation and amount) then return false end
+
+    local targetId
+    local isUnique = typeof(target) == "Instance" and target:GetAttribute("UNIQUE")
+
+    if isUnique then
+        targetId = Services.Object:GetID(target)
+        if not targetId then return false end
+    end
+
+    local statKey = statName:upper()
+    local template = Modules.Stat.Templates[statKey]
+    if not template then return false end
+
+    local currentValue
+    if isUnique and player then
+        currentValue = self:GetStat(player, statName, {
+            player = player,
+            targetId = targetId
+        })
+    else
+        currentValue = typeof(target) == "Instance" and target:GetAttribute(statKey)
+    end
+
+    if currentValue == nil then
+        currentValue = template.baseValue or 0
+    end
+
+    local newValue = currentValue
+    if operation == "add" then
+        newValue = currentValue + amount
+    elseif operation == "subtract" then
+        newValue = currentValue - amount
+    elseif operation == "multiply" then
+        newValue = currentValue * amount
+    elseif operation == "divide" then
+        if amount ~= 0 then
+            newValue = currentValue / amount
+        end
+    elseif operation == "set" then
+        newValue = amount
+    end
+
+    if template.minValue ~= nil then
+        newValue = math.max(template.minValue, newValue)
+    end
+
+    if template.maxValue ~= nil then
+        newValue = math.min(template.maxValue, newValue)
+    end
+
+    if isUnique and player then
+        self:SetStat(player, statName, newValue, {
+            player = player,
+            targetId = targetId,
+            source = options and options.source or operation,
+            amount = amount,
+            operation = operation,
+            metadata = options
+        })
+
+        if options and options.showVisual and typeof(target) == "Instance" then
+            target:SetAttribute(statKey, newValue)
+        end
+    else
+        self:SetStat(target, statName, newValue, options)
+    end
+
+    return true, newValue, currentValue
+end
+
 function StatService:StartCycle()
     task.spawn(function()
+        local lastPlayerDataUpdate = 0
+
         while true do
-            task.wait(1)
+            local currentTime = tick()
+
             for entity, stats in pairs(State.cycles) do
                 if entity:IsDescendantOf(game) then
                     local shouldProcess = true
@@ -598,7 +925,6 @@ function StatService:StartCycle()
 
                     if shouldProcess then
                         for statName, config in pairs(stats) do
-                            local currentTime = tick()
                             local lastUpdate = config.lastUpdate or 0
                             local interval = config.interval or 1
 
@@ -612,8 +938,76 @@ function StatService:StartCycle()
                     State.cycles[entity] = nil
                 end
             end
+
+            if (currentTime - lastPlayerDataUpdate) >= 60 then
+                for _, player in ipairs(Players:GetPlayers()) do
+                    self:ProcessPlayer(player)
+                end
+                lastPlayerDataUpdate = currentTime
+            end
+
+            task.wait(1)
         end
     end)
+end
+
+function StatService:ProcessPlayer(player, dt)
+    if not player then return end
+
+    local userId = tostring(player.UserId)
+    if not State.players[userId] then return end
+
+    for targetId, stats in pairs(State.players[userId]) do
+        for statKey, statData in pairs(stats) do
+            local template = Modules.Stat.Templates[statKey]
+            if template then
+                local now = os.time()
+                local timePassed = now - statData.timestamp
+                local decayAmount = 0
+
+                if template.decay and template.decay.amount and timePassed > 0 then
+                    local decayPerSecond = template.decay.amount / 3600
+                    decayAmount = decayPerSecond * timePassed
+
+                    if decayAmount > 0 then
+                        local newValue = math.max(
+                            template.minValue or 0, 
+                            statData.value - decayAmount
+                        )
+
+                        local storageType = self:GetStorage(template)
+                        local shouldUpdatePlayerData = storageType == Modules.Stat.Constants.STORAGE_TYPE.PLAYER_DATA or
+                                                      storageType == Modules.Stat.Constants.STORAGE_TYPE.BOTH
+
+                        local shouldUpdateAttribute = storageType == Modules.Stat.Constants.STORAGE_TYPE.ATTRIBUTE or
+                                                     storageType == Modules.Stat.Constants.STORAGE_TYPE.BOTH
+
+                        if shouldUpdatePlayerData then
+                            statData.value = newValue
+                            statData.timestamp = now
+                        end
+
+                        if shouldUpdateAttribute then
+                            local entity = Services.Object:GetInstance(targetId)
+                            if entity then
+                                entity:SetAttribute(statKey, newValue)
+                            end
+                        end
+
+                        Services.Event:Fire("Stat.Update", {
+                            player = player,
+                            target = targetId,
+                            stat = statKey,
+                            type = "decay",
+                            value = newValue,
+                            previousValue = statData.value,
+                            decayAmount = decayAmount
+                        })
+                    end
+                end
+            end
+        end
+    end
 end
 
 function StatService:EnableCycle(entity: {}, statName: string)
@@ -641,7 +1035,70 @@ function StatService:DisableCycle(entity: {}, statName: string)
     end
 end
 
+--[[ Buff Functions ]]
+function StatService:ApplyBuff(playerId: string, stat: string, multiplier: number, reason: string, duration: number?)
+    State.buffs[playerId] = State.buffs[playerId] or {}
+    State.buffs[playerId][stat] = State.buffs[playerId][stat] or {}
+    table.insert(State.buffs[playerId][stat], { multiplier = multiplier, reason = reason, duration = duration })
+
+    if duration then
+        task.delay(duration, function()
+            self:RemoveBuff(playerId, stat, reason)
+        end)
+    end
+end
+
+function StatService:RemoveBuff(playerId: string, stat: string, reason: string)
+    if State.buffs[playerId] and State.buffs[playerId][stat] then
+        for i, buff in ipairs(State.buffs[playerId][stat]) do
+            if buff.reason == reason then
+                table.remove(State.buffs[playerId][stat], i)
+                break
+            end
+        end
+        if #State.buffs[playerId][stat] == 0 then
+            State.buffs[playerId][stat] = nil
+        end
+    end
+end
+
+function StatService:GetBuff(playerId: string, stat: string): number
+    if State.buffs[playerId] and State.buffs[playerId][stat] then
+        local totalMultiplier = 1
+        for _, buff in ipairs(State.buffs[playerId][stat]) do
+            totalMultiplier = totalMultiplier * buff.multiplier
+        end
+        return totalMultiplier
+    end
+    return 1
+end
+
 --[[ Registration Fucntions ]]
+function StatService:ApplyProfile(entity, profileName, options)
+    if not entity or not profileName then return false end
+
+    local profile = Modules.Stat.EntityProfiles[profileName:upper()]
+    if not profile then return false end
+
+    options = options or {}
+
+    for _, statName in ipairs(profile.stats) do
+        local template = Modules.Stat.Templates[statName]
+        if template then
+            local baseValue = options[statName] or template.baseValue
+            self:SetStat(entity, statName, baseValue, { source = "profile_" .. profileName:lower() })
+        end
+    end
+
+    if options.enableCycles ~= false then
+        for _, statName in ipairs(profile.cycles) do
+            self:EnableCycle(entity, statName)
+        end
+    end
+
+    return true
+end
+
 function StatService:RegisterEntity(entity: Instance): boolean
     if not entity:IsA("Model") then return false end
 
@@ -662,51 +1119,46 @@ function StatService:RegisterEntity(entity: Instance): boolean
 
     State.connections[entity] = {}
 
+    local entityType
     if isCharacter then
-        -- Vital Stats
-        self:SetStat(entity, "HEALTH", 100, { source = "init" })
-        self:SetStat(entity, "BLOOD", 100, { source = "init" })
-        self:SetStat(entity, "OXYGEN", 100, { source = "init" })
+        entityType = "CHARACTER"
+    else
+        entityType = entity:GetAttribute("TYPE") or "Person"
+    end
 
-        -- Resource Stats
-        self:SetStat(entity, "MANA", 100, { source = "init" })
-        self:SetStat(entity, "STAMINA", 100, { source = "init" })
+    self:ApplyProfile(entity, entityType)
 
-        -- Combat Stats
-        self:SetStat(entity, "POSTURE", 100, { source = "init" })
-        self:SetStat(entity, "RESONANCE", 0, { source = "init" })
+    if entityType == "Person" or Modules.Person.Categories[entityType] then
+        local personType = entityType
+        if personType == "Person" then
+            personType = entity:GetAttribute("PERSON_TYPE") or "VILLAGER"
+        end
 
-        -- Movement Stats
-        self:SetStat(entity, "SPEED", Modules.Stat.Constants.MOVEMENT.BASE_WALK_SPEED, { source = "init" })
-        self:SetStat(entity, "JUMP_POWER", 50, { source = "init" })
+        local variant = entity:GetAttribute("VARIANT")
+        local customStats = Modules.Person.GetStats(personType, variant)
 
-        -- Survival Stats
-        self:SetStat(entity, "HUNGER", 100, { source = "init" })
-        self:SetStat(entity, "THIRST", 100, { source = "init" })
+        if customStats then
+            for statName, value in pairs(customStats) do
+                self:SetStat(entity, statName, value, { source = "person_template" })
+            end
 
-        -- Regeneration/Decay
-        self:EnableCycle(entity, "HEALTH")
-        self:EnableCycle(entity, "BLOOD")
-        self:EnableCycle(entity, "MANA")
-        self:EnableCycle(entity, "STAMINA")
-        self:EnableCycle(entity, "POSTURE")
-        self:EnableCycle(entity, "HUNGER")
-        self:EnableCycle(entity, "THIRST")
-        self:EnableCycle(entity, "OXYGEN")
+            entity:SetAttribute("PERSON_TYPE", personType)
+            if variant then
+                entity:SetAttribute("VARIANT", variant)
+            end
+        end
     end
 
     local humanoid = entity:FindFirstChild("Humanoid")
     if humanoid then
         State.connections[entity].Humanoid = {}
 
-        for statName, handler in pairs(StatService.StatHandlers.Humanoid) do
-            local connections = handler.setup(self, entity, humanoid)
-            if connections then
-                State.connections[entity].Humanoid[statName] = {
-                    connections = connections,
-                    cleanup = handler.cleanup
-                }
-            end
+        local connections = StatService.StatHandlers.Humanoid.setupSync(self, entity, humanoid)
+        if connections then
+            State.connections[entity].Humanoid.sync = {
+                connections = connections,
+                cleanup = StatService.StatHandlers.Humanoid.cleanup
+            }
         end
     end
 
@@ -749,14 +1201,12 @@ function StatService:SetupEntity(entity: Instance)
     if humanoid then
         State.connections[entity].Humanoid = {}
 
-        for statName, handler in pairs(StatService.StatHandlers.Humanoid) do
-            local connections = handler.setup(self, entity, humanoid)
-            if connections then
-                State.connections[entity].Humanoid[statName] = {
-                    connections = connections,
-                    cleanup = handler.cleanup
-                }
-            end
+        local connections = StatService.StatHandlers.Humanoid.setupSync(self, entity, humanoid)
+        if connections then
+            State.connections[entity].Humanoid.sync = {
+                connections = connections,
+                cleanup = StatService.StatHandlers.Humanoid.cleanup
+            }
         end
     end
 end
@@ -764,83 +1214,72 @@ end
 --[[ Stat Handlers ]]--
 StatService.StatHandlers = {
     Humanoid = {
-        health = {
-            setup = function(self, entity: Model, humanoid: Humanoid)
-                self:SetStat(entity, "HEALTH", humanoid.Health, {
+        setupSync = function(self, entity, humanoid)
+            local connections = {}
+
+            for statName, template in pairs(Modules.Stat.Templates) do
+                if template.syncProperties then
+                    for actionType, syncData in pairs(template.syncProperties) do
+                        if syncData.class == "Humanoid" then
+                            local propertyName = syncData.property
+
+                            if actionType == "default" then
+                                self:SetStat(entity, statName, humanoid[propertyName], {
+                                    source = "humanoid",
+                                    skipSync = true
+                                })
+
+                                table.insert(connections, humanoid:GetPropertyChangedSignal(propertyName):Connect(function()
+                                    local shouldSync = true
+                                    if syncData.condition then
+                                        shouldSync = syncData.condition(entity, humanoid[propertyName], {source = "property_change"})
+                                    end
+
+                                    if shouldSync then
+                                        self:SetStat(entity, statName, humanoid[propertyName], {
+                                            source = "humanoid",
+                                            skipSync = true
+                                        })
+                                    end
+                                end))
+                            end
+                        end
+                    end
+                end
+            end
+
+            table.insert(connections, humanoid.HealthChanged:Connect(function(health)
+                self:SetStat(entity, "HEALTH", health, {
                     source = "humanoid",
                     skipSync = true
                 })
+            end))
 
-                self:SetStat(entity, "HEALTH", humanoid.MaxHealth, {
+            table.insert(connections, humanoid.Died:Connect(function()
+                self:SetStat(entity, "HEALTH", 0, {
                     source = "humanoid",
-                    skipSync = true,
-                    operation = "max"
+                    skipSync = true
                 })
+            end))
 
-                return {
-                    healthChanged = humanoid.HealthChanged:Connect(function(health)
-                        self:SetStat(entity, "HEALTH", health, {
-                            source = "humanoid",
-                            skipSync = true
-                        })
-                    end),
-
-                    died = humanoid.Died:Connect(function()
-                        self:SetStat(entity, "HEALTH", 0, {
-                            source = "humanoid",
-                            skipSync = true
-                        })
-                    end)
-                }
-            end,
-
-            cleanup = function(connections)
-                for _, connection in pairs(connections) do
-                    connection:Disconnect()
-                end
-            end
-        },
-
-        speed = {
-            setup = function(self, entity: Model, humanoid: Humanoid)
+            table.insert(connections, humanoid:GetPropertyChangedSignal("MoveDirection"):Connect(function()
+                local isMoving = humanoid.MoveDirection.Magnitude > 0
                 self:SetStat(entity, "SPEED", humanoid.WalkSpeed, {
                     source = "humanoid",
-                    skipSync = true
+                    skipSync = true,
+                    metadata = isMoving and { state = "MOVING" } or nil
                 })
+            end))
 
-                return {
-                    walkSpeedChanged = humanoid:GetPropertyChangedSignal("WalkSpeed"):Connect(function()
-                        self:SetStat(entity, "SPEED", humanoid.WalkSpeed, {
-                            source = "humanoid",
-                            skipSync = true
-                        })
-                    end),
+            return connections
+        end,
 
-                    stateChanged = humanoid:GetPropertyChangedSignal("MoveDirection"):Connect(function()
-                        local isMoving = humanoid.MoveDirection.Magnitude > 0
-                        if isMoving then
-                            self:SetStat(entity, "SPEED", humanoid.WalkSpeed, {
-                                source = "humanoid",
-                                skipSync = true,
-                                metadata = { state = "MOVING" }
-                            })
-                        else
-                            self:SetStat(entity, "SPEED", humanoid.WalkSpeed, {
-                                source = "humanoid",
-                                skipSync = true
-                            })
-                        end
-                    end)
-                }
-            end,
-
-            cleanup = function(connections)
-                for _, connection in pairs(connections) do
-                    connection:Disconnect()
-                end
+        cleanup = function(connections)
+            for _, connection in pairs(connections) do
+                connection:Disconnect()
             end
-        }
-    },
+        end
+    }
 }
 
 return StatService

@@ -1,7 +1,7 @@
 --[[ ToolModule
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-04-07
+    @version 1.0.2
+    @date 2025-04-11
 ]]
 local ToolModule = {}
 
@@ -36,7 +36,11 @@ ToolModule.Types = {
     SCYTHE = "scythe",
 
     -- Tools
-    FISHING_ROD = "fishing_rod"
+    FISHING_ROD = "fishing_rod",
+
+    -- Consumables
+    FOOD = "food",
+    DRINK = "drink"
 }
 
 --[[ Tool Properties ]]
@@ -546,6 +550,49 @@ ToolModule.Templates = {
             }
         }
     },
+
+    -- Consumables
+    [ToolModule.Types.FOOD] = {
+        ToolTip = "Left click to consume",
+        AutoPickup = true,
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.2,
+                stateOnActivate = "CONSUMING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"CONSUMING"},
+                CONSUMING = {"INACTIVE"}
+            }
+        }
+    },
+
+    [ToolModule.Types.DRINK] = {
+        ToolTip = "Left click to drink",
+        AutoPickup = true,
+        inputs = {
+            primary = {
+                type = "MouseButton1",
+                usageType = "single",
+                cooldown = 0.2,
+                stateOnActivate = "CONSUMING",
+                stateOnDeactivate = "INACTIVE"
+            }
+        },
+        stateConfig = {
+            initialState = "INACTIVE",
+            transitions = {
+                INACTIVE = {"CONSUMING"},
+                CONSUMING = {"INACTIVE"}
+            }
+        }
+    }
 }
 
 --[[ Utility Functions ]]

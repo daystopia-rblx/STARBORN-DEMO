@@ -1,7 +1,7 @@
 --[[ DataModule
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-04-07
+    @version 1.0.2
+    @date 2025-04-10
 ]]
 local DataModule = {}
 
@@ -55,29 +55,97 @@ DataModule.Templates = {
 
         world = {
             checkpoint = {
+                id = nil,
                 type = nil,
+                location = nil,
                 position = nil,
                 lastActivated = 0
             },
-            discoveries = {},
-            quests = {
-                active = {},
-                completed = {}
+            discoveries = {}
+        },
+
+        relationships = {},
+
+        memory = {},
+
+        primaryFaction = nil,
+        factions = {},
+        factionViolations = {},
+
+        economy = {
+            balance = 50,
+            lastUpdated = 0,
+            transactions = {},
+            multipliers = {}
+        },
+
+        quests = {
+            active = {},
+            completed = {},
+            failed = {},
+            lastUpdated = 0,
+            tracked = nil
+        },
+
+        skills = {
+            weapon_forging = {
+                level = 1,
+                experience = 0
+            },
+            armor_smithing = {
+                level = 1,
+                experience = 0
+            },
+            cooking = {
+                level = 1,
+                experience = 0
+            },
+            alchemy = {
+                level = 1,
+                experience = 0
             }
+        },
+
+        crafting = {
+            discoveries = {}
         }
+    },
+
+    FactionData = {
+        factions = {},
+        conflicts = {},
+        lastUpdate = 0,
+        version = "1.0.0"
+    },
+
+    QuestState = {
+        id = nil,
+        type = nil,
+        status = nil,
+        progress = {},
+        branch = nil,
+        startTime = 0,
+        endTime = nil,
+        participants = {},
+        isTracked = false,
+        failReason = nil
     }
 }
 
 DataModule.Validation = {
     PlayerData = {
-        required = {"stats", "skills", "equipment", "progress", "settings", "world"},
+        required = {"stats", "skills", "equipment", "progress", "settings", "world", "relationships", "memory", "economy", "quests"},
         types = {
             stats = "table",
             skills = "table",
             equipment = "table",
             progress = "table",
             settings = "table",
-            world = "table"
+            world = "table",
+            relationships = "table",
+            memory = "table",
+            economy = "table",
+            quests = "table"
         }
     }
 }

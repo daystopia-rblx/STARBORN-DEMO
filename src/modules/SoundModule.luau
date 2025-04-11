@@ -1,7 +1,7 @@
 --[[ SoundModule
     @author @Daystopia
-    @version 1.0.3
-    @date 2025-04-03
+    @version 1.0.4
+    @date 2025-04-11
 ]]
 local SoundModule = {}
 
@@ -9,6 +9,10 @@ local SoundModule = {}
 SoundModule.Assets = {
     Sounds = {
         UI = {
+            -- Interface Sounds
+            ButtonHover = { id = "rbxassetid://80867008495871", volume = 0.5 },
+            ButtonClick = { id = "rbxassetid://70922191300105", volume = 0.5 },
+
             -- Prompt Sounds
             PromptClick = { id = "rbxassetid://1673280232", volume = 0.5 },
             PromptHover = { id = "rbxassetid://408524543", volume = 0.5 },
@@ -31,6 +35,14 @@ SoundModule.Assets = {
             Parry_1 = { id = "rbxassetid://95722991827031", volume = 0.5 },
             Parry_2 = { id = "rbxassetid://132886449936911", volume = 0.5 },
             Parry_3 = { id = "rbxassetid://77250810798467", volume = 0.5 },
+
+            -- Weather Sounds
+            RainSound = { id = "", volume = 0.5 },
+            ThunderstormSound = { id = "", volume = 0.5 },
+            SnowSound = { id = "", volume = 0.5 },
+            WindSound = { id = "", volume = 0.5 },
+            ThunderSoundEffect = { id = "", volume = 0.5 },
+            AshfallSound = { id = "", volume = 0.5 },
 
             -- Footstep Sounds
             Footsteps = {
