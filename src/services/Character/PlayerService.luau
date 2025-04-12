@@ -43,7 +43,7 @@ PlayerService.Listeners = {
             player = player
         })
 
-        player.DevEnableMouseLock = false
+        player.DevEnableMouseLock = true
         player.DevComputerMovementMode = Enum.DevComputerMovementMode.KeyboardMouse
 
         player.CharacterAdded:Connect(function(character)
@@ -66,7 +66,7 @@ PlayerService.Listeners = {
             animateScript.jump.JumpAnim.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.JUMP.id
             animateScript.fall.FallAnim.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.FALL.id
 
-            player.DevEnableMouseLock = false
+            player.DevEnableMouseLock = true
         end)
     end,
 
@@ -82,7 +82,7 @@ function PlayerService:Init(services)
     Services = services
 
     for _, player in pairs(game:GetService("Players"):GetPlayers()) do
-        player.DevEnableMouseLock = false
+        player.DevEnableMouseLock = true
         player.DevComputerMovementMode = Enum.DevComputerMovementMode.KeyboardMouse
     end
 

@@ -5,7 +5,8 @@ StatusModule.Combat = {
 }
 
 StatusModule.Movement = {
-    "Running"
+    "Running",
+    "Dodging"
 }
 
 StatusModule.Interaction = {

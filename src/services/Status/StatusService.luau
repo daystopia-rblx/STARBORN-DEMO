@@ -10,20 +10,38 @@ local StatusService = {
 }
 
 local HttpService = game:GetService("HttpService")
-
-StatusService.Modules= {
-    "Status"
-}
-
-local Modules
+local StatusModule = require(game.ReplicatedStorage.Modules.Data.Status.StatusModule)
 
 type Info = {
 	Set: any,
 	Timed: boolean,
 	Time: number,
 	SetTo: any,
-    Connection: boolean
+    Connection: boolean,
+    Exclude: {string}?
 }
+
+StatusService.Dependencies = {
+    "Event",
+}
+
+StatusService.Modules= {
+    "Status"
+}
+
+StatusService.Events = {
+    Create = { validate = true },
+}
+
+StatusService.Listeners = {
+    ["Status.Create"] = function(self, Player: Player, Humanoid: Humanoid, Type: string, Action: string, Info: Info)
+        if not Humanoid then return end
+
+        self:CreateStatus(Humanoid, Type, Action, Info)
+    end,
+}
+
+local Modules
 
 function StatusService:Init(modules)
     Modules = modules
@@ -64,15 +82,22 @@ end
 function StatusService:CheckStatus(Humanoid: Humanoid, Info: Info): {} | boolean
 	local Results = {}
 	local Active = true
+	
+	local Exclusions = {}
+	if Info.Exclude then
+		for _, exclusion in ipairs(Info.Exclude) do
+			Exclusions[exclusion] = true
+		end
+	end
 
-	for Category, Actions in pairs(Modules.Data.StatusModule) do
+	for Category, Actions in pairs(StatusModule) do
 		Results[Category] = {}
 
 		for _, Action in ipairs(Actions) do
 			local Value = Humanoid[Category] and Humanoid[Category]:GetAttribute(Action)
 			Results[Category][Action] = Value
 
-			if Info.Connection and Value ~= true then
+			if Info.Connection and Value ~= true and not Exclusions[Action] then
 				Active = false
 			end
 		end
@@ -89,7 +114,7 @@ function StatusService:CheckSpecific(Humanoid: Humanoid, Info: Info, ...: string
 	local Requests = {...}
 	local Results = {}
 
-	for Category, Actions in pairs(Modules.Data.StatusModule) do
+	for Category, Actions in pairs(StatusModule) do
 		for _, Action in ipairs(Actions) do
 			for _, Requested in ipairs(Requests) do
 				if Action == Requested then
