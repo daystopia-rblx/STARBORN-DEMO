@@ -2,8 +2,8 @@
     Advanced data persistence system with caching, validation, and analytics.
     Manages data storage, backups, migrations, and performance monitoring.
     @author @Daystopia
-    @version 1.0.7
-    @date 2025-04-10
+    @version 1.0.8
+    @date 2025-04-11
 ]]
 local DataStoreService = game:GetService("DataStoreService")
 local MessagingService = game:GetService("MessagingService")
@@ -41,7 +41,8 @@ local READABLE_CONSONANTS = "bcdfghjklmnpqrstvwxyz"
 local READABLE_VOWELS = "aeiou"
 
 DataService.GLOBAL_KEYS = {
-    FACTION_DATA = "FactionData"
+    FACTION_DATA = "FactionData",
+    CRIME_DATA = "CrimeData"
 }
 
 --[[ State ]]
@@ -412,7 +413,7 @@ function DataService:SetGlobal(key, data)
     end
 
     if shouldSaveNow then
-        return self:SaveGlobal(key)
+        return self:SaveGlobal(key, true)
     end
 
     return true
@@ -428,16 +429,33 @@ function DataService:ProcessGlobal(force)
         if changes > 0 and (force or
                            changes >= GLOBAL_SAVE_THRESHOLD or
                            timeElapsed >= GLOBAL_SAVE_INTERVAL) then
-            self:SaveGlobal(key)
+            self:SaveGlobal(key, true)
             cache.globalChanges[key] = 0
             cache.lastGlobalSave[key] = currentTime
         end
     end
 end
 
-function DataService:SaveGlobal(key)
+function DataService:SaveGlobal(key, forced)
+    if not self.GLOBAL_KEYS[key] then
+        warn("Invalid global key:", key)
+        return false
+    end
+
     if not cache.global or cache.global[key] == nil then
         return false
+    end
+
+    local globalData = cache.global[key]
+    if not globalData then return false end
+
+    if type(globalData) == "table" then
+        globalData.lastUpdate = os.time()
+    end
+
+    if not forced then
+        cache.globalChanges[key] = (cache.globalChanges[key] or 0) + 1
+        return true
     end
 
     local globalStoreKey = "GLOBAL_" .. key
@@ -516,6 +534,96 @@ function DataService:PublishGlobal(key)
             timestamp = timestamp
         })
     end)
+end
+
+function DataService:ValidateGlobal(key)
+    if not self.GLOBAL_KEYS[key] then
+        warn("Invalid global key:", key)
+        return nil
+    end
+
+    local globalData = self:GetGlobal(key)
+
+    if not globalData then
+        if Modules.Data.Templates[key] then
+            globalData = self:DeepCopy(Modules.Data.Templates[key])
+            self:SetGlobal(key, globalData)
+        else
+            warn("No template available for key:", key)
+            return {}
+        end
+    end
+
+    return globalData
+end
+
+function DataService:AddGlobal(key, listName, item, maxItems, uniqueField)
+    if not self.GLOBAL_KEYS[key] then
+        warn("Invalid global key:", key)
+        return false
+    end
+
+    local globalData = self:ValidateGlobal(key)
+    if not globalData then return false end
+
+    if not globalData[listName] then
+        globalData[listName] = {}
+    end
+
+    if uniqueField and item[uniqueField] then
+        local existingIndex = nil
+        for i, existingItem in ipairs(globalData[listName]) do
+            if existingItem[uniqueField] == item[uniqueField] then
+                existingIndex = i
+                break
+            end
+        end
+
+        if existingIndex then
+            globalData[listName][existingIndex] = item
+        else
+            table.insert(globalData[listName], item)
+        end
+    else
+        table.insert(globalData[listName], item)
+    end
+
+    if maxItems and #globalData[listName] > maxItems then
+        while #globalData[listName] > maxItems do
+            table.remove(globalData[listName], 1)
+        end
+    end
+
+    return self:SaveGlobal(key, false)
+end
+
+function DataService:RemoveGlobal(key, listName, itemIdentifier, identifierField)
+    if not self.GLOBAL_KEYS[key] then
+        warn("Invalid global key:", key)
+        return false
+    end
+
+    local globalData = self:ValidateGlobal(key)
+    if not globalData or not globalData[listName] then return false end
+
+    local listChanged = false
+    local newList = {}
+
+    for i, item in ipairs(globalData[listName]) do
+        if not (identifierField and item[identifierField] == itemIdentifier) and
+           not (item == itemIdentifier) then
+            table.insert(newList, item)
+        else
+            listChanged = true
+        end
+    end
+
+    if listChanged then
+        globalData[listName] = newList
+        return self:SaveGlobal(key, false)
+    end
+
+    return false
 end
 
 return DataService

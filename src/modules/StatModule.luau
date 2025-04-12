@@ -145,13 +145,13 @@ StatModule.Constants = {
         -- Regeneration Intervals
         HEALTH_REGEN_INTERVAL = 5,
         STAMINA_REGEN_INTERVAL = 1,
-        MANA_REGEN_INTERVAL = 3,
+        RESONANCE_REGEN_INTERVAL = 3,
         BLOOD_REGEN_INTERVAL = 10,
 
         -- Regeneration Amounts
         HEALTH_REGEN_AMOUNT = 1,
         STAMINA_REGEN_AMOUNT = 10,
-        MANA_REGEN_AMOUNT = 2,
+        RESONANCE_REGEN_AMOUNT = 2,
         BLOOD_REGEN_AMOUNT = 0.5,
 
         -- Resource Caps
@@ -159,8 +159,8 @@ StatModule.Constants = {
         MAX_HEALTH = 1000,
         BASE_STAMINA = 100,
         MAX_STAMINA = 200,
-        BASE_MANA = 100,
-        MAX_MANA = 300
+        BASE_RESONANCE = 100,
+        MAX_RESONANCE = 300
     },
 
     -- Survival Constants
@@ -236,7 +236,7 @@ StatModule.EntityProfiles = {
             "HEALTH",
             "BLOOD",
             "OXYGEN",
-            "MANA",
+            "RESONANCE",
             "STAMINA",
             "POSTURE",
             "RESONANCE",
@@ -252,7 +252,7 @@ StatModule.EntityProfiles = {
         cycles = {
             "HEALTH",
             "BLOOD",
-            "MANA",
+            "RESONANCE",
             "STAMINA",
             "POSTURE",
             "HUNGER",
@@ -264,7 +264,7 @@ StatModule.EntityProfiles = {
     PERSON = {
         stats = {
             "HEALTH",
-            "MANA",
+            "RESONANCE",
             "STAMINA",
             "POSTURE",
             "RESONANCE",
@@ -275,7 +275,7 @@ StatModule.EntityProfiles = {
         },
         cycles = {
             "HEALTH",
-            "MANA",
+            "RESONANCE",
             "STAMINA",
             "POSTURE",
             "TRUST",
@@ -605,13 +605,13 @@ StatModule.Templates = {
         }
     },
 
-    MANA = {
+    RESONANCE = {
         baseValue = 100,
         minValue = 0,
         maxValue = 100,
         regen = { amount = 2, interval = 3 },
         category = "RESOURCE",
-        displayName = "Mana",
+        displayName = "Resonance",
         description = "Magical energy for abilities",
         icon = "",
         color = Color3.fromRGB(0, 0, 255),
@@ -876,12 +876,6 @@ StatModule.Templates = {
                 type = "MULTIPLY"
             }
         }
-    },
-
-    RESONANCE = {
-        baseValue = 0,
-        minValue = 0,
-        maxValue = 100
     },
 
     -- Survival Stats

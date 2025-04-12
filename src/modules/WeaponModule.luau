@@ -1,7 +1,7 @@
 --[[ WeaponModule
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-04-07
+    @version 1.0.2
+    @date 2025-04-11
 ]]
 local WeaponModule = {}
 
@@ -70,7 +70,11 @@ WeaponModule.Templates = {
                 }
             },
             variants = {
-                iron = { name = "Iron Dagger", description = "Quick and deadly iron dagger" }
+                iron = { name = "Iron Dagger", description = "Quick and deadly iron dagger" },
+                steel = { name = "Steel Dagger", description = "Superior quality steel dagger", damage = 10 },
+                ceremonial = { name = "Ceremonial Dagger", description = "An ornate dagger used in religious ceremonies", damage = 10, rarity = "UNCOMMON", hitboxes = {
+                    { name = "ritual", damage = 14, range = 2, angle = 10 }
+                }}
             }
         },
         GUN = {
@@ -134,7 +138,8 @@ WeaponModule.Templates = {
                 }
             },
             variants = {
-                iron = { name = "Iron Longsword", description = "Versatile iron sword" }
+                iron = { name = "Iron Longsword", description = "Versatile iron sword" },
+                steel = { name = "Steel Longsword", description = "Superior quality steel sword", damage = 18 }
             }
         },
         SPEAR = {

@@ -1,8 +1,8 @@
 --[[ Start
     Core component orchestrator that manages lifecycle, dependencies, and hot-reloading.
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-04-09
+    @version 1.0.1
+    @date 2025-04-12
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Promise = require(ReplicatedStorage.Modules.Tool.Promise)
@@ -491,44 +491,58 @@ function Start:RegisterEvents()
         reliable = true
     }
 
+    local eventsToRegister = {}
+
     for name, component in pairs(self.components) do
-        if type(component.Events) == "table" then
-            for eventName, eventConfig in pairs(component.Events) do
-                local serverName = name .. "." .. eventName
-                local clientName = "Client." .. name .. "." .. eventName
+        if type(component.Events) ~= "table" then continue end
 
-                local finalConfig
-                if type(eventConfig) == "boolean" then
-                    finalConfig = table.clone(DEFAULT_CONFIG)
-                elseif type(eventConfig) == "table" then
-                    finalConfig = table.clone(DEFAULT_CONFIG)
-                    for k, v in pairs(eventConfig) do
-                        finalConfig[k] = v
-                    end
-                else
-                    finalConfig = table.clone(DEFAULT_CONFIG)
-                end
+        for eventName, eventConfig in pairs(component.Events) do
+            local serverName = name .. "." .. eventName
+            local clientName = "Client." .. name .. "." .. eventName
 
-                if not self.events[serverName] then
-                    EventComponent:RegisterEvent(serverName, finalConfig)
-                    self.events[serverName] = {
-                        component = name,
-                        name = eventName,
-                        fullName = serverName,
-                        config = finalConfig
-                    }
+            local finalConfig
+            if type(eventConfig) == "boolean" then
+                finalConfig = DEFAULT_CONFIG
+            elseif type(eventConfig) == "table" then
+                finalConfig = table.clone(DEFAULT_CONFIG)
+                for k, v in pairs(eventConfig) do
+                    finalConfig[k] = v
                 end
-
-                if not self.events[clientName] then
-                    EventComponent:RegisterEvent(clientName, finalConfig)
-                    self.events[clientName] = {
-                        component = name,
-                        name = eventName,
-                        fullName = clientName,
-                        config = finalConfig
-                    }
-                end
+            else
+                finalConfig = DEFAULT_CONFIG
             end
+
+            if not self.events[serverName] then
+                table.insert(eventsToRegister, {
+                    name = serverName,
+                    config = finalConfig,
+                    component = name,
+                    eventName = eventName,
+                    isClient = false
+                })
+            end
+
+            if not self.events[clientName] then
+                table.insert(eventsToRegister, {
+                    name = clientName,
+                    config = finalConfig,
+                    component = name,
+                    eventName = eventName,
+                    isClient = true
+                })
+            end
+        end
+    end
+
+    for _, eventInfo in ipairs(eventsToRegister) do
+        local success = EventComponent:RegisterEvent(eventInfo.name, eventInfo.config)
+        if success then
+            self.events[eventInfo.name] = {
+                component = eventInfo.component,
+                name = eventInfo.eventName,
+                fullName = eventInfo.name,
+                config = eventInfo.config
+            }
         end
     end
 end
@@ -682,45 +696,57 @@ function Start:Start()
                 return
             end
 
-            task.spawn(function()
+            pcall(function()
                 self:RegisterEvents()
+            end)
 
-                local sorted = self:SortComponents()
-                local initFailures = {}
+            local sorted = {}
+            pcall(function()
+                sorted = self:SortComponents() or {}
+            end)
 
-                for _, name in ipairs(sorted) do
-                    if name ~= "Event" then
+            local initFailures = {}
+
+            for _, name in ipairs(sorted) do
+                if name ~= "Event" then
+                    pcall(function()
                         local success, error = self:InitComponent(name)
                         if not success then
                             initFailures[name] = error
                         end
-                    end
+                    end)
                 end
+            end
 
-                if next(initFailures) then
-                    PrintError(self.pluralType .. " Failed to Initialize", self.componentType, initFailures)
-                    self._starting = false
-                    reject(initFailures)
-                    return
-                end
+            if next(initFailures) then
+                PrintError(self.pluralType .. " Failed to Initialize", self.componentType, initFailures)
+            end
 
-                local startFailures = {}
-                for _, name in ipairs(sorted) do
-                    if name ~= "Event" and not self.started[name] then
+            local startFailures = {}
+            for _, name in ipairs(sorted) do
+                if name ~= "Event" and not self.started[name] then
+                    pcall(function()
                         local success = self:StartComponent(name)
                         if not success then
                             startFailures[name] = "Failed to start"
                         end
-                    end
+                    end)
                 end
+            end
 
-                if next(startFailures) then
-                    PrintError(self.pluralType .. " Failed to Start", self.componentType, startFailures)
+            if next(startFailures) then
+                PrintError(self.pluralType .. " Failed to Start", self.componentType, startFailures)
+            end
+
+            pcall(function()
+                local EventComponent = self:GetComponent("Event")
+                if EventComponent then
+                    EventComponent:Fire("Start.Init", {})
                 end
-
-                self._starting = false
-                resolve()
             end)
+
+            self._starting = false
+            resolve()
         end)
     end)
 end

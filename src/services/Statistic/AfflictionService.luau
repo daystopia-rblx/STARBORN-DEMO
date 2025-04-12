@@ -19,7 +19,7 @@ AfflictionService.Dependencies = {
 AfflictionService.Modules = {
     "Stat",
     "Zone",
-    "Plague"
+    "Affliction"
 }
 
 AfflictionService.Events = {

@@ -24,7 +24,6 @@ local function CheckInitialized()
     if not EventController._isInitialized and not EventController._warnedInitialization then
         EventController._warnedInitialization = true
         warn("Attempted to use EventController before initialization")
-        print("Call stack:", debug.traceback())
         return false
     end
     return EventController._isInitialized

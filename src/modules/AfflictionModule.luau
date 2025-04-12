@@ -36,23 +36,26 @@ AfflictionModule.Constants = {
 }
 
 AfflictionModule.Categories = {
-    ENVIRONMENTAL = "Environmental Diseases",
+    CONTAGIOUS = "Contagious Illnesses",
+    ENVIRONMENTAL = "Environmental Effects",
     MAGICAL = "Magical Afflictions",
     UNDEAD = "Undead Curses",
     ELEMENTAL = "Elemental Maladies"
 }
 
 AfflictionModule.CategoryGroups = {
-    ENVIRONMENTAL = {
+    CONTAGIOUS = {
         "MARSH_ROT",
-        "CAVE_FEVER",
+        "CAVE_FEVER"
+    },
+    ENVIRONMENTAL = {
         "DESERT_HEAT",
         "MOUNTAIN_CHILL"
     },
     MAGICAL = {
         "CORRUPTION",
         "ARCANE_FLUX",
-        "MANA_SICKNESS"
+        "RESONANCE_SICKNESS"
     },
     UNDEAD = {
         "GRAVE_CHILL",
@@ -66,7 +69,7 @@ AfflictionModule.CategoryGroups = {
 }
 
 AfflictionModule.Templates = {
-    ENVIRONMENTAL = {
+    CONTAGIOUS = {
         MARSH_ROT = {
             name = "Marsh Rot",
             description = "A disease caught in swampy areas that slowly drains vitality.",
@@ -167,11 +170,13 @@ AfflictionModule.Templates = {
                 duration = 43200,
                 resistance = 0.7
             }
-        },
+        }
+    },
 
+    ENVIRONMENTAL = {
         DESERT_HEAT = {
             name = "Desert Heat",
-            description = "A malady caused by extreme heat exposure and dehydration.",
+            description = "A condition caused by extreme heat exposure and dehydration.",
             zones = {"DESERT"},
             infectionChance = 0.1,
             checkInterval = 30,
@@ -180,7 +185,7 @@ AfflictionModule.Templates = {
                 [1] = {
                     name = "Heat Exhaustion",
                     description = "Fatigue and dizziness from heat exposure.",
-                    duration = 900, -- 15 minutes
+                    duration = 900,
                     effects = {
                         STAMINA = { type = "MULTIPLY", value = 0.85 },
                         STAMINA_REGEN = { type = "MULTIPLY", value = 0.8 }
@@ -319,7 +324,7 @@ AfflictionModule.Templates = {
                     effects = {
                         MAGIC = { type = "MULTIPLY", value = 0.6 },
                         INTELLIGENCE = { type = "MULTIPLY", value = 0.7 },
-                        MANA = { type = "MULTIPLY", value = 0.8 }
+                        RESONANCE = { type = "MULTIPLY", value = 0.8 }
                     }
                 },
                 [3] = {
@@ -329,13 +334,13 @@ AfflictionModule.Templates = {
                     effects = {
                         MAGIC = { type = "MULTIPLY", value = 0.4 },
                         INTELLIGENCE = { type = "MULTIPLY", value = 0.5 },
-                        MANA = { type = "MULTIPLY", value = 0.6 },
+                        RESONANCE = { type = "MULTIPLY", value = 0.6 },
                         HEALTH = { type = "MULTIPLY", value = 0.8 }
                     }
                 }
             },
             cures = {
-                MANA_POTION = { effectiveness = 0.3 },
+                RESONANCE_POTION = { effectiveness = 0.3 },
                 INVISIBILITY_POTION = { effectiveness = 0.5 },
                 ELIXIR = { effectiveness = 1.0 }
             },
@@ -359,7 +364,7 @@ AfflictionModule.Templates = {
                     duration = 1500,
                     effects = {
                         MAGIC = { type = "MULTIPLY", value = 0.85 },
-                        MANA_REGEN = { type = "MULTIPLY", value = 0.9 }
+                        RESONANCE_REGEN = { type = "MULTIPLY", value = 0.9 }
                     }
                 },
                 [2] = {
@@ -368,11 +373,11 @@ AfflictionModule.Templates = {
                     duration = 3000,
                     effects = {
                         MAGIC = { type = "MULTIPLY", value = 0.7 },
-                        MANA_REGEN = { type = "MULTIPLY", value = 0.7 },
-                        MANA = { type = "MULTIPLY", value = 0.8 }
+                        RESONANCE_REGEN = { type = "MULTIPLY", value = 0.7 },
+                        RESONANCE = { type = "MULTIPLY", value = 0.8 }
                     },
                     tickEffects = {
-                        MANA = { type = "ADD", value = function(player)
+                        RESONANCE = { type = "ADD", value = function(player)
                             return math.random(-5, 5)
                         end }
                     }
@@ -383,12 +388,12 @@ AfflictionModule.Templates = {
                     duration = 4500,
                     effects = {
                         MAGIC = { type = "MULTIPLY", value = 0.5 },
-                        MANA_REGEN = { type = "MULTIPLY", value = 0.5 },
-                        MANA = { type = "MULTIPLY", value = 0.6 },
+                        RESONANCE_REGEN = { type = "MULTIPLY", value = 0.5 },
+                        RESONANCE = { type = "MULTIPLY", value = 0.6 },
                         INTELLIGENCE = { type = "MULTIPLY", value = 0.8 }
                     },
                     tickEffects = {
-                        MANA = { type = "ADD", value = function(player)
+                        RESONANCE = { type = "ADD", value = function(player)
                             return math.random(-10, 10)
                         end },
                         HEALTH = { type = "ADD", value = function(player)
@@ -401,8 +406,8 @@ AfflictionModule.Templates = {
                 }
             },
             cures = {
-                MANA_POTION = { effectiveness = 0.6 },
-                MANA_FRUIT = { effectiveness = 0.8 },
+                RESONANCE_POTION = { effectiveness = 0.6 },
+                RESONANCE_FRUIT = { effectiveness = 0.8 },
                 ELIXIR = { effectiveness = 1.0 }
             },
             immunity = {
@@ -410,21 +415,21 @@ AfflictionModule.Templates = {
                 resistance = 0.7
             },
             recoveryEffects = {
-                MANA_REGEN = { type = "MULTIPLY", value = 1.5, duration = 900 },
+                RESONANCE_REGEN = { type = "MULTIPLY", value = 1.5, duration = 900 },
                 MAGIC = { type = "MULTIPLY", value = 1.1, duration = 600 }
             }
         },
 
-        MANA_SICKNESS = {
-            name = "Mana Sickness",
-            description = "An illness caused by prolonged exposure to concentrated mana.",
+        RESONANCE_SICKNESS = {
+            name = "Resonance Sickness",
+            description = "An illness caused by prolonged exposure to concentrated resonance.",
             zones = {"ENCHANTED_FOREST"},
             infectionChance = 0.04,
             checkInterval = 60,
             progressInterval = 400,
             stages = {
                 [1] = {
-                    name = "Mana Sensitivity",
+                    name = "Resonance Sensitivity",
                     description = "Increased sensitivity to magical energies.",
                     duration = 2400,
                     effects = {
@@ -433,7 +438,7 @@ AfflictionModule.Templates = {
                     }
                 },
                 [2] = {
-                    name = "Mana Oversaturation",
+                    name = "Resonance Oversaturation",
                     description = "Body struggling to contain excess magical energy.",
                     duration = 3600,
                     effects = {
@@ -446,7 +451,7 @@ AfflictionModule.Templates = {
                     }
                 },
                 [3] = {
-                    name = "Mana Poisoning",
+                    name = "Resonance Poisoning",
                     description = "Magical energy causing internal damage to the body.",
                     duration = 5400,
                     effects = {
@@ -457,7 +462,7 @@ AfflictionModule.Templates = {
                     },
                     tickEffects = {
                         HEALTH = { type = "ADD", value = -1 },
-                        MANA = { type = "ADD", value = 1 }
+                        RESONANCE = { type = "ADD", value = 1 }
                     }
                 }
             },
@@ -554,7 +559,7 @@ AfflictionModule.Templates = {
                     duration = 2400,
                     effects = {
                         STAMINA = { type = "MULTIPLY", value = 0.9 },
-                        MANA = { type = "MULTIPLY", value = 0.9 }
+                        RESONANCE = { type = "MULTIPLY", value = 0.9 }
                     }
                 },
                 [2] = {
@@ -563,13 +568,13 @@ AfflictionModule.Templates = {
                     duration = 4800,
                     effects = {
                         STAMINA = { type = "MULTIPLY", value = 0.8 },
-                        MANA = { type = "MULTIPLY", value = 0.8 },
+                        RESONANCE = { type = "MULTIPLY", value = 0.8 },
                         HEALTH_REGEN = { type = "MULTIPLY", value = 0.8 },
                         MAGIC = { type = "MULTIPLY", value = 0.9 }
                     },
                     tickEffects = {
                         STAMINA = { type = "ADD", value = -1 },
-                        MANA = { type = "ADD", value = -1 }
+                        RESONANCE = { type = "ADD", value = -1 }
                     }
                 },
                 [3] = {
@@ -578,20 +583,20 @@ AfflictionModule.Templates = {
                     duration = 7200,
                     effects = {
                         STAMINA = { type = "MULTIPLY", value = 0.6 },
-                        MANA = { type = "MULTIPLY", value = 0.6 },
+                        RESONANCE = { type = "MULTIPLY", value = 0.6 },
                         HEALTH_REGEN = { type = "MULTIPLY", value = 0.5 },
                         MAGIC = { type = "MULTIPLY", value = 0.7 },
                         HEALTH = { type = "MULTIPLY", value = 0.9 }
                     },
                     tickEffects = {
                         STAMINA = { type = "ADD", value = -2 },
-                        MANA = { type = "ADD", value = -2 },
+                        RESONANCE = { type = "ADD", value = -2 },
                         HEALTH = { type = "ADD", value = -0.5 }
                     }
                 }
             },
             cures = {
-                MANA_POTION = { effectiveness = 0.4 },
+                RESONANCE_POTION = { effectiveness = 0.4 },
                 INVISIBILITY_POTION = { effectiveness = 0.6 },
                 ELIXIR = { effectiveness = 1.0 }
             },

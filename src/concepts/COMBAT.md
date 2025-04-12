@@ -124,7 +124,7 @@ Primary combat survival metric.
   - Knock-out states
   - Execution vulnerability
 
-### Mana System
+### Resonance System
 Magical resource management.
 
 **Characteristics:**

@@ -25,6 +25,7 @@ DialogueService.Events = {
     Start = true,
     End = true,
     Progress = true,
+    React = true,
     Remind = true,
     Cleanup = true
 }
@@ -1459,7 +1460,7 @@ function DialogueService:StartMonitoring(userId: string)
 
                         local player = game.Players:GetPlayerByUserId(tonumber(userId))
                         if player then
-                            Services.Event:FireTo(player, "Client.Dialogue.Cleanup", {})
+                            Services.Event:FireTo(player, "Dialogue.Cleanup", {})
                         end
 
                         task.wait(0.1)

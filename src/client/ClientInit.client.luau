@@ -19,7 +19,13 @@ function ClientInit:Init()
 
         startPromise:andThen(function()
             resolve()
-        end):onError(function(error)
+        end):catch(function(error)
+            print("Start failed with error:", error)
+            if type(error) == "table" then
+                for k, v in pairs(error) do
+                    print("  - " .. tostring(k) .. ":", tostring(v))
+                end
+            end
             reject(error)
         end)
     end)
@@ -40,8 +46,13 @@ Players.LocalPlayer.AncestryChanged:Connect(function(_, parent)
 end)
 
 client:Init():andThen(function()
-end):onError(function(error)
+end):catch(function(error)
     warn("Failed to initialize client:", error)
+    if type(error) == "table" then
+        for k, v in pairs(error) do
+            warn("  - " .. tostring(k) .. ":", tostring(v))
+        end
+    end
 end)
 
 return client

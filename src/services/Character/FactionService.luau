@@ -163,6 +163,19 @@ function FactionService:GetFactions()
     return factionData and factionData.factions or {}
 end
 
+function FactionService:GetPlayer(player)
+    if not player then return nil end
+    local userId = tostring(player.UserId)
+
+    for cachedFactionId, factionData in pairs(State.playerStandings[userId] or {}) do
+        if factionData.isPrimary then
+            return cachedFactionId
+        end
+    end
+
+    return nil
+end
+
 function FactionService:GetRelationship(factionId1, factionId2)
     local faction1 = self:GetFaction(factionId1)
     if not faction1 then return nil end
@@ -957,10 +970,8 @@ function FactionService:AttemptDiplomacy(player, conflict, optionId)
         return false, "Requirements not met for this diplomatic approach"
     end
 
-    local userId = tostring(player.UserId)
-
     if optionId == "BRIBE" and optionData.requirements.minUmbrels then
-        Services.Economy:RemoveCurrency(userId, optionData.requirements.minUmbrels, {
+        Services.Economy:RemoveCurrency(tostring(player.UserId), optionData.requirements.minUmbrels, {
             type = "faction_diplomacy",
             faction1 = faction1,
             faction2 = faction2,
@@ -1003,7 +1014,7 @@ function FactionService:AttemptDiplomacy(player, conflict, optionId)
 
     if optionId == "BRIBE" and outcome == "FAILURE" and result.umbrelsReturn then
         local refundAmount = math.floor(optionData.requirements.minUmbrels * result.umbrelsReturn)
-        Services.Economy:AddCurrency(userId, refundAmount, {
+        Services.Economy:AddCurrency(tostring(player.UserId), refundAmount, {
             type = "faction_diplomacy_refund",
             faction1 = faction1,
             faction2 = faction2,

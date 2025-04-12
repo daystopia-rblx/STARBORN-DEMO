@@ -23,7 +23,7 @@ export type Skill = {
         value: number | ((player: Player) -> number)
     }}?,
     cooldown: number?,
-    manaCost: number?,
+    resonanceCost: number?,
     staminaCost: number?,
     isPassive: boolean,
     metadata: {[string]: any}?

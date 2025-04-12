@@ -41,7 +41,8 @@ ActionModule.Categories = {
     SOCIAL = "social",
     INTERACTION = "interaction",
     CHECKPOINT = "checkpoint",
-    SURVIVAL = "survival"
+    SURVIVAL = "survival",
+    STEALTH = "stealth"
 }
 
 --[[ Action Types ]]
@@ -469,6 +470,120 @@ ActionModule.Types = {
                 if context.metadata and context.metadata.consumeAnimation then
                     context.metadata.consumeAnimation:Stop()
                     context.metadata.consumeAnimation = nil
+                end
+            end
+        }
+    },
+
+    STEAL = {
+        id = "steal",
+        name = "Steal",
+        category = ActionModule.Categories.STEALTH,
+        requiresTarget = true,
+        cooldown = 30,
+        persist = true,
+        handler = {
+            validate = function(services, context)
+                local character = context.player.Character
+                if not character then return false end
+
+                local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+                if not humanoidRootPart then return false end
+
+                local targetPosition = context.instance:GetPivot().Position
+                local playerPosition = humanoidRootPart.Position
+
+                local maxStealDistance = 10
+                local distance = (targetPosition - playerPosition).Magnitude
+
+                return distance <= maxStealDistance
+            end,
+
+            onStart = function(services, context)
+                local player = context.player
+                local character = player.Character
+                if not character then return false end
+
+                context.metadata = context.metadata or {}
+
+                local animation = services.Animation:PlayAnimation(character, {
+                    preset = "steal",
+                    fadeTime = 0.3,
+                    weight = 1.0,
+                    speed = 1.0
+                })
+
+                if animation then
+                    context.metadata.stealAnimation = animation
+                end
+
+                local targetId = services.Object:GetID(context.instance)
+                local storeId = context.instance:GetAttribute("STORE_ID")
+                local itemId = context.metadata and context.metadata.itemId
+                local isStore = storeId ~= nil
+
+                local theftContext = {
+                    player = player,
+                    targetId = isStore and storeId or targetId,
+                    itemId = itemId,
+                    value = context.metadata and context.metadata.itemValue,
+                    isStore = isStore,
+                    metadata = context.metadata
+                }
+
+                local success, result = services.Crime:AttemptTheft(theftContext)
+
+                task.delay(1, function()
+                    if context.metadata.stealAnimation then
+                        context.metadata.stealAnimation:Stop()
+                        context.metadata.stealAnimation = nil
+                    end
+
+                    if result then
+                        if result.success then
+                            services.Audio:PlaySound(character, {
+                                preset = "steal_success",
+                                spatial = true,
+                                distance = 5
+                            })
+                        else
+                            services.Audio:PlaySound(character, {
+                                preset = "steal_fail",
+                                spatial = true,
+                                distance = 10
+                            })
+                        end
+
+                        if result.detected then
+                            services.Audio:PlaySound(character, {
+                                preset = "detected",
+                                spatial = true,
+                                distance = 20
+                            })
+                        end
+                    end
+
+                    services.Event:Fire("Action.Persist", {
+                        player = context.player,
+                        instance = context.instance,
+                        context = context
+                    })
+                end)
+
+                return success
+            end,
+
+            onCancel = function(services, context)
+                if context.metadata and context.metadata.stealAnimation then
+                    context.metadata.stealAnimation:Stop()
+                    context.metadata.stealAnimation = nil
+                end
+            end,
+
+            onPersist = function(services, context)
+                if context.metadata and context.metadata.stealAnimation then
+                    context.metadata.stealAnimation:Stop()
+                    context.metadata.stealAnimation = nil
                 end
             end
         }

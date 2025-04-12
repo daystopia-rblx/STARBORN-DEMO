@@ -118,6 +118,15 @@ QuestService.Listeners = {
                 amount = 1
             })
         end
+    end,
+
+    ["Dialogue.React"] = function(self, data)
+        if data and data.player and data.targetId and data.success then
+            self:ProcessEvent("persuade", data.player, {
+                target = data.targetId,
+                amount = data.success and 1 or 0
+            })
+        end
     end
 }
 

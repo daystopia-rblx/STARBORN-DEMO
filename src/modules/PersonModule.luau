@@ -107,7 +107,7 @@ PersonModule.Templates = {
                     hostile = {"What do you want?", "I have nothing to say to you.", "Best keep your distance."}
                 }
             },
-            stats = {HEALTH = 100, MANA = 50, STAMINA = 80, POSTURE = 75, SPEED = 14, DAMAGE = 5, TRUST = 0, MEMORY = 604800}
+            stats = {HEALTH = 100, RESONANCE = 50, STAMINA = 80, POSTURE = 75, SPEED = 14, DAMAGE = 5, TRUST = 0, MEMORY = 604800}
         },
         variants = {
             farmer = {
@@ -118,7 +118,7 @@ PersonModule.Templates = {
             baker = {
                 name = "Baker", description = "Provides fresh bread and pastries",
                 dialogue = {apology = {accepting = {"Sweet words like honey, but let's see if they're genuine.", "A fresh start, like a new batch of bread.", "I suppose everyone deserves a second chance to prove their worth."}}},
-                stats = {HEALTH = 100, MANA = 60, STAMINA = 75}
+                stats = {HEALTH = 100, RESONANCE = 60, STAMINA = 75}
             }
         }
     },
@@ -135,12 +135,12 @@ PersonModule.Templates = {
                     hostile = {"Buy something or leave.", "I reserve the right to refuse service.", "Your coin's no good here."}
                 }
             },
-            stats = {HEALTH = 90, MANA = 60, STAMINA = 70, POSTURE = 60, SPEED = 13, DAMAGE = 3, FORGIVENESS_THRESHOLD = 40, TRUST_GAIN_RATE = 1.2, TRUST_LOSS_RATE = 1.5, MEMORY = 1209600}
+            stats = {HEALTH = 90, RESONANCE = 60, STAMINA = 70, POSTURE = 60, SPEED = 13, DAMAGE = 3, FORGIVENESS_THRESHOLD = 40, TRUST_GAIN_RATE = 1.2, TRUST_LOSS_RATE = 1.5, MEMORY = 1209600}
         },
         variants = {
             general = {
                 name = "General Merchant", description = "Sells various everyday goods",
-                stats = {HEALTH = 85, MANA = 70, DAMAGE = 2}
+                stats = {HEALTH = 85, RESONANCE = 70, DAMAGE = 2}
             },
             blacksmith = {
                 name = "Blacksmith", description = "Crafts and sells weapons and armor",
@@ -162,7 +162,7 @@ PersonModule.Templates = {
                     hostile = {"You're treading on thin ice.", "I've got my eye on you.", "Move along, troublemaker."}
                 }
             },
-            stats = {HEALTH = 150, MANA = 40, STAMINA = 120, POSTURE = 100, SPEED = 16, DAMAGE = 10, RESONANCE = 25, FORGIVENESS_THRESHOLD = 50, TRUST_GAIN_RATE = 0.8, TRUST_LOSS_RATE = 1.8, MEMORY = 2419200}
+            stats = {HEALTH = 150, RESONANCE = 40, STAMINA = 120, POSTURE = 100, SPEED = 16, DAMAGE = 10, FORGIVENESS_THRESHOLD = 50, TRUST_GAIN_RATE = 0.8, TRUST_LOSS_RATE = 1.8, MEMORY = 2419200}
         },
         variants = {
             patrol = {
@@ -189,7 +189,7 @@ PersonModule.Templates = {
                     rejecting = {"Some actions echo through all Awakenings.", "The cycle remembers, even when you forget.", "Ascension requires more than mere words."}
                 }
             },
-            stats = {HEALTH = 500, MANA = 300, STAMINA = 200, POSTURE = 300, SPEED = 18, DAMAGE = 20, RESONANCE = 100, FORGIVENESS_THRESHOLD = 70, TRUST_GAIN_RATE = 0.5, TRUST_LOSS_RATE = 2.5, MEMORY = 9999999}
+            stats = {HEALTH = 500, RESONANCE = 300, STAMINA = 200, POSTURE = 300, SPEED = 18, DAMAGE = 20, FORGIVENESS_THRESHOLD = 70, TRUST_GAIN_RATE = 0.5, TRUST_LOSS_RATE = 2.5, MEMORY = 9999999}
         },
         variants = {
             awakener = {
@@ -206,7 +206,7 @@ PersonModule.Templates = {
                         ascension = {"Ascension is not an escape from death, but a transcendence of the cycle itself.", "Many have tried. All but a few have failed.", "The path to Ascension is unique to each soul. Yours remains... unwritten."}
                     }
                 },
-                stats = {HEALTH = 1000, MANA = 500, STAMINA = 300, POSTURE = 500, SPEED = 20, DAMAGE = 40, RESONANCE = 200, FORGIVENESS_THRESHOLD = 80, TRUST_GAIN_RATE = 0.4, TRUST_LOSS_RATE = 3.0, MEMORY = 9999999},
+                stats = {HEALTH = 1000, RESONANCE = 500, STAMINA = 300, POSTURE = 500, SPEED = 20, DAMAGE = 40, FORGIVENESS_THRESHOLD = 80, TRUST_GAIN_RATE = 0.4, TRUST_LOSS_RATE = 3.0, MEMORY = 9999999},
                 abilities = {"MEMORY_ECHO", "INVOCATION_TEACH", "CYCLE_SENSE"}
             }
         }

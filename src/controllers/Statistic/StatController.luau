@@ -1,6 +1,6 @@
 --[[ StatController
     Client-side stat system with UI updates and visual feedback.
-    Manages health, mana, stamina, and other player statistics.
+    Manages health, resonance, stamina, and other player statistics.
     @author @Daystopia
     @version 1.0.2
     @date 2025-04-09
@@ -31,7 +31,7 @@ local State = {
     ui = {
         center = {
             health = HUD.Center.Health,
-            mana = HUD.Center.Mana,
+            resonance = HUD.Center.Mana,
             posture = HUD.Center.Posture,
             blood = HUD.Center.Blood
         },

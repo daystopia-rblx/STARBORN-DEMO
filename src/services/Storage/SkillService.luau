@@ -216,17 +216,17 @@ function SkillService:ActivateSkill(player: Player, skillId: string): boolean
     local cooldown = State.cooldowns[player][skillId]
     if cooldown and cooldown > tick() then return false end
 
-    if skill.manaCost and Services.Stat:GetStat(player, "MANA") < skill.manaCost then
+    if skill.resonanceCost and Services.Stat:GetStat(player, "RESONANCE") < skill.resonanceCost then
         return false
     end
     if skill.staminaCost and Services.Stat:GetStat(player, "STAMINA") < skill.staminaCost then
         return false
     end
 
-    if skill.manaCost then
-        Services.Stat:ModifyStat(player, "MANA", {
+    if skill.resonanceCost then
+        Services.Stat:ModifyStat(player, "RESONANCE", {
             operation = "subtract",
-            value = skill.manaCost,
+            value = skill.resonanceCost,
             metadata = {
                 source = "skill_cost",
                 skillId = skillId

@@ -1,12 +1,16 @@
 ### **1. Affliction Types**
 
-- **Environmental Diseases**:
-  Contracted through exposure to hazardous environments like swamps, caves, or extreme climates.
-  - **Example**: **"Marsh Rot"** - Progressive vitality drain in swamp zones with stages causing stamina loss and slowed movement.
+- **Contagious Illnesses**:
+  Contracted through exposure to pathogens or infected areas like swamps or caves.
+  - **Example**: **"Marsh Rot"** - Progressive vitality drain in swamp areas with stages causing stamina loss and slowed movement.
+
+- **Environmental Effects**:
+  Physical conditions caused by extreme environments like deserts or mountains.
+  - **Example**: **"Desert Heat"** - Progressive dehydration and exhaustion from extreme heat exposure.
 
 - **Magical Afflictions**:
   Caused by exposure to unstable arcane energies or dark magic.
-  - **Example**: **"Arcane Flux"** - Mana instability causing random magical surges and health damage.
+  - **Example**: **"Arcane Flux"** - Resonance instability causing random magical surges and health damage.
 
 - **Undead Curses**:
   Supernatural maladies transmitted by undead entities or cursed locations.
@@ -14,7 +18,7 @@
 
 - **Elemental Maladies**:
   Element-based conditions from exposure to pure elemental forces.
-  - **Example**: **"Stone Lungs"** - Progressive petrification of respiratory system in earth-aligned zones.
+  - **Example**: **"Stone Lungs"** - Progressive petrification of respiratory system in earth-aligned areas.
 
 ---
 
@@ -28,12 +32,12 @@
 
 - **Dynamic Symptoms**:
   Stage-dependent effects that impact:
-  - Core stats (Health, Stamina, Mana)
+  - Core stats (Health, Stamina, Resonance)
   - Regeneration rates
   - Movement capabilities
   - Combat effectiveness
 
-- **Zone-Based Transmission**:
+- **Area-Based Transmission**:
   Infection chances tied to specific environment types:
   ```lua
   zones = {"SWAMP", "CAVE", "CRYPT"} -- Infection only occurs in these areas

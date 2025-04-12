@@ -1,7 +1,7 @@
 --[[ DataModule
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-04-10
+    @version 1.0.3
+    @date 2025-04-12
 ]]
 local DataModule = {}
 
@@ -114,6 +114,20 @@ DataModule.Templates = {
     FactionData = {
         factions = {},
         conflicts = {},
+        lastUpdate = 0,
+        version = "1.0.0"
+    },
+
+    CrimeData = {
+        bounties = {},
+        criminalRecords = {},
+        mostWanted = {},
+        recentCrimes = {},
+        statistics = {
+            totalBounties = 0,
+            totalBountiesClaimed = 0,
+            highestBounty = 0
+        },
         lastUpdate = 0,
         version = "1.0.0"
     },

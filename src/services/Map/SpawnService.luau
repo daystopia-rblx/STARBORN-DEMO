@@ -9,7 +9,8 @@ local SpawnService = {}
 SpawnService.Dependencies = {
     "Data",
     "Event",
-    "Stat"
+    "Stat",
+    "Object"
 }
 
 SpawnService.Modules = {
@@ -80,18 +81,6 @@ SpawnService.Listeners = {
         end
     end,
 
-    [workspace.DescendantAdded] = function(self, instance: Instance)
-        if instance:IsA("Model") then
-            self:RegisterCheckpoint(instance)
-        end
-    end,
-
-    [workspace.DescendantRemoving] = function(self, instance: Instance)
-        if instance:IsA("Model") then
-            self:UnregisterCheckpoint(instance)
-        end
-    end,
-
     [workspace.ChildAdded] = function(self, instance: Instance)
         if instance.Name == "SpawnLocation" and instance:IsA("Model") then
             State.defaultSpawn = instance
@@ -136,10 +125,25 @@ function SpawnService:Start()
         end
     end
 
-    for _, model in workspace:GetDescendants() do
-        self:RegisterCheckpoint(model)
-    end
+    self:RegisterSpawn()
     return true
+end
+
+function SpawnService:RegisterSpawn()
+    Services.Object:RegisterScanner("TYPE",
+        function(instance)
+            local checkpointType = instance:GetAttribute("TYPE")
+            if checkpointType == "Bonfire" or checkpointType == "Bed" then
+                self:RegisterCheckpoint(instance)
+            end
+        end,
+        function(instance)
+            local checkpointType = instance:GetAttribute("TYPE")
+            if checkpointType == "Bonfire" or checkpointType == "Bed" then
+                self:UnregisterCheckpoint(instance)
+            end
+        end
+    )
 end
 
 function SpawnService:Cleanup()

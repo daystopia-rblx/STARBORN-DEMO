@@ -1,8 +1,8 @@
 --[[ Event
     Core event system that provides a common foundation for event handling.
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-04-09
+    @version 1.0.1
+    @date 2025-04-12
 ]]
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -222,7 +222,9 @@ function Event.New(config)
         eventConfigs = {},
         validators = table.clone(Validators),
         isServer = RunService:IsServer(),
-        config = config or {}
+        config = config or {},
+        pendingEvents = {},
+        pendingFunctions = {}
     }, Event)
 
     self.eventsFolder = CreateEventsFolder()
@@ -241,6 +243,13 @@ function Event:Init()
         if child:IsA("RemoteEvent") then
             self.remoteEvents[child.Name] = child
             self:SetupRemoteEvent(child)
+
+            if self.pendingEvents[child.Name] then
+                for _, callback in ipairs(self.pendingEvents[child.Name]) do
+                    task.spawn(callback, child)
+                end
+                self.pendingEvents[child.Name] = nil
+            end
         end
     end)
 
@@ -254,6 +263,13 @@ function Event:Init()
     self.functionsFolder.ChildAdded:Connect(function(child)
         if child:IsA("RemoteFunction") then
             self.remoteFunctions[child.Name] = child
+
+            if self.pendingFunctions[child.Name] then
+                for _, callback in ipairs(self.pendingFunctions[child.Name]) do
+                    task.spawn(callback, child)
+                end
+                self.pendingFunctions[child.Name] = nil
+            end
         end
     end)
 
@@ -344,9 +360,9 @@ function Event:RegisterEvent(eventName, config)
                 self.events[eventName].bindable:Fire(player, ...)
             end)
         else
-            remoteEvent = self.eventsFolder:FindFirstChild(eventName)
+            remoteEvent = self.remoteEvents[eventName]
             if not remoteEvent then
-                remoteEvent = self.eventsFolder:WaitForChild(eventName, 5)
+                remoteEvent = self.eventsFolder:FindFirstChild(eventName)
                 if remoteEvent then
                     self.remoteEvents[eventName] = remoteEvent
                     self:SetupRemoteEvent(remoteEvent)
@@ -424,27 +440,66 @@ function Event:InvokeServer(functionName, ...)
         return nil
     end
 
-    local remoteFunction = self.remoteFunctions[functionName]
-    if not remoteFunction then
-        remoteFunction = self.functionsFolder:WaitForChild(functionName, 5)
-        if remoteFunction then
-            self.remoteFunctions[functionName] = remoteFunction
-        end
-    end
-
-    if not remoteFunction then
-        warn("RemoteFunction not found:", functionName)
-        return nil
-    end
-
     local args = {...}
-    local success, result = pcall(function()
-        return remoteFunction:InvokeServer(unpack(args))
+
+    local remoteFunction = self.remoteFunctions[functionName]
+    if remoteFunction then
+        local success, result = pcall(function()
+            return remoteFunction:InvokeServer(unpack(args))
+        end)
+
+        if not success then
+            warn("Failed to invoke server function:", functionName, result)
+            return nil
+        end
+        return result
+    end
+
+    remoteFunction = self.functionsFolder:FindFirstChild(functionName)
+    if remoteFunction then
+        self.remoteFunctions[functionName] = remoteFunction
+        local success, result = pcall(function()
+            return remoteFunction:InvokeServer(unpack(args))
+        end)
+
+        if not success then
+            warn("Failed to invoke server function:", functionName, result)
+            return nil
+        end
+        return result
+    end
+
+    if not self.pendingFunctions[functionName] then
+        self.pendingFunctions[functionName] = {}
+    end
+
+    local result
+    local resultReady = false
+
+    local handleFunction = function(fn)
+        local success, fnResult = pcall(function()
+            return fn:InvokeServer(unpack(args))
+        end)
+
+        if success then
+            result = fnResult
+        else
+            warn("Failed to invoke server function:", functionName, fnResult)
+        end
+        resultReady = true
+    end
+
+    table.insert(self.pendingFunctions[functionName], handleFunction)
+
+    task.delay(0.5, function()
+        if not resultReady then
+            resultReady = true
+            warn("Timed out waiting for RemoteFunction:", functionName)
+        end
     end)
 
-    if not success then
-        warn("Failed to invoke server function:", functionName, result)
-        return nil
+    while not resultReady do
+        task.wait()
     end
 
     return result
@@ -612,27 +667,55 @@ function Event:FireServer(eventName, ...)
         return
     end
 
-    local remoteEvent = self.remoteEvents[eventName]
-    if not remoteEvent then
-        remoteEvent = self.eventsFolder:WaitForChild(eventName, 5)
-        if remoteEvent then
-            self.remoteEvents[eventName] = remoteEvent
-        end
-    end
+    local args = {...}
 
-    if not remoteEvent then
-        warn("RemoteEvent not found:", eventName)
+    local remoteEvent = self.remoteEvents[eventName]
+    if remoteEvent then
+        local success, err = pcall(function()
+            remoteEvent:FireServer(unpack(args))
+        end)
+
+        if not success then
+            warn("Failed to fire server event:", eventName, err)
+        end
         return
     end
 
-    local args = {...}
-    local success, err = pcall(function()
-        remoteEvent:FireServer(unpack(args))
-    end)
+    remoteEvent = self.eventsFolder:FindFirstChild(eventName)
+    if remoteEvent then
+        self.remoteEvents[eventName] = remoteEvent
+        local success, err = pcall(function()
+            remoteEvent:FireServer(unpack(args))
+        end)
 
-    if not success then
-        warn("Failed to fire server event:", eventName, err)
+        if not success then
+            warn("Failed to fire server event:", eventName, err)
+        end
+        return
     end
+
+    if not self.pendingEvents[eventName] then
+        self.pendingEvents[eventName] = {}
+    end
+
+    local handleEvent = function(evt)
+        local success, err = pcall(function()
+            evt:FireServer(unpack(args))
+        end)
+
+        if not success then
+            warn("Failed to fire server event:", eventName, err)
+        end
+    end
+
+    table.insert(self.pendingEvents[eventName], handleEvent)
+
+    task.delay(0.5, function()
+        if self.pendingEvents[eventName] then
+            warn("Timed out waiting for RemoteEvent:", eventName)
+            self.pendingEvents[eventName] = nil
+        end
+    end)
 end
 
 function Event:Cleanup()
@@ -662,6 +745,8 @@ function Event:Cleanup()
     table.clear(self.remoteFunctions)
     table.clear(self.warnedEvents)
     table.clear(self.eventConfigs)
+    table.clear(self.pendingEvents)
+    table.clear(self.pendingFunctions)
 end
 
 Event.Connect = Event.On

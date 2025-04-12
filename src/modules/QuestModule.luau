@@ -446,6 +446,280 @@ QuestModule.Templates = {
         }
     end,
 
+    MediationQuest = function(params: {
+        id: string,
+        name: string,
+        description: string,
+        factions: {string},
+        conflictType: string?,
+        conflictId: string?,
+        approach: string?,
+        branches: {{
+            id: string,
+            name: string,
+            description: string,
+            objectives: {{
+                id: string?,
+                name: string,
+                description: string,
+                conditions: {{
+                    type: string,
+                    target: any,
+                    required: number?,
+                    approach: string?
+                }}
+            }},
+            nextBranches: {string}?
+        }}?,
+        rewards: {{
+            type: string,
+            id: string?,
+            amount: number?
+        }}?
+    }): Quest
+        local questId = params.id
+        local faction1 = params.factions[1]
+        local faction2 = params.factions[2]
+        local conflictType = params.conflictType or "TERRITORIAL"
+        local approach = params.approach or "MEDIATE"
+
+        local branches = {}
+
+        if not params.branches then
+            local investigationBranchId = questId .. "_investigate"
+            local investigationObjectives = {}
+
+            investigationObjectives[questId .. "_gather_info_1"] = {
+                id = questId .. "_gather_info_1",
+                name = "Gather Information from " .. faction1,
+                description = "Learn about " .. faction1 .. "'s perspective on the conflict",
+                conditions = {
+                    [questId .. "_talk_leader_1"] = {
+                        id = questId .. "_talk_leader_1",
+                        type = "talk",
+                        target = faction1 .. "_LEADER",
+                        required = 1
+                    },
+                    [questId .. "_talk_advisor_1"] = {
+                        id = questId .. "_talk_advisor_1",
+                        type = "talk",
+                        target = faction1 .. "_ADVISOR",
+                        required = 1
+                    }
+                }
+            }
+
+            investigationObjectives[questId .. "_gather_info_2"] = {
+                id = questId .. "_gather_info_2",
+                name = "Gather Information from " .. faction2,
+                description = "Learn about " .. faction2 .. "'s perspective on the conflict",
+                conditions = {
+                    [questId .. "_talk_leader_2"] = {
+                        id = questId .. "_talk_leader_2",
+                        type = "talk",
+                        target = faction2 .. "_LEADER",
+                        required = 1
+                    },
+                    [questId .. "_talk_advisor_2"] = {
+                        id = questId .. "_talk_advisor_2",
+                        type = "talk",
+                        target = faction2 .. "_ADVISOR",
+                        required = 1
+                    }
+                }
+            }
+
+            branches[investigationBranchId] = {
+                id = investigationBranchId,
+                name = "Understanding the Conflict",
+                description = "Investigate both sides of the conflict to gain a complete understanding",
+                objectives = investigationObjectives,
+                nextBranches = {questId .. "_evidence"}
+            }
+
+            local evidenceBranchId = questId .. "_evidence"
+            local evidenceObjectives = {}
+
+            evidenceObjectives[questId .. "_find_evidence"] = {
+                id = questId .. "_find_evidence",
+                name = "Find Supporting Evidence",
+                description = "Locate documents or witnesses that can help resolve the conflict",
+                conditions = {
+                    [questId .. "_collect_evidence"] = {
+                        id = questId .. "_collect_evidence",
+                        type = "collect",
+                        target = "CONFLICT_EVIDENCE",
+                        required = 3
+                    },
+                    [questId .. "_visit_site"] = {
+                        id = questId .. "_visit_site",
+                        type = "visit",
+                        target = "CONFLICT_SITE",
+                        required = 1
+                    }
+                }
+            }
+
+            branches[evidenceBranchId] = {
+                id = evidenceBranchId,
+                name = "Gathering Evidence",
+                description = "Collect crucial evidence to support your mediation efforts",
+                objectives = evidenceObjectives,
+                nextBranches = {questId .. "_negotiate"}
+            }
+
+            local negotiateBranchId = questId .. "_negotiate"
+            local negotiateObjectives = {}
+
+            negotiateObjectives[questId .. "_conduct_meeting"] = {
+                id = questId .. "_conduct_meeting",
+                name = "Conduct Peace Talks",
+                description = "Bring both faction leaders together and mediate their discussion",
+                conditions = {
+                    [questId .. "_joint_meeting"] = {
+                        id = questId .. "_joint_meeting",
+                        type = "talk",
+                        target = "PEACE_MEETING",
+                        required = 1
+                    },
+                    [questId .. "_persuade_terms"] = {
+                        id = questId .. "_persuade_terms",
+                        type = "persuade",
+                        target = "PEACE_TERMS",
+                        required = 2,
+                        approach = "diplomacy"
+                    }
+                }
+            }
+
+            branches[negotiateBranchId] = {
+                id = negotiateBranchId,
+                name = "Peace Negotiations",
+                description = "Facilitate discussions between the factions to reach a peaceful resolution",
+                objectives = negotiateObjectives
+            }
+
+            params.branches = {
+                {
+                    id = investigationBranchId,
+                    name = "Understanding the Conflict",
+                    description = "Investigate both sides of the conflict to gain a complete understanding",
+                    objectives = {},
+                    nextBranches = {evidenceBranchId}
+                },
+                {
+                    id = evidenceBranchId,
+                    name = "Gathering Evidence",
+                    description = "Collect crucial evidence to support your mediation efforts",
+                    objectives = {},
+                    nextBranches = {negotiateBranchId}
+                },
+                {
+                    id = negotiateBranchId,
+                    name = "Peace Negotiations",
+                    description = "Facilitate discussions between the factions to reach a peaceful resolution",
+                    objectives = {}
+                }
+            }
+        end
+
+        for _, branchData in ipairs(params.branches) do
+            local branchId = branchData.id
+            local objectives = {}
+
+            for i, objData in ipairs(branchData.objectives or {}) do
+                local objId = objData.id or (branchId .. "_obj_" .. i)
+                local conditions = {}
+
+                for j, condData in ipairs(objData.conditions or {}) do
+                    local condId = branchId .. "_cond_" .. i .. "_" .. j
+                    conditions[condId] = {
+                        id = condId,
+                        type = condData.type,
+                        target = condData.target,
+                        required = condData.required or 1,
+                        approach = condData.approach,
+                        progress = 0
+                    }
+                end
+
+                if next(conditions) then
+                    objectives[objId] = {
+                        id = objId,
+                        name = objData.name,
+                        description = objData.description,
+                        conditions = conditions
+                    }
+                end
+            end
+
+            branches[branchId] = branches[branchId] or {
+                id = branchId,
+                name = branchData.name,
+                description = branchData.description,
+                objectives = objectives,
+                nextBranches = branchData.nextBranches
+            }
+        end
+
+        local rewards = {}
+        if params.rewards then
+            for i, rewardData in ipairs(params.rewards) do
+                local rewardId = questId .. "_reward_" .. i
+                rewards[rewardId] = {
+                    type = rewardData.type,
+                    id = rewardData.id,
+                    amount = rewardData.amount
+                }
+            end
+        else
+            rewards[questId .. "_faction_rep_1"] = {
+                type = QuestModule.RewardTypes.FACTION_STANDING,
+                id = faction1,
+                amount = 20
+            }
+
+            rewards[questId .. "_faction_rep_2"] = {
+                type = QuestModule.RewardTypes.FACTION_STANDING,
+                id = faction2,
+                amount = 20
+            }
+
+            rewards[questId .. "_currency"] = {
+                type = QuestModule.RewardTypes.CURRENCY,
+                id = "UMBRELS",
+                amount = 500
+            }
+
+            rewards[questId .. "_title"] = {
+                type = QuestModule.RewardTypes.TITLE,
+                id = "MEDIATOR",
+                amount = 1
+            }
+        end
+
+        local startingBranch = params.branches and params.branches[1] and params.branches[1].id or (questId .. "_investigate")
+
+        return {
+            id = questId,
+            type = QuestModule.Types.FACTION,
+            name = params.name,
+            description = params.description,
+            branches = branches,
+            startingBranch = startingBranch,
+            rewards = rewards,
+            isRepeatable = false,
+            level = 15,
+            metadata = {
+                factions = params.factions,
+                conflictType = conflictType,
+                conflictId = params.conflictId,
+                approach = approach,
+                category = "DIPLOMACY"
+            }
+        }
+    end,
+
     DynamicQuest = function(params: {
         id: string,
         name: string,

@@ -2,8 +2,8 @@
     Dynamic zone management system with region-based triggers and behaviors.
     Handles zone detection, transitions, overlapping regions, and custom zone attributes.
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-02-11
+    @version 1.0.2
+    @date 2025-04-11
 ]]
 local ZoneService = {}
 
@@ -23,97 +23,65 @@ local Services
 
 --[[ State Management ]]--
 local State = {
-    playerZones = {},
-    zoneCache = {},
-    activeZones = {},
-    lastCheck = {},
-    characterConnection = {}
+    zones = {},
+    players = {},
+    active = {},
+    check = {},
+    connection = {},
+    tick = {}
 }
 
 --[[ Constants ]]--
 local CHECK_INTERVAL = 0.1
-local DEFAULT_ZONE = "Neutral"
+local DEFAULT_ZONE = "Default"
+local DEBUG = true
 
 --[[ Event Listeners ]]--
 ZoneService.Listeners = {
-    ["Object.Update"] = function(self, data)
-        if not data.instance or (data.attributes and data.attributes.type ~= "ZONE") then
-            return
-        end
-
-        local zoneType = data.attributes and data.attributes.type or data.instance:GetAttribute("TYPE")
-        if zoneType and zoneType:upper() ~= "ZONE" then
-            return
-        end
-
-        local attributes = {
-            instance = data.instance,
-            name = data.instance:GetAttribute("NAME"),
-            type = data.instance:GetAttribute("TYPE") or "Zone",
-            attributes = {}
-        }
-
-        for _, attr in pairs(data.instance:GetAttributes()) do
-            if type(attr) == "string" then
-                attributes.attributes[attr] = data.instance:GetAttribute(attr)
-            end
-        end
-
-        if data.attributes then
-            for key, value in pairs(data.attributes) do
-                if type(key) == "string" then
-                    attributes.attributes[key] = value
-                end
-            end
-        end
-
-        self:RegisterZone(data.id, attributes)
-    end,
-
     ["Player.Join"] = function(self, data)
         if not data.player then return end
         local player = data.player
         local userId = player.UserId
 
-        State.playerZones[userId] = {}
+        State.players[userId] = {}
         player:SetAttribute("ZONE", DEFAULT_ZONE)
 
-        local function cleanupCharacterZones()
-            local currentZones = State.playerZones[userId]
+        local function CleanupZones()
+            local currentZones = State.players[userId]
             if not currentZones then return end
 
             for zoneId, _ in pairs(currentZones) do
-                local zoneData = State.zoneCache[zoneId]
+                local zoneData = State.zones[zoneId]
                 if zoneData then
                     self.ZoneEvents.Exit(self, player, zoneData.instance, zoneData)
                 end
             end
 
-            if not next(State.playerZones[userId]) then
+            if not next(State.players[userId]) then
                 player:SetAttribute("ZONE", DEFAULT_ZONE)
             end
         end
 
-        if not State.characterConnection[userId] then
-            State.characterConnection[userId] = {}
+        if not State.connection[userId] then
+            State.connection[userId] = {}
         end
 
-        State.characterConnection[userId].removing = player.CharacterRemoving:Connect(cleanupCharacterZones)
-        State.characterConnection[userId].added = player.CharacterAdded:Connect(cleanupCharacterZones)
+        State.connection[userId].removing = player.CharacterRemoving:Connect(CleanupZones)
+        State.connection[userId].added = player.CharacterAdded:Connect(CleanupZones)
     end,
 
     ["Player.Left"] = function(self, data)
         if not data.player then return end
         local userId = data.player.UserId
 
-        if State.characterConnection[userId] then
-            for _, connection in pairs(State.characterConnection[userId]) do
+        if State.connection[userId] then
+            for _, connection in pairs(State.connection[userId]) do
                 connection:Disconnect()
             end
-            State.characterConnection[userId] = nil
+            State.connection[userId] = nil
         end
 
-        State.playerZones[userId] = nil
+        State.players[userId] = nil
     end
 }
 
@@ -128,46 +96,74 @@ function ZoneService:Start()
         self:UpdateZones()
     end)
 
-    local zones = Services.Object:SearchObjects(function(variant)
-        return variant.type == "ZONE" and variant
-    end)
-    if zones then
-        if zones.instance then
-            self:RegisterZone(Services.Object:GetID(zones.instance), {
-                instance = zones.instance,
-                name = zones.instance:GetAttribute("NAME"),
-                zoneType = zones.instance:GetAttribute("ZONE_TYPE") or "Safe"
-            })
-        end
-    end
+    self:RegisterZone()
     return true
 end
 
-function ZoneService:Cleanup()
-    if State.characterConnection then
-        for _, connection in pairs(State.characterConnection) do
-            connection:Disconnect()
-        end
-        table.clear(State.characterConnection)
+function ZoneService:RegisterZone(zoneId, attributes)
+    if not zoneId then
+        Services.Object:RegisterScanner("ZONE",
+            function(instance)
+                if not (instance:IsA("Model") or instance:IsA("BasePart")) then
+                    return
+                end
+
+                local zoneId = Services.Object:GetID(instance)
+                if not zoneId then return end
+
+                local attributes = {
+                    instance = instance,
+                    name = instance:GetAttribute("NAME") or instance.Name,
+                    zone = instance:GetAttribute("ZONE"),
+                    attributes = {}
+                }
+
+                for name, value in pairs(instance:GetAttributes()) do
+                    attributes.attributes[name] = value
+                end
+
+                self:RegisterZone(zoneId, attributes)
+            end,
+            function(instance)
+                if not (instance:IsA("Model") or instance:IsA("BasePart")) then
+                    return
+                end
+
+                local zoneId = Services.Object:GetID(instance)
+                if zoneId and State.zones[zoneId] then
+                    State.zones[zoneId] = nil
+                    State.active[zoneId] = nil
+                end
+            end
+        )
+        return
     end
 
-    table.clear(State.playerZones)
-    table.clear(State.zoneCache)
-    table.clear(State.activeZones)
-    table.clear(State.lastCheck)
+    if not attributes.instance then return end
+    if not attributes.zone then return end
+
+    State.zones[zoneId] = attributes
+
+    if not State.active[zoneId] then
+        State.active[zoneId] = true
+    end
+end
+
+function ZoneService:Cleanup()
+    if State.connection then
+        for _, connection in pairs(State.connection) do
+            connection:Disconnect()
+        end
+        table.clear(State.connection)
+    end
+
+    table.clear(State.players)
+    table.clear(State.zones)
+    table.clear(State.active)
+    table.clear(State.check)
 end
 
 --[[ Zone Management ]]--
-function ZoneService:RegisterZone(zoneId, attributes)
-    if not attributes.instance then return end
-
-    State.zoneCache[zoneId] = attributes
-
-    if not State.activeZones[zoneId] then
-        State.activeZones[zoneId] = true
-    end
-end
-
 function ZoneService:UpdateZones()
     local players = game.Players:GetPlayers()
 
@@ -184,7 +180,7 @@ function ZoneService:UpdateZones()
         local characterSize = Vector3.new(4, 5, 4)
         local position = rootPart.Position
 
-        for zoneId, zoneData in pairs(State.zoneCache) do
+        for zoneId, zoneData in pairs(State.zones) do
             if not zoneData.instance then
                 continue
             end
@@ -238,7 +234,7 @@ function ZoneService:UpdateZones()
                 end
             end
 
-            if game:GetService("RunService"):IsStudio() then
+            if DEBUG and game:GetService("RunService"):IsStudio() then
                 local debugPart = zonePart:FindFirstChild("DebugBounds")
                 if not debugPart then
                     debugPart = Instance.new("Part")
@@ -254,8 +250,8 @@ function ZoneService:UpdateZones()
                 debugPart.Color = inZone and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
             end
 
-            local playerZones = State.playerZones[player.UserId]
-            local currentlyInZone = playerZones and playerZones[zoneId] or false
+            local players = State.players[player.UserId]
+            local currentlyInZone = players and players[zoneId] or false
 
             if inZone and not currentlyInZone then
                 self.ZoneEvents.Enter(self, player, zoneData.instance, zoneData)
@@ -269,7 +265,7 @@ end
 --[[ Helper Methods ]]--
 function ZoneService:GetZones(player)
     if not player then return {} end
-    return State.playerZones[player.UserId] or {}
+    return State.players[player.UserId] or {}
 end
 
 function ZoneService:GetRoot(player)
@@ -277,15 +273,15 @@ function ZoneService:GetRoot(player)
 
     local character = player.Character
     if not character then
-        if not State.characterConnection then
-            State.characterConnection = {}
+        if not State.connection then
+            State.connection = {}
         end
 
-        if not State.characterConnection[player.UserId] then
-            State.characterConnection[player.UserId] = player.CharacterAdded:Connect(function(char)
-                if State.characterConnection[player.UserId] then
-                    State.characterConnection[player.UserId]:Disconnect()
-                    State.characterConnection[player.UserId] = nil
+        if not State.connection[player.UserId] then
+            State.connection[player.UserId] = player.CharacterAdded:Connect(function(char)
+                if State.connection[player.UserId] then
+                    State.connection[player.UserId]:Disconnect()
+                    State.connection[player.UserId] = nil
                 end
             end)
         end
@@ -301,14 +297,14 @@ end
 function ZoneService:CheckPlayer(player)
     if not player then return false end
     local now = tick()
-    if not State.lastCheck[player.UserId] then
-        State.lastCheck[player.UserId] = now
+    if not State.tick[player.UserId] then
+        State.check[player.UserId] = now
         return true
     end
-    if now - State.lastCheck[player.UserId] < CHECK_INTERVAL then
+    if now - State.check[player.UserId] < CHECK_INTERVAL then
         return false
     end
-    State.lastCheck[player.UserId] = now
+    State.check[player.UserId] = now
     return true
 end
 
@@ -316,16 +312,16 @@ end
 ZoneService.ZoneEvents = {
     Enter = function(self, player, zoneInstance, attributes)
         local userId = player.UserId
-        if not State.playerZones[userId] then
-            State.playerZones[userId] = {}
+        if not State.players[userId] then
+            State.players[userId] = {}
         end
 
         local zoneId = Services.Object:GetID(zoneInstance)
-        if not zoneId or State.playerZones[userId][zoneId] then
+        if not zoneId or State.players[userId][zoneId] then
             return
         end
 
-        State.playerZones[userId][zoneId] = true
+        State.players[userId][zoneId] = true
 
         local success, err = pcall(function()
             for attr, value in pairs(attributes.attributes) do
@@ -336,30 +332,30 @@ ZoneService.ZoneEvents = {
                 player = player,
                 zoneId = zoneId,
                 zoneName = attributes.name,
-                zoneType = attributes.type,
+                zone = attributes.zone,
                 attributes = attributes.attributes
             })
 
             Services.Event:FireTo(player, "Zone.Enter", {
                 zoneId = zoneId,
                 zoneName = attributes.name,
-                zoneType = attributes.type,
+                zone = attributes.zone,
                 attributes = attributes.attributes
             })
         end)
 
         if not success then
             warn(err)
-            State.playerZones[userId][zoneId] = nil
+            State.players[userId][zoneId] = nil
         end
     end,
 
     Exit = function(self, player, zoneInstance, attributes)
         local userId = player.UserId
-        if not State.playerZones[userId] then return end
+        if not State.players[userId] then return end
 
         local zoneId = Services.Object:GetID(zoneInstance)
-        if not zoneId or not State.playerZones[userId][zoneId] then return end
+        if not zoneId or not State.players[userId][zoneId] then return end
 
         local success, err = pcall(function()
             for attr, _ in pairs(attributes.attributes) do
@@ -370,14 +366,14 @@ ZoneService.ZoneEvents = {
                 player = player,
                 zoneId = zoneId,
                 zoneName = attributes.name,
-                zoneType = attributes.type,
+                zone = attributes.zone,
                 attributes = attributes.attributes
             })
 
             Services.Event:FireTo(player, "Zone.Exit", {
                 zoneId = zoneId,
                 zoneName = attributes.name,
-                zoneType = attributes.type,
+                zone = attributes.zone,
                 attributes = attributes.attributes
             })
         end)
@@ -386,7 +382,13 @@ ZoneService.ZoneEvents = {
             warn(err)
         end
 
-        State.playerZones[userId][zoneId] = nil
+        State.players[userId][zoneId] = nil
+
+        if not next(State.players[userId]) then
+             player:SetAttribute("ZONE", DEFAULT_ZONE)
+             Services.Event:Fire("Zone.Change", { player = player, zone = DEFAULT_ZONE })
+             Services.Event:FireTo(player, "Zone.Change", { zone = DEFAULT_ZONE })
+        end
     end
 }
 

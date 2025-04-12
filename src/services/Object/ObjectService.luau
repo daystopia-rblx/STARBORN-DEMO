@@ -2,8 +2,8 @@
     Core object management system for dynamic instance tracking and attribute handling.
     Provides centralized registration, caching, and property management for game objects.
     @author @Daystopia
-    @version 1.0.6
-    @date 2025-03-12
+    @version 1.0.7
+    @date 2025-04-11
 ]]
 local ObjectService = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,7 +23,9 @@ ObjectService.Modules = {
     "Weapon",
     "Equipment",
     "Craft",
-    "Food"
+    "Food",
+    "Location",
+    "Zone"
 }
 
 --[[ Events ]]
@@ -47,7 +49,8 @@ type ObjectAttributes = {
 --[[ State ]]
 local state = {
     registeredObjects = {} :: {[string]: ObjectAttributes},
-    instanceCache = {} :: {[Instance]: string}
+    instanceCache = {} :: {[Instance]: string},
+    scanners = {} :: {[string]: {registerFunc: (Instance) -> (), unregisterFunc: (Instance) -> ()}}
 }
 
 --[[ Core Functions ]]
@@ -57,9 +60,54 @@ function ObjectService:Init(services, modules)
     return true
 end
 
+ObjectService.Listeners = {
+    ["Start.Init"] = function(self)
+        self:ScanWorkspace()
+    end
+}
+
 function ObjectService:Start()
     self:RegisterObjects()
     self:ApplyAttributes()
+
+    Workspace.DescendantAdded:Connect(function(instance)
+        if not (instance:IsA("Model") or instance:IsA("BasePart")) then
+            return
+        end
+
+        for attributeName, handler in pairs(state.scanners) do
+            if instance:GetAttribute(attributeName) then
+                handler.registerFunc(instance)
+            end
+
+            instance:GetAttributeChangedSignal(attributeName):Connect(function()
+                self:ScanChanges(instance, attributeName)
+            end)
+        end
+    end)
+
+    Workspace.DescendantRemoving:Connect(function(instance)
+        if not (instance:IsA("Model") or instance:IsA("BasePart")) then
+            return
+        end
+
+        for attributeName, handler in pairs(state.scanners) do
+            if instance:GetAttribute(attributeName) then
+                handler.unregisterFunc(instance)
+            end
+        end
+    end)
+
+    for _, instance in Workspace:GetDescendants() do
+        if instance:IsA("Model") or instance:IsA("BasePart") then
+            for attributeName in pairs(state.scanners) do
+                instance:GetAttributeChangedSignal(attributeName):Connect(function()
+                    self:ScanChanges(instance, attributeName)
+                end)
+            end
+        end
+    end
+
     return true
 end
 
@@ -71,6 +119,54 @@ end
 
 function ObjectService:GetID(instance: Instance): string?
     return state.instanceCache[instance]
+end
+
+function ObjectService:RegisterScanner(attributeName, registerFunc, unregisterFunc)
+    if type(attributeName) ~= "string" or type(registerFunc) ~= "function" then
+        warn("Invalid parameters")
+        return false
+    end
+
+    state.scanners[attributeName] = {
+        registerFunc = registerFunc,
+        unregisterFunc = unregisterFunc or function() end
+    }
+
+    return true
+end
+
+function ObjectService:UnregisterScanner(attributeName)
+    if not state.scanners[attributeName] then
+        return false
+    end
+
+    state.scanners[attributeName] = nil
+    return true
+end
+
+function ObjectService:ScanChanges(instance: Instance, attributeName: string)
+    if not (instance:IsA("Model") or instance:IsA("BasePart")) then
+        return
+    end
+
+    local hasAttribute = instance:GetAttribute(attributeName) ~= nil
+    local handler = state.scanners[attributeName]
+
+    if hasAttribute then
+        handler.registerFunc(instance)
+    else
+        handler.unregisterFunc(instance)
+    end
+end
+
+function ObjectService:ScanWorkspace()
+    for attributeName, handler in pairs(state.scanners) do
+        for _, instance in Workspace:GetDescendants() do
+            if (instance:IsA("Model") or instance:IsA("BasePart")) and instance:GetAttribute(attributeName) then
+                handler.registerFunc(instance)
+            end
+        end
+    end
 end
 
 --[[ Utility Functions ]]
@@ -201,7 +297,12 @@ local function set(instance: Instance, key: string, value: any)
         local flattened = flatten(value)
         for flatKey, flatValue in pairs(flattened) do
             if instance:GetAttribute(flatKey) == nil then
-                local convertedValue, success = convert(flatValue)
+                local convertedValue, success
+                if flatKey == "DESCRIPTION" then
+                    convertedValue, success = flatValue, true
+                else
+                    convertedValue, success = convert(flatValue)
+                end
                 if success and convertedValue ~= nil then
                     instance:SetAttribute(flatKey, convertedValue)
                 end
@@ -209,7 +310,12 @@ local function set(instance: Instance, key: string, value: any)
         end
     else
         if instance:GetAttribute(string.upper(key)) == nil then
-            local convertedValue, success = convert(value)
+            local convertedValue, success
+            if string.upper(key) == "DESCRIPTION" then
+                convertedValue, success = value, true
+            else
+                convertedValue, success = convert(value)
+            end
             if success and convertedValue ~= nil then
                 instance:SetAttribute(string.upper(key), convertedValue)
             else
