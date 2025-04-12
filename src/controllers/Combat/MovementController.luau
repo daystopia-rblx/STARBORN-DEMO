@@ -16,8 +16,8 @@ MovementController.Dependencies = {
     "Event"
 }
 
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local StatusController = require(game.ReplicatedStorage.Controllers.Status.StatusController)
 
 --[[ State ]]
 local Controllers
@@ -47,8 +47,11 @@ function MovementController:ToggleRun(Active: boolean)
 
     local Humanoid = Character:FindFirstChild("Humanoid")
 
-    print("Working!")
-    --Check status, then run
+
+    if not StatusController:CheckStatus(Humanoid, {Connection = true}, "Running") then
+        Humanoid.WalkSpeed = 32
+        print("Working!")
+    end
 end
 
 return MovementController
