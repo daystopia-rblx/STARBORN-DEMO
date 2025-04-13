@@ -23,6 +23,10 @@ EventService._warnedInitialization = false
 --[[ Utility Functions ]]
 local function CheckInitialized()
     if not EventService._isInitialized and not EventService._warnedInitialization then
+        if game:GetService("RunService"):IsStudio() and game:GetService("RunService"):IsRunning() == false then
+            return false
+        end
+
         EventService._warnedInitialization = true
         warn("Attempted to use EventService before initialization")
         print("Call stack:", debug.traceback())

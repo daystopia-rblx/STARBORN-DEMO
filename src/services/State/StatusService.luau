@@ -10,7 +10,6 @@ local StatusService = {
 }
 
 local HttpService = game:GetService("HttpService")
-local StatusModule = require(game.ReplicatedStorage.Modules.Data.Status.StatusModule)
 
 type Info = {
 	Set: any,
@@ -41,9 +40,11 @@ StatusService.Listeners = {
     end,
 }
 
+local Services
 local Modules
 
-function StatusService:Init(modules)
+function StatusService:Init(services, modules)
+	Services = services
     Modules = modules
     return true
 end
@@ -82,7 +83,7 @@ end
 function StatusService:CheckStatus(Humanoid: Humanoid, Info: Info): {} | boolean
 	local Results = {}
 	local Active = true
-	
+
 	local Exclusions = {}
 	if Info.Exclude then
 		for _, exclusion in ipairs(Info.Exclude) do
@@ -90,7 +91,7 @@ function StatusService:CheckStatus(Humanoid: Humanoid, Info: Info): {} | boolean
 		end
 	end
 
-	for Category, Actions in pairs(StatusModule) do
+	for Category, Actions in pairs(Modules.Status) do
 		Results[Category] = {}
 
 		for _, Action in ipairs(Actions) do
@@ -114,7 +115,7 @@ function StatusService:CheckSpecific(Humanoid: Humanoid, Info: Info, ...: string
 	local Requests = {...}
 	local Results = {}
 
-	for Category, Actions in pairs(StatusModule) do
+	for Category, Actions in pairs(Modules.Status) do
 		for _, Action in ipairs(Actions) do
 			for _, Requested in ipairs(Requests) do
 				if Action == Requested then

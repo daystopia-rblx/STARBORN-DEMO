@@ -55,22 +55,52 @@ local DEFAULT_UPDATE_RATES = {
 
 --[[ Utility Functions ]]
 local function PrintError(title: string, componentType: string, failures: {any})
-    if not failures or #failures == 0 then return end
+    if not failures then return end
 
-    warn("=" .. string.rep("=", 50))
-    warn(title .. ":")
-    warn(string.rep("-", 50))
-    warn("| " .. componentType .. " Name | Error Details |")
-    warn(string.rep("-", 50))
+    local isEmpty = true
+    for _, _ in pairs(failures) do
+        isEmpty = false
+        break
+    end
+
+    if isEmpty then return end
+
+    local rootFailures = {}
+    local dependencyFailures = {}
 
     for name, error in pairs(failures) do
-        if type(error) == "table" then
-            warn(string.format("| %-14s | %s |", name, table.concat(error, ", ")))
+        if type(error) == "string" and error:match("^Error:") then
+            rootFailures[name] = error
+        elseif type(error) == "table" then
+            dependencyFailures[name] = error
+        elseif type(error) == "string" and error:match("^Depends on failed") then
+            dependencyFailures[name] = error
         else
-            warn(string.format("| %-14s | %s |", name, tostring(error)))
+            rootFailures[name] = error
         end
     end
-    warn(string.rep("=", 50) .. "\n")
+
+    warn("==== " .. title .. " ====")
+
+    if next(rootFailures) then
+        warn("Root Failures:")
+        for name, error in pairs(rootFailures) do
+            warn(string.format("• %s: %s", name, tostring(error)))
+        end
+    end
+
+    if next(dependencyFailures) and #dependencyFailures < 15 then
+        warn("\nDependent " .. componentType .. "s (failed because of dependencies):")
+        for name, _ in pairs(dependencyFailures) do
+            warn(string.format("• %s", name))
+        end
+    elseif next(dependencyFailures) then
+        local count = 0
+        for _ in pairs(dependencyFailures) do count += 1 end
+        warn(string.format("\n%d other %ss failed due to dependency issues", count, componentType))
+    end
+
+    warn("============================")
 end
 
 local function IsDirectRequireTable(tbl)
@@ -360,29 +390,39 @@ function Start:InitComponent(name, initializing)
     return success, result
 end
 
-function Start:StartComponent(name, startingStack)
+function Start:StartComponent(name, startingStack, errorTable)
     if self.started[name] then return true end
 
     startingStack = startingStack or {}
+    errorTable = errorTable or {}
+
     if startingStack[name] then
-        warn(string.format("Circular dependency detected while starting '%s'", name))
+        errorTable[name] = "Circular dependency detected"
         return false
     end
     startingStack[name] = true
 
+    local dependencyFailure = false
     for _, depName in ipairs(self.dependencies[name] or {}) do
         if not self.started[depName] then
-            local success = self:StartComponent(depName, startingStack)
+            local success = self:StartComponent(depName, startingStack, errorTable)
             if not success then
-                startingStack[name] = nil
-                return false
+                if errorTable[depName] then
+                    errorTable[name] = "Depends on failed " .. depName
+                    dependencyFailure = true
+                end
             end
         end
     end
 
+    if dependencyFailure then
+        startingStack[name] = nil
+        return false
+    end
+
     local component = self.components[name]
     if not component then
-        warn(string.format("Component '%s' not found", name))
+        errorTable[name] = "Component not found"
         startingStack[name] = nil
         return false
     end
@@ -398,7 +438,7 @@ function Start:StartComponent(name, startingStack)
     end)
 
     if not success then
-        warn(string.format("Error starting %s '%s': %s", self.componentType, name, tostring(result)))
+        errorTable[name] = "Error: " .. tostring(result)
         startingStack[name] = nil
         return false
     end
@@ -423,28 +463,27 @@ function Start:InitComponents()
 end
 
 function Start:StartComponents()
-    local failed = {}
+    local errorTable = {}
     local sorted = self:SortComponents()
 
     if self.components["Event"] and not self.started["Event"] then
-        local success = self:StartComponent("Event")
+        local success = self:StartComponent("Event", nil, errorTable)
         if not success then
-            failed["Event"] = "Failed to start Event " .. self.componentType
-            return failed
+            errorTable["Event"] = errorTable["Event"] or "Failed to start Event " .. self.componentType
         end
     end
 
     for _, name in ipairs(sorted) do
         if name ~= "Event" and not self.started[name] then
-            local success = self:StartComponent(name)
-            if not success then
-                failed[name] = "Failed to start"
-                warn(string.format("%s %s failed to start but continuing...", self.componentType, name))
-            end
+            self:StartComponent(name, nil, errorTable)
         end
     end
 
-    return failed
+    if next(errorTable) then
+        PrintError(self.pluralType .. " Startup Issues", self.componentType, errorTable)
+    end
+
+    return errorTable
 end
 
 function Start:UpdateComponents(dt)
@@ -722,21 +761,7 @@ function Start:Start()
                 PrintError(self.pluralType .. " Failed to Initialize", self.componentType, initFailures)
             end
 
-            local startFailures = {}
-            for _, name in ipairs(sorted) do
-                if name ~= "Event" and not self.started[name] then
-                    pcall(function()
-                        local success = self:StartComponent(name)
-                        if not success then
-                            startFailures[name] = "Failed to start"
-                        end
-                    end)
-                end
-            end
-
-            if next(startFailures) then
-                PrintError(self.pluralType .. " Failed to Start", self.componentType, startFailures)
-            end
+            local startFailures = self:StartComponents()
 
             pcall(function()
                 local EventComponent = self:GetComponent("Event")

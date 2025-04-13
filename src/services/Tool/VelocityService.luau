@@ -1,6 +1,12 @@
 local VelocityService = {}
 
-local StatusService = require(game.ServerScriptService.Services.Status.StatusService)
+local Services
+local Modules
+
+VelocityService.Dependencies = {
+    "Event",
+    "Status"
+}
 
 VelocityService.Events = {
     Create = { validate = true },
@@ -13,6 +19,12 @@ VelocityService.Listeners = {
         self:MomentumTrail(Character)
     end,
 }
+
+function VelocityService:Init(services, modules)
+    Services = services
+	Modules = modules
+    return true
+end
 
 function VelocityService:MomentumTrail(Character: Model)
 	local Parts = {
@@ -49,7 +61,7 @@ function VelocityService:MomentumTrail(Character: Model)
 			Trail.Attachment1 = A2
 
 			task.spawn(function()
-				while StatusService:CheckSpecific(Humanoid, {Connection = true}, "Running") == true do
+				while Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Running") == true do
 					task.wait()
 				end
 

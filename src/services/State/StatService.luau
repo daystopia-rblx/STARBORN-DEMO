@@ -8,7 +8,8 @@
 local StatService = {}
 
 StatService.Dependencies = {
-    "Event"
+    "Event",
+    "Object"
 }
 
 StatService.Modules = {
@@ -43,27 +44,14 @@ local State = {
     buffs = {}
 }
 
-
 StatService.Listeners = {
-    [workspace.DescendantAdded] = function(self, instance: Instance)
-        if instance:IsA("Model") then
-            self:RegisterEntity(instance)
-        end
-    end,
-
-    [workspace.DescendantRemoving] = function(self, instance: Instance)
-        if instance:IsA("Model") then
-            self:UnregisterEntity(instance)
-        end
-    end,
-
     ["Player.Join"] = function(self, data)
         local player = data.player
         if player.Character then
-            self:RegisterEntity(player.Character)
+            player.Character:SetAttribute("ENTITY", true)
         end
         player.CharacterAdded:Connect(function(character)
-            self:RegisterEntity(character)
+            character:SetAttribute("ENTITY", true)
         end)
     end,
 
@@ -101,7 +89,7 @@ StatService.Listeners = {
         end
 
         if player.Character then
-            self:RegisterEntity(player.Character)
+            player.Character:SetAttribute("ENTITY", true)
         end
     end,
 
@@ -157,27 +145,14 @@ function StatService:Init(services, modules)
 end
 
 function StatService:Start()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player.Character then
-            self:RegisterEntity(player.Character)
-        end
-        player.CharacterAdded:Connect(function(character)
-            self:RegisterEntity(character)
-        end)
-    end
-
-    for _, instance in workspace:GetDescendants() do
-        if instance:IsA("Model") then
-            self:RegisterEntity(instance)
-        end
-    end
-
+    self:RegisterStats()
     self:StartCycle()
-
     return true
 end
 
 function StatService:Cleanup()
+    Services.Object:UnregisterScanner("ENTITY")
+
     table.clear(State.multipliers)
     table.clear(State.cycles)
     table.clear(State.players)
@@ -193,6 +168,31 @@ function StatService:Cleanup()
     end
     table.clear(State.connections)
     table.clear(State.points)
+end
+
+--[[ Registration Functions ]]
+function StatService:RegisterStats()
+    Services.Object:RegisterScanner("ENTITY",
+        function(instance)
+            if instance:IsA("Model") then
+                self:RegisterEntity(instance)
+            end
+        end,
+        function(instance)
+            if instance:IsA("Model") then
+                self:UnregisterEntity(instance)
+            end
+        end
+    )
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then
+            player.Character:SetAttribute("ENTITY", true)
+        end
+        player.CharacterAdded:Connect(function(character)
+            character:SetAttribute("ENTITY", true)
+        end)
+    end
 end
 
 --[[ Progression Functions ]]--
@@ -1103,9 +1103,7 @@ function StatService:RegisterEntity(entity: Instance): boolean
     if not entity:IsA("Model") then return false end
 
     local isEntity = entity:GetAttribute("ENTITY")
-    local isCharacter = Players:GetPlayerFromCharacter(entity) ~= nil
-
-    if not (isEntity or isCharacter) then return false end
+    if not isEntity then return false end
 
     if State.connections[entity] then
         for _, typeConnections in pairs(State.connections[entity]) do
@@ -1119,12 +1117,8 @@ function StatService:RegisterEntity(entity: Instance): boolean
 
     State.connections[entity] = {}
 
-    local entityType
-    if isCharacter then
-        entityType = "CHARACTER"
-    else
-        entityType = entity:GetAttribute("TYPE") or "Person"
-    end
+    local isCharacter = Players:GetPlayerFromCharacter(entity) ~= nil
+    local entityType = entity:GetAttribute("TYPE") or (isCharacter and "Player" or "Person")
 
     self:ApplyProfile(entity, entityType)
 
