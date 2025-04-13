@@ -47,6 +47,8 @@ PlayerService.Listeners = {
         player.DevComputerMovementMode = Enum.DevComputerMovementMode.KeyboardMouse
 
         player.CharacterAdded:Connect(function(character)
+            character.Parent = workspace.Entities
+
             local healthScript = character:FindFirstChild("Health")
             if healthScript then
                 healthScript:Destroy()

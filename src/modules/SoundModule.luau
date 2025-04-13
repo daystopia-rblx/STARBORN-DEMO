@@ -26,6 +26,8 @@ SoundModule.Assets = {
             Death = { id = "rbxassetid://6424574135", volume = 0.5 },
 
             -- Weapon Sounds
+            Fist_Swing = { id = "rbxassetid://9114163091", volume = 0.5 },
+            Blade_Swing = { id = "rbxassetid://6241709963", volume = 0.5 },
             Critical_Hit = { id = "rbxassetid://13471740561", volume = 0.5 },
             Blunt_Hit = { id = "rbxassetid://8278630896", volume = 0.5 },
             Slash_Hit = { id = "rbxassetid://935843979", volume = 0.5 },

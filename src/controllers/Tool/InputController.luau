@@ -17,7 +17,6 @@ local Modules
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-
 function InputController:Init(controllers, modules)
     Controllers = controllers
     Modules = modules
@@ -30,11 +29,13 @@ function InputController:Start()
 			self:HandleInputBegan(input)
 		end
 	end)
+
 	UserInputService.InputEnded:Connect(function(input, GPE)
 		if not GPE then
 			self:HandleInputEnded(input)
 		end
 	end)
+
     return true
 end
 
@@ -48,6 +49,7 @@ end
 
 function InputController:HandleInputBegan(input)
     local Player = Players.LocalPlayer
+    local Character = Player.Character
 
 	if self.ReturnInput then return end
 
@@ -56,6 +58,12 @@ function InputController:HandleInputBegan(input)
             Controllers.Movement:HandlePressed()
         elseif input.KeyCode == Enum.KeyCode.Q then
             Controllers.Movement:StartDodge()
+        elseif input.KeyCode == Enum.KeyCode.H then
+            if not Controllers.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
+                Controllers.Event:FireServer("Combat.Equip", Player)
+            else
+                Controllers.Event:FireServer("Combat.Unequip", Player)
+            end
         end
     end
 
