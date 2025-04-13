@@ -1,7 +1,8 @@
 local StatusModule = {}
 
 StatusModule.Combat = {
-    "Stunned"
+    "Stunned",
+    "Equipped",
 }
 
 StatusModule.Movement = {

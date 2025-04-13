@@ -92,7 +92,6 @@ function MovementController:ToggleRun(Active: boolean)
 end
 
 --[[ Dodging ]]
-
 function MovementController:getVel(HRP)
 	return Vector3.new(1, 0, 1) * HRP.Velocity
 end

@@ -17,6 +17,7 @@ local Modules
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local MovementController = require(game.ReplicatedStorage.Controllers.Combat.MovementController)
+local StatusController = require(game.ReplicatedStorage.Controllers.Status.StatusController)
 
 function InputController:Init(controllers, modules)
     Controllers = controllers
@@ -30,11 +31,13 @@ function InputController:Start()
 			self:HandleInputBegan(input)
 		end
 	end)
+    
 	UserInputService.InputEnded:Connect(function(input, GPE)
 		if not GPE then
 			self:HandleInputEnded(input)
 		end
 	end)
+
     return true
 end
 
@@ -48,6 +51,7 @@ end
 
 function InputController:HandleInputBegan(input)
     local Player = Players.LocalPlayer
+    local Character = Player.Character
 
 	if self.ReturnInput then return end
     
@@ -56,10 +60,20 @@ function InputController:HandleInputBegan(input)
             MovementController:HandlePressed()
         elseif input.KeyCode == Enum.KeyCode.Q then
             MovementController:StartDodge()
+        elseif input.KeyCode == Enum.KeyCode.H then
+            if not StatusController:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
+                Controllers.Event:FireServer("Combat.Equip", Player)
+            else
+                Controllers.Event:FireServer("Combat.Unequip", Player)
+            end
         end
     end
 
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if StatusController:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
+
+        end
+    elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 		if MovementController:CurrentlyDodging() then
 			MovementController:CancelDodge()
 		end
@@ -74,8 +88,6 @@ function InputController:HandleInputEnded(input)
     if input.UserInputType == Enum.UserInputType.Keyboard then
         if input.KeyCode == Enum.KeyCode.W then
             MovementController:ToggleRun(false)
-        elseif input.KeyCode == Enum.KeyCode.Q then
-        
         end
     end
 end
