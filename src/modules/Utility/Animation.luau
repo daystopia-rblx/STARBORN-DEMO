@@ -1,8 +1,9 @@
 --[[ Animation
-    @author @Daystopia
-    @version 1.0.1
-    @date 2025-04-03
+    @author @Daystopia / @NantesF
+    @version 1.0.2
+    @date 2025-04-14
 ]]
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Modules = {
@@ -11,7 +12,63 @@ local Modules = {
 
 local Animation = {}
 
-function Animation.Animation(animator: Animator, animationData: {id: string, looped: boolean, priority: Enum.AnimationPriority})
+function Animation:Play(Id: number, Humanoid: Humanoid, Speed: number, Priority: Enum.AnimationPriority, Name: string, ...)
+	local Animation = Instance.new("Animation")
+	Animation.AnimationId = Id
+	local animator = Humanoid:FindFirstChildOfClass("Animator")
+	if not animator then
+		animator = Instance.new("Animator")
+		animator.Parent = Humanoid
+	end
+	local KeyframeCallback = nil
+	local success, AnimTrack = pcall(function()
+		return animator:LoadAnimation(Animation)
+	end)
+
+	local args = {...}
+	for i = 1, #args do
+		local arg = args[i]
+		if type(arg) == "function" and not KeyframeCallback then
+			KeyframeCallback = arg
+		end
+	end
+
+	if not success then
+		warn("Failed to load animation:", AnimTrack)
+		return nil
+	end
+
+	AnimTrack.Priority = Priority or Enum.AnimationPriority.Action
+	AnimTrack.Name = Name or "Animation"
+
+	if KeyframeCallback then
+		AnimTrack.KeyframeReached:Connect(function(keyframeName)
+			KeyframeCallback(keyframeName)
+		end)
+	end
+
+	AnimTrack:Play()
+
+	if Speed then
+		AnimTrack:AdjustSpeed(Speed or 1)
+	end
+
+	return AnimTrack
+end
+
+function Animation:Stop(Humanoid: Humanoid, Name: string)
+	local animator = Humanoid:FindFirstChildOfClass("Animator")
+	if animator then
+		for _, anim in pairs(animator:GetPlayingAnimationTracks()) do
+			if anim.Name == Name then
+				anim:Stop()
+				break
+			end
+		end
+	end
+end
+
+--[[function Animation.Animation(animator: Animator, animationData: {id: string, looped: boolean, priority: Enum.AnimationPriority})
     if not animationData or not animationData.id or animationData.id == "" then return nil end
 
     local animation = Instance.new("Animation")
@@ -88,6 +145,6 @@ function Animation.Fade(animations: {[string]: AnimationTrack}, fromCategory: st
         return true
     end
     return false
-end
+end]]
 
 return Animation

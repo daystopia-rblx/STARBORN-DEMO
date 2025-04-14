@@ -88,9 +88,8 @@ function HitboxService:Create(cf: CFrame, size: Vector3, params: RaycastParams, 
 		for key, value in pairs(config) do
 			self.Config[key] = value
 		end
-		if self.Config.Visible then
-			self.Part.Transparency = 0.5
-		elseif RunService:IsStudio() then
+		
+		if RunService:IsStudio() then
 			self.Part.Transparency = 0.5
 		end
 	end
