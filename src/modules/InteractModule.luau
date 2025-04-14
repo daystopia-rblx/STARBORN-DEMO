@@ -1,7 +1,7 @@
 --[[ InteractModule
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-04-10
+    @version 1.0.2
+    @date 2025-04-14
 ]]
 local InteractModule = {}
 
@@ -19,8 +19,11 @@ InteractModule.Types = {
     SEAT = "seat",
     REST = "rest",
     PICKUP = "pickup",
+    STEAL = "steal",
     CRAFT = "craft",
-    CONSUME = "consume"
+    CONSUME = "consume",
+    LOCKPICK = "lockpick",
+    OPEN = "open"
 }
 
 --[[ Base Templates ]]
@@ -82,6 +85,21 @@ InteractModule.Templates = {
         visible = true
     },
 
+    [InteractModule.Types.STEAL] = {
+        prompt = "Steal",
+        key = "F",
+        gamepadKey = "ButtonY",
+        color = Color3.fromRGB(255, 85, 85),
+        highlightColor = Color3.fromRGB(255, 85, 85),
+        hold = 0.5,
+        distance = 8,
+        style = "billboard",
+        lineOfSight = false,
+        click = false,
+        maxDistance = 7,
+        visible = true
+    },
+
     [InteractModule.Types.CRAFT] = {
         prompt = "Craft",
         key = "E",
@@ -106,6 +124,35 @@ InteractModule.Templates = {
         style = "billboard",
         lineOfSight = false,
         click = true,
+        maxDistance = 7,
+        visible = true
+    },
+
+    [InteractModule.Types.LOCKPICK] = {
+        prompt = "Lockpick",
+        key = "F",
+        gamepadKey = "ButtonY",
+        color = Color3.fromRGB(240, 200, 60),
+        highlightColor = Color3.fromRGB(240, 200, 60),
+        hold = 1.5,
+        distance = 8,
+        style = "billboard",
+        lineOfSight = true,
+        click = false,
+        maxDistance = 7,
+        visible = true
+    },
+
+    [InteractModule.Types.OPEN] = {
+        prompt = "Open",
+        key = "E",
+        gamepadKey = "ButtonX",
+        color = Color3.fromRGB(85, 170, 255),
+        hold = 0.3,
+        distance = 8,
+        style = "billboard",
+        lineOfSight = true,
+        click = false,
         maxDistance = 7,
         visible = true
     }

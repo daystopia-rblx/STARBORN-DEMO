@@ -1,12 +1,18 @@
 --[[ ActionModule
     Defines action types and their configurations
     @author @Daystopia
-    @version 1.1.1
-    @date 2025-04-10
+    @version 1.1.2
+    @date 2025-04-14
 ]]
 local ActionModule = {}
 
 --[[ Types ]]
+export type ActionAlternative = {
+    condition: (services: any, context: ActionContext) -> boolean,
+    actionType: string,
+    promptOverride: string?
+}
+
 export type ActionConfig = {
     id: string,
     name: string,
@@ -17,7 +23,8 @@ export type ActionConfig = {
     repeatable: boolean?,
     noController: boolean?,
     metadata: {[string]: any}?,
-    persist: boolean?
+    persist: boolean?,
+    alternative: ActionAlternative?
 }
 
 export type ActionContext = {
@@ -42,11 +49,89 @@ ActionModule.Categories = {
     INTERACTION = "interaction",
     CHECKPOINT = "checkpoint",
     SURVIVAL = "survival",
-    STEALTH = "stealth"
+    CRIME = "crime"
 }
 
 --[[ Action Types ]]
 ActionModule.Types = {
+    PICKUP = {
+        id = "pickup",
+        name = "Pickup",
+        category = ActionModule.Categories.INTERACTION,
+        requiresTarget = true,
+        alternative = {
+            condition = function(services, context)
+                local owner = context.instance:GetAttribute("OWNER")
+                return owner and owner ~= ""
+            end,
+            actionType = "steal",
+            promptOverride = "Steal"
+        },
+        handler = {
+            validate = function(services, context)
+                local owner = context.instance:GetAttribute("OWNER")
+                return context.instance and context.instance.Parent ~= nil and (not owner or owner == "")
+            end,
+            onStart = function(services, context)
+                local instance = context.instance
+                local player = context.player
+                local itemId = instance:GetAttribute("ID")
+                if not itemId then return false end
+
+                local owner = instance:GetAttribute("OWNER")
+                if owner and owner ~= "" then return false end
+
+                local success = services.Inventory:AddItem(player, itemId, 1)
+                if success then
+                    instance:Destroy()
+                end
+                return success
+            end
+        }
+    },
+
+    STEAL = {
+        id = "steal",
+        name = "Steal",
+        category = ActionModule.Categories.CRIME,
+        requiresTarget = true,
+        handler = {
+            validate = function(services, context)
+                local instance = context.instance
+                if not (instance and instance.Parent) then return false end
+                local owner = instance:GetAttribute("OWNER")
+                return owner and owner ~= "" and owner ~= context.player.UserId
+            end,
+            onStart = function(services, context)
+                local instance = context.instance
+                local player = context.player
+                local itemId = instance:GetAttribute("ID")
+                if not itemId then return false end
+
+                local itemValue = instance:GetAttribute("VALUE") or instance:GetAttribute("PRICE") or 10
+                local currentOwner = instance:GetAttribute("OWNER")
+
+                if not currentOwner or currentOwner == "" then return false end
+
+                local success, crimeResult = services.Crime:AttemptTheft({
+                    player = player,
+                    targetInstance = instance,
+                    itemId = itemId,
+                    value = itemValue,
+                    metadata = {
+                        sourceEntity = currentOwner
+                    }
+                })
+
+                if not success then
+                    warn(string.format("Player %s failed theft attempt on item %s owned by %s. Reason: %s",
+                        player.Name, itemId, tostring(currentOwner), crimeResult and crimeResult.error or "Unknown"))
+                end
+                return success
+            end
+        }
+    },
+
     TALK = {
         id = "talk",
         name = "Talk",
@@ -470,120 +555,6 @@ ActionModule.Types = {
                 if context.metadata and context.metadata.consumeAnimation then
                     context.metadata.consumeAnimation:Stop()
                     context.metadata.consumeAnimation = nil
-                end
-            end
-        }
-    },
-
-    STEAL = {
-        id = "steal",
-        name = "Steal",
-        category = ActionModule.Categories.STEALTH,
-        requiresTarget = true,
-        cooldown = 30,
-        persist = true,
-        handler = {
-            validate = function(services, context)
-                local character = context.player.Character
-                if not character then return false end
-
-                local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-                if not humanoidRootPart then return false end
-
-                local targetPosition = context.instance:GetPivot().Position
-                local playerPosition = humanoidRootPart.Position
-
-                local maxStealDistance = 10
-                local distance = (targetPosition - playerPosition).Magnitude
-
-                return distance <= maxStealDistance
-            end,
-
-            onStart = function(services, context)
-                local player = context.player
-                local character = player.Character
-                if not character then return false end
-
-                context.metadata = context.metadata or {}
-
-                local animation = services.Animation:PlayAnimation(character, {
-                    preset = "steal",
-                    fadeTime = 0.3,
-                    weight = 1.0,
-                    speed = 1.0
-                })
-
-                if animation then
-                    context.metadata.stealAnimation = animation
-                end
-
-                local targetId = services.Object:GetID(context.instance)
-                local storeId = context.instance:GetAttribute("STORE_ID")
-                local itemId = context.metadata and context.metadata.itemId
-                local isStore = storeId ~= nil
-
-                local theftContext = {
-                    player = player,
-                    targetId = isStore and storeId or targetId,
-                    itemId = itemId,
-                    value = context.metadata and context.metadata.itemValue,
-                    isStore = isStore,
-                    metadata = context.metadata
-                }
-
-                local success, result = services.Crime:AttemptTheft(theftContext)
-
-                task.delay(1, function()
-                    if context.metadata.stealAnimation then
-                        context.metadata.stealAnimation:Stop()
-                        context.metadata.stealAnimation = nil
-                    end
-
-                    if result then
-                        if result.success then
-                            services.Audio:PlaySound(character, {
-                                preset = "steal_success",
-                                spatial = true,
-                                distance = 5
-                            })
-                        else
-                            services.Audio:PlaySound(character, {
-                                preset = "steal_fail",
-                                spatial = true,
-                                distance = 10
-                            })
-                        end
-
-                        if result.detected then
-                            services.Audio:PlaySound(character, {
-                                preset = "detected",
-                                spatial = true,
-                                distance = 20
-                            })
-                        end
-                    end
-
-                    services.Event:Fire("Action.Persist", {
-                        player = context.player,
-                        instance = context.instance,
-                        context = context
-                    })
-                end)
-
-                return success
-            end,
-
-            onCancel = function(services, context)
-                if context.metadata and context.metadata.stealAnimation then
-                    context.metadata.stealAnimation:Stop()
-                    context.metadata.stealAnimation = nil
-                end
-            end,
-
-            onPersist = function(services, context)
-                if context.metadata and context.metadata.stealAnimation then
-                    context.metadata.stealAnimation:Stop()
-                    context.metadata.stealAnimation = nil
                 end
             end
         }

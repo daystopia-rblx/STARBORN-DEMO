@@ -1,7 +1,7 @@
 --[[ CrimeModule
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-04-11
+    @version 1.0.1
+    @date 2025-04-14
 ]]
 local CrimeModule = {}
 
@@ -9,11 +9,9 @@ CrimeModule.Types = {
     THEFT = "theft",
     ASSAULT = "assault",
     MURDER = "murder",
-    VANDALISM = "vandalism",
     TRESPASSING = "trespassing",
-    SHOPLIFT = "shoplift",
-    BURGLARY = "burglary",
-    PICKPOCKET = "pickpocket"
+    PICKPOCKET = "pickpocket",
+    BURGLARY = "burglary"
 }
 
 CrimeModule.SecurityLevels = {
@@ -83,31 +81,26 @@ CrimeModule.ReputationImpact = {
 }
 
 CrimeModule.DetectionFactors = {
-    TIME_OF_DAY = {
-        DAY = 0,
-        DUSK = -10,
-        NIGHT = -20,
-        DAWN = -5
+    LINE_OF_SIGHT = {
+        VISIBLE = 0,
+        PARTIAL = -15,
+        OBSTRUCTED = -30,
+        NONE = -100
     },
-    ENVIRONMENT = {
-        RAIN = -10,
-        SNOW = -5,
-        FOG = -15,
-        CLEAR = 0
+    SOUND = {
+        SILENT = -20,
+        QUIET = -10,
+        NORMAL = 0,
+        LOUD = 15,
+        VERY_LOUD = 30
     },
-    LOCATION_TYPE = {
-        WILDERNESS = -20,
-        VILLAGE = 0,
-        TOWN = 10,
-        CITY = 20
+    LIGHT_LEVEL = {
+        BRIGHT = 0,
+        NORMAL = -5,
+        DIM = -15,
+        DARK = -25,
+        PITCH_DARK = -40
     }
-}
-
-CrimeModule.RegionReporting = {
-    WILDERNESS = 10,
-    VILLAGE = 40,
-    TOWN = 60,
-    CITY = 70
 }
 
 function CrimeModule:GetBounty(crimeType, targetValue, locationSecurityLevel)
@@ -134,17 +127,17 @@ function CrimeModule:GetBounty(crimeType, targetValue, locationSecurityLevel)
     return math.min(math.max(bounty, self.BountyConfig.MIN_BOUNTY), self.BountyConfig.MAX_BOUNTY)
 end
 
-function CrimeModule:GetDetection(playerDexterity, securityLevel, itemValue, timeOfDay, environment, locationType)
+function CrimeModule:GetDetection(playerDexterity, securityLevel, itemValue, lightLevel, soundLevel, lineOfSight)
     local baseChance = self.TheftConfig.DETECTION_BASE
     local stealthModifier = playerDexterity or 0
     local securityModifier = (securityLevel or 1) * self.TheftConfig.DETECTION_SECURITY_BONUS
     local valueModifier = (itemValue or 0) / (100 * self.TheftConfig.VALUE_GRADIENT)
 
-    local timeModifier = self.DetectionFactors.TIME_OF_DAY[timeOfDay or "DAY"] or 0
-    local environmentModifier = self.DetectionFactors.ENVIRONMENT[environment or "CLEAR"] or 0
-    local locationTypeModifier = self.DetectionFactors.LOCATION_TYPE[locationType or "VILLAGE"] or 0
+    local lightLevelModifier = self.DetectionFactors.LIGHT_LEVEL[lightLevel or "NORMAL"] or 0
+    local soundModifier = self.DetectionFactors.SOUND[soundLevel or "NORMAL"] or 0
+    local lineOfSightModifier = self.DetectionFactors.LINE_OF_SIGHT[lineOfSight or "VISIBLE"] or 0
 
-    local detectionChance = baseChance + securityModifier + valueModifier + timeModifier + environmentModifier + locationTypeModifier - stealthModifier
+    local detectionChance = baseChance + securityModifier + valueModifier + lightLevelModifier + soundModifier + lineOfSightModifier - stealthModifier
 
     return math.clamp(detectionChance, 5, 95)
 end

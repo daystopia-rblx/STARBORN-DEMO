@@ -53,17 +53,17 @@ local state = {
 
 --[[ Listeners ]]
 ActionService.Listeners = {
-    ["Interact.Start"] = function(self, data)
-        if not (data.player and data.instance and data.context) then
+    ["Interact.Start"] = function(self, player, instance, context)
+        if not (player and instance and context) then
             return
         end
 
-        local actionType = data.context.interactionType:lower()
+        local actionType = context.interactionType:lower()
 
         self:ExecuteAction(actionType, {
-            player = data.player,
-            instance = data.instance,
-            metadata = data.context.metadata
+            player = player,
+            instance = instance,
+            metadata = context.metadata
         })
     end,
 

@@ -84,22 +84,16 @@ QuestService.Listeners = {
     end,
 
     ["Inventory.Add"] = function(self, data)
-        if data and data.player and data.itemId then
-            self:ProcessEvent("collect", data.player, {
+        if data and data.entity and data.itemId then
+            self:ProcessEvent("collect", data.entity, {
                 target = data.itemId,
-                amount = data.amount or 1
+                amount = data.quantity or 1
             })
         end
     end,
 
-    ["Interact.End"] = function(self, data)
-        if data and data.player and data.object then
-            local objectId = data.object:GetAttribute("ID") or data.object.Name
-            self:ProcessEvent("interact", data.player, {
-                target = objectId,
-                amount = 1
-            })
-        end
+    ["Interact.End"] = function(self, player, instance, context)
+
     end,
 
     ["Dialogue.Start"] = function(self, data)

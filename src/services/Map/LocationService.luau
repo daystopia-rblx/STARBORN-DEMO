@@ -11,7 +11,8 @@ LocationService.Dependencies = {
     "Data",
     "Object",
     "Memory",
-    "Time"
+    "Time",
+    "Crime"
 }
 
 --[[ Modules ]]
@@ -26,7 +27,8 @@ LocationService.Events = {
     Lock = true,
     Unlock = true,
     Open = true,
-    Close = true
+    Close = true,
+    Trespass = true
 }
 
 local Services
@@ -79,9 +81,9 @@ function LocationService:RegisterLocation()
                 isLocked = instance:GetAttribute("LOCKED") or false,
                 openHour = openHour,
                 closeHour = closeHour,
-                storeId = instance:GetAttribute("STORE_ID"),
-                ownerId = instance:GetAttribute("OWNER_ID"),
-                ownershipType = instance:GetAttribute("OWNERSHIP_TYPE"),
+                storeId = instance:GetAttribute("ID"),
+                ownerId = instance:GetAttribute("OWNER"),
+                ownershipType = instance:GetAttribute("OWNERSHIP"),
                 isAutoLockable = isAutoLockable
             }
         end,
@@ -104,14 +106,64 @@ function LocationService:EnterLocation(player, locationId): (boolean, string?)
     local locationInstance = runtimeData.instance or Services.Object:GetInstance(locationId)
     if not locationInstance then return false, "Location instance not found" end
 
+    local currentHour = Services.Time:GetTime().hour
+    local isOpen = Modules.Location.CheckOpen(
+        {hours = {open = runtimeData.openHour, close = runtimeData.closeHour}},
+        currentHour
+    )
+
+    local isTrespassing = false
+    local trespassReason = nil
+
     if runtimeData.isLocked then
+        isTrespassing = true
+        trespassReason = "locked"
         return false, "Location is locked"
+    end
+
+    if not isOpen then
+        isTrespassing = true
+        trespassReason = "closed"
+    end
+
+    local ownerId, ownershipType = self:GetOwner(locationId)
+    if ownerId and ownerId ~= player.UserId then
+        local playerReputation = Services.Memory:GetReputation(player, ownerId)
+        local reputationLevel = Services.Memory:GetReputationLevel(player, ownerId)
+
+        if ownershipType == "PRIVATE" or (ownershipType == "RESTRICTED" and reputationLevel == "HOSTILE" or reputationLevel == "SUSPICIOUS") then
+            isTrespassing = true
+            trespassReason = "unauthorized"
+        end
+    end
+
+    if isTrespassing then
+        local location = self:GetLocation(locationId)
+        Services.Event:Fire("Location.Trespass", {
+            player = player,
+            locationId = locationId,
+            locationType = locationInstance:GetAttribute("LOCATION_TYPE"),
+            reason = trespassReason
+        })
+
+        if Services.Crime then
+            Services.Crime:DetectPlayer(player, {
+                id = locationId,
+                type = "LOCATION",
+                locationType = locationInstance:GetAttribute("LOCATION_TYPE"),
+                securityLevel = location.securityLevel,
+                factionId = location.factionId,
+                ownerId = location.ownerId
+            }, nil, "TRESPASSING")
+        end
     end
 
     Services.Event:Fire("Location.Enter", {
         player = player,
         locationId = locationId,
-        locationType = locationInstance:GetAttribute("LOCATION_TYPE")
+        locationType = locationInstance:GetAttribute("LOCATION_TYPE"),
+        isTrespassing = isTrespassing,
+        trespassReason = trespassReason
     })
 
     return true
@@ -184,6 +236,32 @@ function LocationService:GetOwner(locationId): (string?, string?)
     if not runtimeData then return nil, nil end
 
     return runtimeData.ownerId, runtimeData.ownershipType
+end
+
+function LocationService:GetLocation(locationId)
+    if not locationId then return nil end
+
+    local runtimeData = State.locations[locationId]
+    if not runtimeData then return nil end
+
+    local locationInstance = runtimeData.instance or Services.Object:GetInstance(locationId)
+    if not locationInstance then return nil end
+
+    local location = {
+        id = locationId,
+        instance = locationInstance,
+        isLocked = runtimeData.isLocked,
+        securityLevel = locationInstance:GetAttribute("SECURITY_LEVEL") or 1,
+        lockLevel = locationInstance:GetAttribute("LOCK_LEVEL") or 1,
+        type = locationInstance:GetAttribute("LOCATION_TYPE"),
+        subType = locationInstance:GetAttribute("LOCATION_SUBTYPE"),
+        ownerId = runtimeData.ownerId,
+        factionId = locationInstance:GetAttribute("FACTION"),
+        openHour = runtimeData.openHour,
+        closeHour = runtimeData.closeHour
+    }
+
+    return location
 end
 
 return LocationService

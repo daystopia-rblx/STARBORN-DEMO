@@ -11,6 +11,11 @@ InteractController.Dependencies = {
     "Event"
 }
 
+InteractController.Modules = {
+    "Interact",
+    "Action"
+}
+
 --[[ Types ]]
 type PromptData = {
     prompt: ProximityPrompt,
@@ -33,7 +38,6 @@ local PromptUI
 --[[ Utility ]]
 local Utility = {
     Controller = require(ReplicatedStorage.Modules.Utility.Controller),
-    Animation = require(ReplicatedStorage.Modules.Utility.Animation),
     Sound = require(ReplicatedStorage.Modules.Utility.Sound),
     Scale = require(ReplicatedStorage.Modules.Utility.Scale)
 }
@@ -145,7 +149,7 @@ function InteractController:CreatePrompt()
     actionText.Position = UDim2.new(0, 0, 0.1, 0)
     actionText.BackgroundTransparency = 1
     actionText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    actionText.Font = Enum.Font.GothamBold
+    actionText.Font = Enum.Font.Antique
     actionText.TextWrapped = true
     actionText.TextScaled = true
     actionText.TextXAlignment = Enum.TextXAlignment.Center
@@ -159,7 +163,7 @@ function InteractController:CreatePrompt()
     keyText.Position = UDim2.new(0, 0, 0.40, 0)
     keyText.BackgroundTransparency = 1
     keyText.TextColor3 = Color3.fromRGB(200, 200, 200)
-    keyText.Font = Enum.Font.GothamBold
+    keyText.Font = Enum.Font.Antique
     keyText.TextWrapped = true
     keyText.TextScaled = true
     keyText.TextXAlignment = Enum.TextXAlignment.Center
@@ -338,7 +342,7 @@ function InteractController:CreateTooltip(parent: Instance, isScreen: boolean?)
         textLabel.BackgroundTransparency = 1
         textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         textLabel.TextTransparency = 1
-        textLabel.Font = Enum.Font.GothamBold
+        textLabel.Font = Enum.Font.Antique
         textLabel.TextWrapped = true
         textLabel.TextScaled = true
         textLabel.TextXAlignment = Enum.TextXAlignment.Center
@@ -380,7 +384,7 @@ function InteractController:CreateTooltip(parent: Instance, isScreen: boolean?)
         textLabel.BackgroundTransparency = 1
         textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         textLabel.TextTransparency = 1
-        textLabel.Font = Enum.Font.GothamBold
+        textLabel.Font = Enum.Font.Antique
         textLabel.TextWrapped = true
         textLabel.TextScaled = true
         textLabel.TextXAlignment = Enum.TextXAlignment.Center
@@ -463,35 +467,35 @@ function InteractController:ShowTooltip(parent: Instance, isScreen: boolean?)
         end
     end
 
-    Utility.Animation.Group({
-        Utility.Animation.To(frame, {
+    Utility.Controller.Group({
+        Utility.Controller.To(frame, {
             BackgroundTransparency = 0.2
         }, {
             duration = 0.2,
-            easingStyle = Utility.Animation.Easing.Linear
+            easingStyle = Utility.Controller.Easing.Linear
         }),
-        Utility.Animation.To(textLabel, {
+        Utility.Controller.To(textLabel, {
             TextTransparency = 0
         }, {
             duration = 0.2,
-            easingStyle = Utility.Animation.Easing.Linear
+            easingStyle = Utility.Controller.Easing.Linear
         })
     })
 
     task.delay(TOOLTIP_DURATION, function()
         if tooltipUI and tooltipUI.Parent then
-            Utility.Animation.Group({
-                Utility.Animation.To(frame, {
+            Utility.Controller.Group({
+                Utility.Controller.To(frame, {
                     BackgroundTransparency = 1
                 }, {
                     duration = 0.2,
-                    easingStyle = Utility.Animation.Easing.Linear
+                    easingStyle = Utility.Controller.Easing.Linear
                 }),
-                Utility.Animation.To(textLabel, {
+                Utility.Controller.To(textLabel, {
                     TextTransparency = 1
                 }, {
                     duration = 0.2,
-                    easingStyle = Utility.Animation.Easing.Linear,
+                    easingStyle = Utility.Controller.Easing.Linear,
                     onComplete = function()
                         tooltipUI:Destroy()
                         State.ActiveTooltips[parent] = nil
@@ -659,11 +663,11 @@ end
 function InteractController:CleanupHighlight(parent: Instance)
     local highlight = State.ActiveHighlights[parent]
     if highlight then
-        Utility.Animation.To(highlight, {
+        Utility.Controller.To(highlight, {
             OutlineTransparency = 1
         }, {
             duration = 0.2,
-            easingStyle = Utility.Animation.Easing.Linear,
+            easingStyle = Utility.Controller.Easing.Linear,
             onComplete = function()
                 highlight:Destroy()
                 State.ActiveHighlights[parent] = nil
@@ -734,7 +738,7 @@ function InteractController:Triggered(prompt: ProximityPrompt)
         currentSize.Y.Offset * scale
     )
 
-    Utility.Animation.To(container, {
+    Utility.Controller.To(container, {
         Size = newSize,
         BackgroundTransparency = 0
     }, {
@@ -752,7 +756,7 @@ function InteractController:Triggered(prompt: ProximityPrompt)
             billboard.Size.Y.Offset * scale
         )
 
-        Utility.Animation.To(billboard, {Size = newBillboardSize}, {duration = 0.06})
+        Utility.Controller.To(billboard, {Size = newBillboardSize}, {duration = 0.06})
     end
 end
 
@@ -768,7 +772,7 @@ function InteractController:TriggerEnded(prompt: ProximityPrompt)
     local originalSize = prompt:GetAttribute("OriginalContainerSize") or container.Size
     local originalBgTransparency = prompt:GetAttribute("OriginalBgTransparency") or container.BackgroundTransparency
 
-    Utility.Animation.To(container, {
+    Utility.Controller.To(container, {
         Size = originalSize,
         BackgroundTransparency = originalBgTransparency
     }, {
@@ -778,7 +782,7 @@ function InteractController:TriggerEnded(prompt: ProximityPrompt)
     local billboard = container.Parent
     if billboard:IsA("BillboardGui") then
         local originalBillboardSize = prompt:GetAttribute("OriginalBillboardSize") or billboard.Size
-        Utility.Animation.To(billboard, {Size = originalBillboardSize}, {duration = 0.06})
+        Utility.Controller.To(billboard, {Size = originalBillboardSize}, {duration = 0.06})
     end
 
     prompt:SetAttribute("OriginalContainerSize", nil)
@@ -812,11 +816,11 @@ function InteractController:Shown(prompt: ProximityPrompt, inputType: Enum.Proxi
         highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     end
 
-    Utility.Animation.To(highlight, {
+    Utility.Controller.To(highlight, {
         OutlineTransparency = 0.2
     }, {
         duration = 0.2,
-        easingStyle = Utility.Animation.Easing.Linear
+        easingStyle = Utility.Controller.Easing.Linear
     })
 
     local hasHoldDuration = prompt.HoldDuration > 0
@@ -936,11 +940,11 @@ function InteractController:Hidden(prompt: ProximityPrompt)
         end
 
         if not modelHasPrompts and State.ActiveHighlights[model] then
-            Utility.Animation.To(State.ActiveHighlights[model], {
+            Utility.Controller.To(State.ActiveHighlights[model], {
                 OutlineTransparency = 1
             }, {
                 duration = 0.2,
-                easingStyle = Utility.Animation.Easing.Linear,
+                easingStyle = Utility.Controller.Easing.Linear,
                 onComplete = function()
                     if State.ActiveHighlights[model] then
                         State.ActiveHighlights[model]:Destroy()
@@ -963,11 +967,11 @@ function InteractController:Hidden(prompt: ProximityPrompt)
             end
 
             if not hasRemainingPrompts and State.ActiveHighlights[parent] then
-                Utility.Animation.To(State.ActiveHighlights[parent], {
+                Utility.Controller.To(State.ActiveHighlights[parent], {
                     OutlineTransparency = 1
                 }, {
                     duration = 0.2,
-                    easingStyle = Utility.Animation.Easing.Linear,
+                    easingStyle = Utility.Controller.Easing.Linear,
                     onComplete = function()
                         if State.ActiveHighlights[parent] then
                             State.ActiveHighlights[parent]:Destroy()
@@ -1020,7 +1024,7 @@ function InteractController:HoldBegan(prompt: ProximityPrompt, player: Player)
                 currentSize.Y.Offset * scale
             )
 
-            Utility.Animation.To(container, {
+            Utility.Controller.To(container, {
                 Size = newSize,
                 BackgroundTransparency = 0
             }, {
@@ -1037,7 +1041,7 @@ function InteractController:HoldBegan(prompt: ProximityPrompt, player: Player)
                     originalBillboardSize.Y.Offset * scale
                 )
 
-                Utility.Animation.To(billboard, {Size = newBillboardSize}, {duration = 0.06})
+                Utility.Controller.To(billboard, {Size = newBillboardSize}, {duration = 0.06})
             end
         end
     end
@@ -1069,11 +1073,11 @@ function InteractController:HoldEnded(prompt: ProximityPrompt, player: Player)
                 progressBar.Visible = false
                 progressBar.Fill.Size = UDim2.new(0, 0, 1, 0)
             else
-                Utility.Animation.To(progressBar.Fill, {
+                Utility.Controller.To(progressBar.Fill, {
                     Size = UDim2.new(0, 0, 1, 0)
                 }, {
                     duration = 0.15,
-                    easingStyle = Utility.Animation.Easing.Quad,
+                    easingStyle = Utility.Controller.Easing.Quad,
                     onComplete = function()
                         progressBar.Visible = false
                     end
@@ -1133,7 +1137,7 @@ function InteractController:MouseClick(detector: ClickDetector)
         currentSize.Y.Offset * scale
     )
 
-    Utility.Animation.To(container, {
+    Utility.Controller.To(container, {
         Size = newSize,
         BackgroundTransparency = 0
     }, {
@@ -1143,7 +1147,7 @@ function InteractController:MouseClick(detector: ClickDetector)
             local originalBgTransparency = detector:GetAttribute("OriginalBgTransparency")
 
             if originalSize and originalBgTransparency then
-                Utility.Animation.To(container, {
+                Utility.Controller.To(container, {
                     Size = originalSize,
                     BackgroundTransparency = originalBgTransparency
                 }, {
@@ -1186,11 +1190,11 @@ function InteractController:MouseHoverEnter(detector: ClickDetector)
         highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
     end
 
-    Utility.Animation.To(highlight, {
+    Utility.Controller.To(highlight, {
         OutlineTransparency = 0.2
     }, {
         duration = 0.2,
-        easingStyle = Utility.Animation.Easing.Linear
+        easingStyle = Utility.Controller.Easing.Linear
     })
 
     Controllers.Event:FireServer("Interact.Show", {detector = detector})
@@ -1237,7 +1241,7 @@ function InteractController:RightMouseClick(detector: ClickDetector)
         currentSize.Y.Offset * scale
     )
 
-    Utility.Animation.To(container, {
+    Utility.Controller.To(container, {
         Size = newSize,
         BackgroundTransparency = 0
     }, {
@@ -1358,13 +1362,14 @@ function InteractController:SetupEvents()
     end)
 
     task.spawn(function()
+        local self = self
         local RunService = game:GetService("RunService")
         RunService.RenderStepped:Connect(function()
             local character = State.LocalPlayer.Character
             local characterRoot = character and character:FindFirstChild("HumanoidRootPart")
 
             if not characterRoot or not self:CanInteract(State.LocalPlayer) then
-                for prompt in State.HoveredPrompts do
+                for prompt in pairs(State.HoveredPrompts) do
                     prompt.MaxActivationDistance = 0
 
                     local style = prompt:GetAttribute("STYLE")
@@ -1525,14 +1530,14 @@ function InteractController:SetupEvents()
                 end
             end
 
-            for prompt in State.HoveredPrompts do
+            for prompt in pairs(State.HoveredPrompts) do
                 if not foundPrompts[prompt] then
                     prompt.MaxActivationDistance = 0
                 end
             end
 
             table.clear(State.HoveredPrompts)
-            for prompt in foundPrompts do
+            for prompt in pairs(foundPrompts) do
                 State.HoveredPrompts[prompt] = true
             end
         end)

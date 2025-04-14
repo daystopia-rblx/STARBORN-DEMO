@@ -1,7 +1,7 @@
 --[[ StatModule
     @author @Daystopia
-    @version 1.0.4
-    @date 2025-04-10
+    @version 1.0.5
+    @date 2025-04-14
 ]]
 local StatModule = {}
 
@@ -844,6 +844,40 @@ StatModule.Templates = {
             TEMPO_ADD = {
                 type = "ADD",
                 value = 0.5
+            }
+        }
+    },
+    CHARISMA = {
+        baseValue = 10,
+        minValue = 1,
+        maxValue = 100,
+        category = StatModule.Constants.CATEGORIES.ATTRIBUTE,
+        displayName = "Charisma",
+        description = "Influence, persuasion, and social grace.",
+        icon = "",
+        color = Color3.fromRGB(255, 105, 180),
+        format = "%.0f",
+        effects = {
+            SPEECH_SUCCESS_CHANCE = {
+                type = "ADD",
+                value = function(entity)
+                    local charisma = entity:GetAttribute("CHARISMA") or 10
+                    return charisma * 0.5
+                end
+            },
+            BARTER_PRICE_MODIFIER = {
+                type = "ADD",
+                value = function(entity)
+                    local charisma = entity:GetAttribute("CHARISMA") or 10
+                    return charisma * 0.25
+                end
+            },
+            FACTION_REPUTATION_GAIN = {
+                type = "MULTIPLY",
+                value = function(entity)
+                    local charisma = entity:GetAttribute("CHARISMA") or 10
+                    return 1 + (charisma / 200)
+                end
             }
         }
     },

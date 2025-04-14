@@ -306,6 +306,26 @@ ObjectModule.Templates = {
                 standard = { name = "Temple Key", description = "A key that opens sacred areas of a temple" }
             }
         }
+    },
+
+    MISCELLANEOUS = {
+        TEST_PICKUP = {
+            defaults = { properties = { interaction = "pickup", value = 5 } },
+            variants = {
+                standard = { name = "Test Pickup Item", description = "A test item for pickup interaction" }
+            }
+        },
+
+        TEST_OWNED = {
+            defaults = { properties = { interaction = "pickup", value = 10 } },
+            variants = {
+                standard = { 
+                    name = "Owned Test Item",
+                    description = "A test item with an owner",
+                    initialAttributes = { OWNER = "TestOwner" }
+                }
+            }
+        }
     }
 }
 

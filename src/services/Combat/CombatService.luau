@@ -13,6 +13,11 @@ CombatService.Modules = {
     "Status"
 }
 
+CombatService.Events = {
+    Death = { validate = true },
+    Damage = { validate = true }
+}
+
 local Utility = {
     Animation = require(game.ReplicatedStorage.Modules.Utility.Animation)
 }
@@ -23,6 +28,27 @@ local Modules
 local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
 
 CombatService.Listeners = {
+    ["Players.PlayerAdded"] = function(self, player)
+        local function onCharacterAdded(character)
+            local humanoid = character:FindFirstChild("Humanoid")
+            if not humanoid then return end
+
+            humanoid.Died:Once(function()
+                Services.Event:Fire("Combat.Death", {
+                    entity = character,
+                    player = player,
+                    damage = {
+                        amount = 0,
+                        type = "ENVIRONMENT",
+                        source = "death"
+                    }
+                })
+            end)
+        end
+
+        player.CharacterAdded:Connect(onCharacterAdded)
+    end,
+
     ["Combat.Equip"] = function(self, Player: Player)
         local Character = Player.Character
         local Humanoid = Character:FindFirstChild("Humanoid")
@@ -94,5 +120,24 @@ function CombatService:Unequip(Humanoid: Humanoid, Weapon: string, Data: WeaponD
 end
 
 --[[ Attacking ]]
+function CombatService:ApplyDamage(source, target, damageData)
+    if not source or not target then return false end
+
+    local humanoid = target:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+
+    local damageAmount = damageData.amount or 0
+    if damageAmount <= 0 then return false end
+
+    humanoid:TakeDamage(damageAmount)
+
+    Services.Event:Fire("Combat.Damage", {
+        source = source,
+        target = target,
+        damage = damageData
+    })
+
+    return true
+end
 
 return CombatService

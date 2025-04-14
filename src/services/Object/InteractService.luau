@@ -2,8 +2,8 @@
     Advanced interaction system with proximity prompts and multi-prompt support.
     Handles interaction validation, state management, and automatic key binding.
     @author @Daystopia
-    @version 1.0.5
-    @date 2025-03-09
+    @version 1.0.6
+    @date 2025-04-14
 ]]
 local InteractService = {}
 local Players = game:GetService("Players")
@@ -17,7 +17,8 @@ InteractService.Dependencies = {
 
 --[[ Modules ]]
 InteractService.Modules = {
-    "Interact"
+    "Interact",
+    "Action"
 }
 
 --[[ Events ]]
@@ -248,113 +249,184 @@ function InteractService:CreatePrompt(id: string, instance: Instance, interactio
     local prompts = {}
     local detectors = {}
 
-    for i, iType in ipairs(validTypes) do
-        local template = Modules.Interact.Templates[iType]
-        if not template then continue end
+    for i, originalActionType in ipairs(validTypes) do
+        local actionConfig = Modules.Action.Types[originalActionType:upper()]
+        if not actionConfig then
+            warn("Missing ActionConfig for type:", originalActionType)
+            continue
+        end
 
-        if template.visible then
+        local interactTemplate = Modules.Interact.Templates[originalActionType]
+        if not interactTemplate then
+            warn("Missing InteractTemplate for type:", originalActionType)
+            continue
+        end
+
+        local currentActionType = originalActionType
+        local currentInteractTemplate = interactTemplate
+        local currentPromptText = interactTemplate.prompt or "Interact"
+
+        if actionConfig.alternative then
+            local tempContext = {
+                id = id,
+                instance = instance,
+                player = localPlayer,
+                actionType = originalActionType,
+                metadata = {}
+            }
+            local success, useAlternative = pcall(actionConfig.alternative.condition, Services, tempContext)
+            if success and useAlternative then
+                local alternativeActionType = actionConfig.alternative.actionType:lower()
+                local alternativeInteractTemplate = Modules.Interact.Templates[alternativeActionType]
+
+                if alternativeInteractTemplate then
+                    currentActionType = alternativeActionType
+                    currentInteractTemplate = alternativeInteractTemplate
+                    currentPromptText = actionConfig.alternative.promptOverride or alternativeInteractTemplate.prompt or "Interact"
+                else
+                    warn("Alternative action type '" .. alternativeActionType .. "' missing from Interact Templates.")
+                end
+            elseif not success then
+                 warn("Error evaluating alternative condition for", originalActionType, ":", useAlternative)
+            end
+        end
+
+        if not currentInteractTemplate.visible then continue end
+
+        local finalActionType = currentActionType
+
+        if true then
             local prompt = Instance.new("ProximityPrompt")
             prompt.Name = "InteractionPrompt"
             prompt.ObjectText = instance:GetAttribute("NAME") or ""
-            prompt.ActionText = template.prompt or "Interact"
-            prompt.KeyboardKeyCode = Enum.KeyCode[i == 1 and (template.key or "E") or AlternateKeys[i-1]]
-            prompt.GamepadKeyCode = Enum.KeyCode[template.gamepadKey or "ButtonX"]
-            prompt.ClickablePrompt = template.clickablePrompt or true
-            prompt.RequiresLineOfSight = template.lineOfSight ~= false
-            prompt.HoldDuration = type(template.hold) == "number" and template.hold or 0
-            prompt.MaxActivationDistance = template.distance or 8
-            prompt.Style = GetStyle(template.style)
+            prompt.ActionText = currentPromptText
+            prompt.KeyboardKeyCode = Enum.KeyCode[i == 1 and (currentInteractTemplate.key or "E") or AlternateKeys[i-1]]
+            prompt.GamepadKeyCode = Enum.KeyCode[currentInteractTemplate.gamepadKey or "ButtonX"]
+            prompt.ClickablePrompt = currentInteractTemplate.clickablePrompt or true
+            prompt.RequiresLineOfSight = currentInteractTemplate.lineOfSight ~= false
+            prompt.HoldDuration = type(currentInteractTemplate.hold) == "number" and currentInteractTemplate.hold or 0
+            prompt.MaxActivationDistance = currentInteractTemplate.distance or 8
+            prompt.Style = GetStyle(currentInteractTemplate.style)
             prompt.UIOffset = Vector2.new(0, 2 + (i-1) * 1.5)
-            prompt:SetAttribute("STYLE", template.style or "default")
-            prompt:SetAttribute("ACTION", iType)
+            prompt:SetAttribute("STYLE", currentInteractTemplate.style or "default")
+            prompt:SetAttribute("ACTION", finalActionType)
             prompt.AutoLocalize = true
 
-            if template.requires then
-                prompt.Enabled = Services.Tool:ValidateTool(localPlayer, template.requires)
+            if currentInteractTemplate.requires then
+                prompt.Enabled = Services.Tool:ValidateTool(localPlayer, currentInteractTemplate.requires)
             else
                 prompt.Enabled = not isControlled
             end
 
-            local controllerChanged = instance:GetAttributeChangedSignal("CONTROLLER"):Connect(function()
+            local controllerChanged
+            local promptTriggeredConn
+            local promptHoldEndedConn
+            local ancestryChangedConn
+            local stateChangedConn
+
+            controllerChanged = instance:GetAttributeChangedSignal("CONTROLLER"):Connect(function()
                 local controller = instance:GetAttribute("CONTROLLER")
-                if template.requires then
-                    prompt.Enabled = Services.Tool:ValidateTool(localPlayer, template.requires)
+                if currentInteractTemplate.requires then
+                    prompt.Enabled = Services.Tool:ValidateTool(localPlayer, currentInteractTemplate.requires)
                 else
                     prompt.Enabled = not (controller and controller ~= "")
                 end
             end)
 
-            local connections = {
-                prompt.Triggered:Connect(function(player)
-                    self:StartInteraction(player, instance, iType)
-                end),
-                prompt.PromptButtonHoldEnded:Connect(function(player)
-                    self:EndInteraction(player)
-                end),
-                instance.AncestryChanged:Connect(function(_, parent)
-                    if not parent then
-                        controllerChanged:Disconnect()
-                        CleanPrompt(instance)
-                    end
-                end)
-            }
+            promptTriggeredConn = prompt.Triggered:Connect(function(player)
+                self:StartInteraction(player, instance, finalActionType)
+            end)
+            promptHoldEndedConn = prompt.PromptButtonHoldEnded:Connect(function(player)
+                self:EndInteraction(player)
+            end)
+            ancestryChangedConn = instance.AncestryChanged:Connect(function(_, parent)
+                if not parent then
+                    controllerChanged:Disconnect()
+                    promptTriggeredConn:Disconnect()
+                    promptHoldEndedConn:Disconnect()
+                    ancestryChangedConn:Disconnect()
+                    if stateChangedConn then stateChangedConn:Disconnect() end
+                    CleanPrompt(instance)
+                end
+            end)
 
-            state.connections[instance] = connections
+            state.connections[instance] = state.connections[instance] or {}
+            table.insert(state.connections[instance], controllerChanged)
+            table.insert(state.connections[instance], promptTriggeredConn)
+            table.insert(state.connections[instance], promptHoldEndedConn)
+            table.insert(state.connections[instance], ancestryChangedConn)
 
             local function updatePromptText()
-                local state = instance:GetAttribute("STATE")
-                if state and template.state and template.state[state] then
-                    local stateValue = template.state[state]
-                    prompt.ActionText = type(stateValue) == "table" and stateValue.text or stateValue
+                local stateAttr = instance:GetAttribute("STATE")
+                local stateText = currentPromptText
+                if stateAttr and currentInteractTemplate.state and currentInteractTemplate.state[stateAttr] then
+                    local stateValue = currentInteractTemplate.state[stateAttr]
+                    stateText = type(stateValue) == "table" and stateValue.text or stateValue
                 end
+                prompt.ActionText = stateText
             end
 
-            local stateConnection = instance:GetAttributeChangedSignal("STATE"):Connect(updatePromptText)
-            table.insert(connections, stateConnection)
+            stateChangedConn = instance:GetAttributeChangedSignal("STATE"):Connect(updatePromptText)
+            table.insert(state.connections[instance], stateChangedConn)
 
             updatePromptText()
 
             if pcall(function() prompt.Parent = targetPart end) then
-                prompts[iType] = prompt
+                prompts[finalActionType] = prompt
             else
                 controllerChanged:Disconnect()
-                for _, connection in ipairs(connections) do
-                    connection:Disconnect()
-                end
+                promptTriggeredConn:Disconnect()
+                promptHoldEndedConn:Disconnect()
+                ancestryChangedConn:Disconnect()
+                stateChangedConn:Disconnect()
                 prompt:Destroy()
             end
         end
 
-        if template.click then
+        if currentInteractTemplate.click then
             local detector = Instance.new("ClickDetector")
             detector.Name = "ClickDetector"
-            detector.MaxActivationDistance = template.maxDistance or 7
-            detector:SetAttribute("STYLE", template.style or "default")
-            detector:SetAttribute("ACTION", iType)
+            detector.MaxActivationDistance = currentInteractTemplate.maxDistance or 7
+            detector:SetAttribute("STYLE", currentInteractTemplate.style or "default")
+            detector:SetAttribute("ACTION", finalActionType)
 
-            if template.requires then
+            if currentInteractTemplate.requires then
                 detector.MaxActivationDistance = 0
             end
 
-            if template.cursorIcon then
-                detector.CursorIcon = template.cursorIcon
+            if currentInteractTemplate.cursorIcon then
+                detector.CursorIcon = currentInteractTemplate.cursorIcon
             end
 
-            detector.MouseClick:Connect(function(player)
-                if template.requires and not Services.Tool:ValidateTool(player, template.requires) then
+            local clickConnection = detector.MouseClick:Connect(function(player)
+                if currentInteractTemplate.requires and not Services.Tool:ValidateTool(player, currentInteractTemplate.requires) then
                     return
                 end
 
-                if template.hold and template.hold > 0 then
-                    StartTimer(player, instance, iType, template.hold)
+                if currentInteractTemplate.hold and currentInteractTemplate.hold > 0 then
+                    StartTimer(player, instance, finalActionType, currentInteractTemplate.hold)
                 else
-                    self:StartInteraction(player, instance, iType)
+                    self:StartInteraction(player, instance, finalActionType)
+                end
+            end)
+
+            local detectorAncestryChangedConn
+            detectorAncestryChangedConn = instance.AncestryChanged:Connect(function(_, parent)
+                if not parent then
+                    clickConnection:Disconnect()
+                    detectorAncestryChangedConn:Disconnect()
+                    detector:Destroy()
                 end
             end)
 
             if pcall(function() detector.Parent = targetPart end) then
-                detectors[iType] = detector
+                detectors[finalActionType] = detector
+                state.connections[instance] = state.connections[instance] or {}
+                table.insert(state.connections[instance], clickConnection)
+                table.insert(state.connections[instance], detectorAncestryChangedConn)
             else
+                clickConnection:Disconnect()
+                detectorAncestryChangedConn:Disconnect()
                 detector:Destroy()
             end
         end

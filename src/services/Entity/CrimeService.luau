@@ -2,8 +2,8 @@
     Manages criminal activities including theft, bounties, and law enforcement.
     Handles detection, reputation impact, and consequences of criminal actions.
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-04-11
+    @version 1.0.1
+    @date 2025-04-14
 ]]
 local CrimeService = {}
 
@@ -56,6 +56,57 @@ CrimeService.Listeners = {
                 State.bounties = State.crimeData.bounties
             end
         end
+    end,
+
+    ["Combat.Death"] = function(self, data)
+        local entity = data.entity
+        local player = data.source
+
+        if entity and entity:GetAttribute("TYPE") and player and player:IsA("Player") then
+            if entity.ClassName ~= "Model" or entity:FindFirstChild("Humanoid") and not game.Players:GetPlayerFromCharacter(entity) then
+                local isHostile = entity:GetAttribute("HOSTILE") or false
+                if not isHostile then
+                    self:CommitMurder(player, entity)
+                end
+            end
+        end
+    end,
+
+    ["Combat.Damage"] = function(self, data)
+        local target = data.target
+        local attacker = data.source
+        local damage = data.damage and data.damage.amount or 0
+
+        if target and target:GetAttribute("TYPE") and attacker and attacker:IsA("Player") then
+            if not game.Players:GetPlayerFromCharacter(target) then
+                local isHostile = target:GetAttribute("HOSTILE") or false
+                if not isHostile and damage > 0 then
+                    self:CommitAssault(attacker, target, damage)
+                end
+            end
+        end
+    end,
+
+    ["Location.Trespass"] = function(self, data)
+        local player = data.player
+        local locationId = data.locationId
+        local location = Services.Location:GetLocation(locationId)
+
+        if not (player and location) then return end
+
+        local success, result = self:StartTresspass(player, location, data.reason)
+
+        if success then
+            Services.Event:Fire("Crime.Crime", {
+                type = "TRESPASS",
+                player = player,
+                locationId = locationId,
+                locationType = data.locationType,
+                reason = data.reason,
+                detected = result.detected,
+                bounty = result.bounty
+            })
+        end
     end
 }
 
@@ -83,8 +134,7 @@ type BountyData = {
     amount: number,
     reason: string,
     issuerId: string?,
-    timestamp: number,
-    expiryTime: number?
+    timestamp: number
 }
 
 --[[ Core Functions ]]
@@ -99,20 +149,92 @@ function CrimeService:Start()
 end
 
 --[[ Crime Functions ]]
-function CrimeService:CalculateOutcome(player, crimeType, difficulty, value)
+function CrimeService:CalculateOutcome(player, crimeType, context)
     local crimeSettings = Modules.Crime.BountyConfig[crimeType]
     if not crimeSettings then
-        return false, 0, "Invalid crime type"
+        return false, 0, "Invalid crime type", nil
+    end
+
+    local env = self:GetEnviornment(player)
+
+    local securityLevel = context.securityLevel or Modules.Crime.SecurityLevels.NOVICE
+
+    if context.useZoneSecurity then
+        securityLevel = math.max(securityLevel, env.baseSecurityLevel)
     end
 
     local playerDexterity = player:GetAttribute("DEXTERITY") or 0
-    local success = math.random(1, 100) <= Modules.Crime:GetSuccess(playerDexterity, difficulty, value)
-    local detected = success and (math.random(1, 100) <= Modules.Crime:GetDetection(playerDexterity, difficulty, value, "DAY", "CLEAR", "VILLAGE"))
+    local success = math.random(1, 100) <= Modules.Crime:GetSuccess(playerDexterity, securityLevel, context.value or 0)
 
-    local baseBounty = crimeSettings.base
-    local finalBounty = detected and baseBounty * (1 + (difficulty or 1) * 0.5) * (1 + (value or 0) / 1000) or 0
+    local detected = success and (math.random(1, 100) <= Modules.Crime:GetDetection(
+        playerDexterity,
+        securityLevel,
+        context.value or 0,
+        env.lightLevel,
+        env.soundLevel,
+        env.lineOfSight
+    ))
 
-    return success, math.floor(finalBounty + 0.5), detected
+    local baseBounty = crimeSettings.base or 50
+    local finalBounty = detected and baseBounty * (1 + (securityLevel or 1) * 0.5) * (1 + (context.value or 0) / 1000) or 0
+
+    return success, math.floor(finalBounty + 0.5), detected, env
+end
+
+function CrimeService:GetEnviornment(player)
+    local playerZones = Services.Zone:GetZones(player)
+    local zoneType = "VILLAGE"
+
+    for zoneId, _ in pairs(playerZones) do
+        local zoneData = Services.Zone.zones and Services.Zone.zones[zoneId]
+        if zoneData and zoneData.zone then
+            if zoneData.zone == "TOWN" or zoneData.zone == "CITY" then
+                zoneType = zoneData.zone
+                break
+            elseif zoneData.zone == "VILLAGE" then
+                zoneType = "VILLAGE"
+            elseif zoneData.zone == "WILDERNESS" and zoneType == "VILLAGE" then
+                zoneType = "WILDERNESS"
+            end
+        end
+    end
+
+    local timeOfDay = Services.Time:GetTimeOfDay()
+    local lightLevel = "NORMAL"
+    local soundLevel = "NORMAL"
+    local lineOfSight = "VISIBLE"
+
+    if timeOfDay == "NIGHT" then
+        lightLevel = "DARK"
+    elseif timeOfDay == "DUSK" then
+        lightLevel = "DIM"
+    elseif timeOfDay == "DAWN" then
+        lightLevel = "DIM"
+    end
+
+    if zoneType == "CITY" then
+        soundLevel = "LOUD"
+    elseif zoneType == "WILDERNESS" then
+        soundLevel = "QUIET"
+    end
+
+    local baseSecurityLevel = Modules.Crime.SecurityLevels.NOVICE
+    if zoneType == "CITY" then
+        baseSecurityLevel = Modules.Crime.SecurityLevels.HIGH
+    elseif zoneType == "TOWN" then
+        baseSecurityLevel = Modules.Crime.SecurityLevels.MEDIUM
+    elseif zoneType == "VILLAGE" then
+        baseSecurityLevel = Modules.Crime.SecurityLevels.LOW
+    end
+
+    return {
+        zoneType = zoneType,
+        timeOfDay = timeOfDay,
+        lightLevel = lightLevel,
+        soundLevel = soundLevel,
+        lineOfSight = lineOfSight,
+        baseSecurityLevel = baseSecurityLevel
+    }
 end
 
 function CrimeService:DetectPlayer(player, target, item, crimeType)
@@ -221,89 +343,123 @@ function CrimeService:AddLoot(player, loot, contextData)
         end
     end
 
-    return Services.Inventory:AddItem(player, loot.id, 1, metadata)
+    local success, msg = Services.Inventory:AddItem(player, loot.id, 1, player, metadata)
+    if not success then
+        warn(string.format("AddLoot failed for player %s, item %s: %s", player.Name, loot.id, msg or "Unknown error"))
+    end
+    return success
 end
 
 --[[ Theft Functions ]]
 function CrimeService:AttemptTheft(context: TheftContext): (boolean, CrimeResult)
     if not context.player then return false, {error = "Invalid player"} end
-    if not context.targetId then return false, {error = "Invalid target"} end
+    if not context.targetInstance then return false, {error = "Invalid target instance"} end
+    if not context.itemId then return false, {error = "Invalid item ID"} end
 
-    if context.isStore then
-        return self:AttemptShoplift(context)
-    elseif context.isLocation then
-        return self:AttemptBurglary(context)
-    else
-        return self:AttemptPickpocket(context)
-    end
-end
-
-function CrimeService:AttemptShoplift(context: TheftContext): (boolean, CrimeResult)
     local player = context.player
-    local storeId = context.targetId
+    local targetInstance = context.targetInstance
     local itemId = context.itemId
+    local value = context.value or 10
+    local metadata = context.metadata or {}
+    local owner = targetInstance:GetAttribute("OWNER")
 
-    if not Services.Store:IsStoreOpenForPlayer(player, storeId) then
-        return false, {error = "Store not open"}
+    if not owner or owner == player then
+        return false, {error = "Item not owned by someone else or ownership changed"}
     end
 
-    local store = Services.Store:GetStore(storeId)
-    if not store then return false, {error = "Store not found"} end
+    local locationId = context.locationId
+    local isBurglary = false
+    local crimeType = Modules.Crime.Types.THEFT
+    local location
 
-    local item = store.inventory[itemId]
-    if not item then return false, {error = "Item not found"} end
+    if locationId then
+        location = Services.Location:GetLocation(locationId)
+        if location and location.isTrespassing then
+            isBurglary = true
+            crimeType = Modules.Crime.Types.BURGLARY
+        end
+    end
 
-    local outcome = self:CalculateOutcome({
-        player = player,
-        securityLevel = store.securityLevel or 1,
-        itemValue = item.price,
-        locationType = store.locationType or "VILLAGE"
-    })
+    local securityLevel = (location and location.securityLevel) or Modules.Crime.SecurityLevels.NOVICE
+    local success, bounty, detected, env = self:CalculateOutcome(
+        player,
+        crimeType,
+        {
+            securityLevel = securityLevel,
+            value = value,
+            useZoneSecurity = true
+        }
+    )
+
+    local outcome = {
+        success = success,
+        detected = detected,
+        bounty = bounty,
+        value = value,
+        isBurglary = isBurglary
+    }
 
     if outcome.success then
-        Services.Inventory:AddItem(player, item.itemId, 1, {
-            stolen = true,
-            storeId = storeId,
-            timestamp = os.time()
-        })
+        local itemData = {
+            id = itemId,
+            value = value,
+            name = targetInstance:GetAttribute("NAME")
+        }
 
-        Services.Store:RemoveInventory(storeId, itemId, 1)
+        local contextData = {
+            sourceEntity = owner,
+            originalId = targetInstance:GetAttribute("ID")
+        }
+
+        if isBurglary and locationId then
+            contextData.sourceLocation = locationId
+            contextData.burglary = true
+        end
+
+        local addSuccess = self:AddLoot(player, itemData, contextData)
+
+        if addSuccess then
+            targetInstance:Destroy()
+        else
+            outcome.success = false
+            outcome.error = "Failed to add stolen item to inventory"
+        end
     end
 
     if outcome.detected then
-        local storeEntity = Services.Object:GetInstance(storeId)
-        if storeEntity then
-            self:DetectPlayer(player, storeEntity, item, Modules.Crime.Types.SHOPLIFT)
+        local target = targetInstance
+
+        if isBurglary and location then
+            target = {
+                id = locationId,
+                type = "LOCATION",
+                locationType = location.type,
+                securityLevel = securityLevel,
+                factionId = location.factionId,
+                ownerId = location.ownerId
+            }
         end
-    else
-        if outcome.success then
-            local storeOwnerFaction = store.factionId
-            if storeOwnerFaction then
-                Services.Memory:UpdateReputation(
-                    player,
-                    storeOwnerFaction,
-                    Modules.Crime.ReputationImpact.THEFT_UNCAUGHT.FACTION
-                )
-            end
-        end
+
+        local detectionResult = self:DetectPlayer(player, target, { value = value }, crimeType)
+        outcome.bounty = detectionResult.bountyAmount
     end
 
     Services.Event:Fire("Crime.Crime", {
-        type = "THEFT",
-        subType = "SHOPLIFT",
+        type = isBurglary and "BURGLARY" or "THEFT",
+        subType = "OBJECT",
         player = player,
-        storeId = storeId,
+        targetId = targetInstance:GetAttribute("ID"),
+        targetType = targetInstance:GetAttribute("TYPE"),
+        locationId = locationId,
+        locationType = location and location.type or nil,
         itemId = itemId,
         success = outcome.success,
         detected = outcome.detected,
-        value = item.price
+        value = value,
+        bounty = outcome.bounty
     })
 
-    return true, {
-        success = outcome.success,
-        detected = outcome.detected,
-        value = item.price
-    }
+    return outcome.success, outcome
 end
 
 function CrimeService:AttemptPickpocket(context: TheftContext): (boolean, CrimeResult)
@@ -315,19 +471,28 @@ function CrimeService:AttemptPickpocket(context: TheftContext): (boolean, CrimeR
 
     local targetType = target:GetAttribute("TYPE") or "VILLAGER"
 
-    local securityLevel = 1
+    local securityLevel = Modules.Crime.SecurityLevels.NOVICE
     if targetType == "GUARD" then
-        securityLevel = 3
+        securityLevel = Modules.Crime.SecurityLevels.ADEPT
     elseif targetType == "MERCHANT" then
-        securityLevel = 2
+        securityLevel = Modules.Crime.SecurityLevels.APPRENTICE
     end
 
-    local outcome = self:CalculateOutcome({
-        player = player,
-        securityLevel = securityLevel,
-        itemValue = 0,
-        locationType = "VILLAGE"
-    })
+    local success, bounty, detected = self:CalculateOutcome(
+        player,
+        Modules.Crime.Types.PICKPOCKET,
+        {
+            securityLevel = securityLevel,
+            value = 0,
+            useZoneSecurity = true
+        }
+    )
+
+    local outcome = {
+        success = success,
+        detected = detected,
+        bounty = bounty
+    }
 
     local loot = nil
     if outcome.success then
@@ -341,17 +506,6 @@ function CrimeService:AttemptPickpocket(context: TheftContext): (boolean, CrimeR
 
     if outcome.detected then
         self:DetectPlayer(player, target, loot, Modules.Crime.Types.PICKPOCKET)
-    else
-        if outcome.success then
-            local targetFaction = target:GetAttribute("FACTION")
-            if targetFaction then
-                Services.Memory:UpdateReputation(
-                    player,
-                    targetFaction,
-                    Modules.Crime.ReputationImpact.THEFT_UNCAUGHT.FACTION
-                )
-            end
-        end
     end
 
     Services.Event:Fire("Crime.Crime", {
@@ -372,73 +526,50 @@ function CrimeService:AttemptPickpocket(context: TheftContext): (boolean, CrimeR
     }
 end
 
-function CrimeService:AttemptBurglary(context: TheftContext): (boolean, CrimeResult)
-    if not context.player then return false, {error = "Invalid player"} end
-    local player = context.player
-    local locationId = context.targetId
+--[[ Trespass Functions ]]
+function CrimeService:StartTresspass(player, location, reason)
+    if not player or not location then return false, {error = "Invalid parameters"} end
 
-    local location = Services.Location:GetLocation(locationId)
-    if not location then return false, {error = "Location not found"} end
+    local securityLevel = location.securityLevel or Modules.Crime.SecurityLevels.NOVICE
 
-    local playerZones = Services.Zone:GetZones(player)
-    local isInLocation = playerZones[locationId] ~= nil
+    local success, bounty, detected = self:CalculateOutcome(
+        player,
+        Modules.Crime.Types.TRESPASSING,
+        {
+            securityLevel = securityLevel,
+            value = 0,
+            useZoneSecurity = true
+        }
+    )
 
-    if not isInLocation then
-        return false, {error = "Player must be inside the location to commit burglary"}
-    end
-
-    local template = Modules.Location.GetLocation(location.templateId)
-    if not template then return false, {error = "Invalid location template"} end
-
-    local securityLevel = location.securityLevel or template.defaults.security or 1
-    local ownerId = Services.Location:GetOwner(locationId)
-
-    local successModifier = 0
-    if location.magicalDefenses then
-        successModifier -= 10
-    end
-    if location.trapDefenses then
-        successModifier -= 10
-    end
-
-    local outcome = self:CalculateOutcome({
-        player = player,
-        securityLevel = securityLevel,
-        itemValue = 0,
-        successModifier = successModifier
-    })
+    success = true
 
     local locationWrapper = {
-        id = locationId,
+        id = location.id,
         type = "LOCATION",
-        templateId = location.templateId,
-        locationType = location.locationType or template.defaults.location_type,
+        locationType = location.type,
         securityLevel = securityLevel,
         factionId = location.factionId,
-        ownerId = ownerId
+        ownerId = location.ownerId
     }
 
-    if outcome.detected then
-        self:DetectPlayer(player, locationWrapper, {value = Modules.Crime.BountyConfig.BASE_BURGLARY_BOUNTY}, Modules.Crime.Types.BURGLARY)
+    if detected then
+        local detectionResult = self:DetectPlayer(player, locationWrapper, {
+            value = Modules.Crime.BountyConfig.TRESPASSING.base or 50
+        }, Modules.Crime.Types.TRESPASSING)
+
+        bounty = detectionResult and detectionResult.bountyAmount or bounty
     end
 
-    Services.Event:Fire("Crime.Crime", {
-        type = "BURGLARY",
-        player = player,
-        locationId = locationId,
-        locationType = template.defaults.location_type,
-        locationSubType = location.templateId,
-        success = outcome.success,
-        detected = outcome.detected
-    })
-
     return true, {
-        success = outcome.success,
-        detected = outcome.detected
+        success = success,
+        detected = detected,
+        bounty = detected and bounty or 0,
+        reason = reason
     }
 end
 
-function CrimeService:AttemptTrespass(player, locationId): (boolean, CrimeResult)
+function CrimeService:PickLock(player, locationId): (boolean, CrimeResult)
     if not player or not locationId then return false, {error = "Invalid parameters"} end
 
     local location = Services.Location:GetLocation(locationId)
@@ -450,7 +581,7 @@ function CrimeService:AttemptTrespass(player, locationId): (boolean, CrimeResult
 
     local playerDexterity = player:GetAttribute("DEXTERITY") or 0
     local lockLevel = location.lockLevel or 1
-    local securityLevel = location.securityLevel or 1
+    local securityLevel = location.securityLevel or Modules.Crime.SecurityLevels.NOVICE
 
     local baseChance = 20
     local dexterityBonus = playerDexterity * 7
@@ -470,20 +601,22 @@ function CrimeService:AttemptTrespass(player, locationId): (boolean, CrimeResult
         90
     )
 
-    local detectionChance = Modules.Crime:GetDetection(
-        playerDexterity,
-        securityLevel,
-        0,
-        Services.Time:GetTimeOfDay(),
-        nil,
-        location.locationType or "VILLAGE"
+    local success, bounty, detected = self:CalculateOutcome(
+        player,
+        Modules.Crime.Types.TRESPASSING,
+        {
+            securityLevel = securityLevel,
+            value = 0,
+            useZoneSecurity = true,
+            specialDefenses = {
+                magical = location.magicalDefenses,
+                traps = location.trapDefenses
+            }
+        }
     )
 
     local roll = math.random(1, 100)
-    local success = roll <= successChance
-
-    local detectionRoll = math.random(1, 100)
-    local detected = detectionRoll <= detectionChance
+    success = roll <= successChance
 
     if success then
         Services.Location:LockLocation(locationId, false)
@@ -519,6 +652,108 @@ function CrimeService:AttemptTrespass(player, locationId): (boolean, CrimeResult
     }
 end
 
+--[[ Violent Functions ]]
+function CrimeService:CommitAssault(player, victim, damageAmount)
+    if not player or not victim then return false, { error = "Invalid parameters" } end
+
+    local victimType = victim:GetAttribute("TYPE") or "VILLAGER"
+    local victimId = victim:GetAttribute("ID")
+    local securityLevel = victim:GetAttribute("SECURITY_LEVEL") or Modules.Crime.SecurityLevels.NOVICE
+
+    local valueModifier = 1
+    if victimType == "GUARD" then
+        valueModifier = 2
+    elseif victimType == "MERCHANT" or victim:GetAttribute("UNIQUE") then
+        valueModifier = 1.5
+    end
+
+    local success, bountyAmount, detected, env = self:CalculateOutcome(
+        player,
+        Modules.Crime.Types.ASSAULT,
+        {
+            securityLevel = securityLevel,
+            value = damageAmount * 0.5,
+            useZoneSecurity = true
+        }
+    )
+
+    success = true
+
+    if detected then
+        local detectionResult = self:DetectPlayer(player, victim, {
+            value = Modules.Crime.BountyConfig.ASSAULT.base * valueModifier
+        }, Modules.Crime.Types.ASSAULT)
+
+        bountyAmount = detectionResult and detectionResult.bountyAmount or bountyAmount
+    end
+
+    Services.Event:Fire("Crime.Crime", {
+        type = "ASSAULT",
+        player = player,
+        targetId = victimId,
+        targetType = victimType,
+        damage = damageAmount,
+        success = success,
+        detected = detected
+    })
+
+    return true, {
+        success = success,
+        detected = detected,
+        bounty = detected and bountyAmount or 0
+    }
+end
+
+function CrimeService:CommitMurder(player, victim)
+    if not player or not victim then return false, { error = "Invalid parameters" } end
+
+    local victimType = victim:GetAttribute("TYPE") or "VILLAGER"
+    local victimId = victim:GetAttribute("ID")
+    local securityLevel = victim:GetAttribute("SECURITY_LEVEL") or Modules.Crime.SecurityLevels.NOVICE
+
+    local valueModifier = 1
+    if victimType == "GUARD" then
+        valueModifier = 2
+    elseif victimType == "MERCHANT" or victim:GetAttribute("UNIQUE") then
+        valueModifier = 1.5
+    end
+
+    local success, bountyAmount, detected, env = self:CalculateOutcome(
+        player,
+        Modules.Crime.Types.MURDER,
+        {
+            securityLevel = securityLevel,
+            value = Modules.Crime.BountyConfig.MURDER.min * (valueModifier - 1),
+            useZoneSecurity = true
+        }
+    )
+
+    success = true
+
+    if detected then
+        local detectionResult = self:DetectPlayer(player, victim, {
+            value = Modules.Crime.BountyConfig.MURDER.min * valueModifier
+        }, Modules.Crime.Types.MURDER)
+
+        bountyAmount = detectionResult and detectionResult.bountyAmount or bountyAmount
+    end
+
+    Services.Event:Fire("Crime.Crime", {
+        type = "MURDER",
+        player = player,
+        targetId = victimId,
+        targetType = victimType,
+        success = success,
+        detected = detected
+    })
+
+    return true, {
+        success = success,
+        detected = detected,
+        bounty = detected and bountyAmount or 0
+    }
+end
+
 --[[ Bounty Functions ]]
 function CrimeService:AddBounty(player, amount, reason, issuerId): (boolean, number)
     local playerId = type(player) == "number" and player or player.UserId
@@ -537,8 +772,7 @@ function CrimeService:AddBounty(player, amount, reason, issuerId): (boolean, num
         amount = amount,
         reason = reason,
         issuerId = issuerId,
-        timestamp = os.time(),
-        expiryTime = os.time() + Modules.Crime.BountyConfig.DEFAULT_EXPIRY
+        timestamp = os.time()
     }
 
     local existingBountyIndex = nil
@@ -552,7 +786,6 @@ function CrimeService:AddBounty(player, amount, reason, issuerId): (boolean, num
     if existingBountyIndex then
         State.crimeData.bounties[existingBountyIndex].amount = State.crimeData.bounties[existingBountyIndex].amount + amount
         State.crimeData.bounties[existingBountyIndex].timestamp = os.time()
-        State.crimeData.bounties[existingBountyIndex].expiryTime = os.time() + Modules.Crime.BountyConfig.DEFAULT_EXPIRY
         amount = State.crimeData.bounties[existingBountyIndex].amount
     else
         table.insert(State.crimeData.bounties, bounty)
@@ -581,14 +814,38 @@ function CrimeService:GetBounty(player): (number, {BountyData})
     local totalAmount = 0
 
     for _, bounty in ipairs(currentBounties) do
-        local expiry = bounty.expiryTime or (bounty.timestamp + Modules.Crime.BountyConfig.DEFAULT_EXPIRY)
-        if bounty.playerId == playerId and expiry > os.time() then
+        if bounty.playerId == playerId then
             table.insert(bounties, bounty)
             totalAmount = totalAmount + bounty.amount
         end
     end
 
     return totalAmount, bounties
+end
+
+function CrimeService:GetBounties(count, crimeType)
+    count = count or 50
+    local crimeData = Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.CRIME_DATA) or {}
+    local recentCrimes = crimeData.recentCrimes or {}
+
+    if not crimeType then
+        local result = {}
+        for i = math.max(1, #recentCrimes - count + 1), #recentCrimes do
+            table.insert(result, recentCrimes[i])
+        end
+        return result
+    else
+        local result = {}
+        for i = #recentCrimes, 1, -1 do
+            if recentCrimes[i].type == crimeType then
+                table.insert(result, recentCrimes[i])
+                if #result >= count then
+                    break
+                end
+            end
+        end
+        return result
+    end
 end
 
 function CrimeService:ClearBounty(player, captor): boolean
@@ -603,11 +860,10 @@ function CrimeService:ClearBounty(player, captor): boolean
     local cleared = false
 
     for _, bounty in ipairs(State.crimeData.bounties) do
-        local expiry = bounty.expiryTime or (bounty.timestamp + Modules.Crime.BountyConfig.DEFAULT_EXPIRY)
-        if bounty.playerId == playerId and expiry > os.time() then
+        if bounty.playerId == playerId then
             totalBounty = totalBounty + bounty.amount
             cleared = true
-        elseif not (bounty.playerId == playerId and expiry <= os.time()) then
+        else
             table.insert(remainingBounties, bounty)
         end
     end
@@ -667,32 +923,6 @@ function CrimeService:ClaimBounty(hunter, target): (boolean, number)
     })
 
     return true, totalBounty
-end
-
---[[ Getter Functions ]]
-function CrimeService:GetRecent(count, crimeType)
-    count = count or 50
-    local crimeData = Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.CRIME_DATA) or {}
-    local recentCrimes = crimeData.recentCrimes or {}
-
-    if not crimeType then
-        local result = {}
-        for i = math.max(1, #recentCrimes - count + 1), #recentCrimes do
-            table.insert(result, recentCrimes[i])
-        end
-        return result
-    else
-        local result = {}
-        for i = #recentCrimes, 1, -1 do
-            if recentCrimes[i].type == crimeType then
-                table.insert(result, recentCrimes[i])
-                if #result >= count then
-                    break
-                end
-            end
-        end
-        return result
-    end
 end
 
 return CrimeService
