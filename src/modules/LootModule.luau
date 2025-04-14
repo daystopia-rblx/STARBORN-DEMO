@@ -161,4 +161,29 @@ function LootModule:GetQuantity(itemData)
     return 1
 end
 
+function LootModule:SelectItem(lootTable)
+    if not lootTable or #lootTable == 0 then return nil end
+
+    local totalWeight = 0
+    for _, itemEntry in ipairs(lootTable) do
+        totalWeight = totalWeight + (itemEntry.weight or 1)
+    end
+
+    if totalWeight <= 0 then
+        return lootTable[math.random(1, #lootTable)]
+    end
+
+    local randomValue = math.random() * totalWeight
+    local currentWeight = 0
+
+    for _, itemEntry in ipairs(lootTable) do
+        currentWeight = currentWeight + (itemEntry.weight or 1)
+        if randomValue <= currentWeight then
+            return itemEntry
+        end
+    end
+
+    return lootTable[1]
+end
+
 return LootModule

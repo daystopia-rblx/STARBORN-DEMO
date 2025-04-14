@@ -558,6 +558,10 @@ ActionModule.Types = {
                 end
             end
         }
+    },
+
+    FISH = {
+
     }
 }
 

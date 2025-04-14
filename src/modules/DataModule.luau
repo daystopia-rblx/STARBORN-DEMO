@@ -143,6 +143,14 @@ DataModule.Templates = {
         participants = {},
         isTracked = false,
         failReason = nil
+    },
+
+    GuildData = {
+        guilds = {},
+        territories = {},
+        wars = {},
+        lastUpdate = 0,
+        version = "1.0.0"
     }
 }
 

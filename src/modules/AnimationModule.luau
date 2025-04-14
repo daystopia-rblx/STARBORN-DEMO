@@ -94,6 +94,14 @@ AnimationModule.Assets = {
             WEEPING = { id = "", looped = false, priority = Enum.AnimationPriority.Core }
         },
 
+        FISHING = {
+            IDLE = { id = "", looped = true, priority = Enum.AnimationPriority.Core },
+            CAST = { id = "", looped = false, priority = Enum.AnimationPriority.Action },
+            REEL = { id = "", looped = false, priority = Enum.AnimationPriority.Action },
+            CATCH = { id = "", looped = false, priority = Enum.AnimationPriority.Action },
+            BITE = { id = "", looped = true, priority = Enum.AnimationPriority.Core }
+        },
+
         WEAPONS = {
             FIST = {
                 SWING_1 = { id = "rbxassetid://88649918878431", looped = false, priority = Enum.AnimationPriority.Action },

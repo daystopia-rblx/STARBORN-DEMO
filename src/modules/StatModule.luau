@@ -921,6 +921,7 @@ StatModule.Templates = {
             }
         }
     },
+
     CHARISMA = {
         baseValue = 10,
         minValue = 1,
@@ -953,6 +954,45 @@ StatModule.Templates = {
                     return 1 + (charisma / 200)
                 end
             }
+        }
+    },
+
+    PERCEPTION = {
+        baseValue = 10,
+        minValue = 1,
+        maxValue = 100,
+        category = StatModule.Constants.CATEGORIES.ATTRIBUTE,
+        displayName = "Perception",
+        description = "Ability to detect hidden entities and notice details.",
+        icon = "",
+        color = Color3.fromRGB(255, 255, 100),
+        format = "%.0f",
+        effects = {
+            DETECTION_THRESHOLD = {
+                type = "ADD",
+                value = function(entity)
+                    local perception = entity:GetAttribute("PERCEPTION") or 10
+                    return perception * 0.5
+                end
+            },
+            HIDDEN_ENTITY_VISIBILITY = {
+                type = "MULTIPLY",
+                value = function(entity)
+                    local perception = entity:GetAttribute("PERCEPTION") or 10
+                    return 1 + (perception / 50)
+                end
+            },
+            STEALTH_DETECTION = {
+                type = "ADD",
+                value = function(entity)
+                    local perception = entity:GetAttribute("PERCEPTION") or 10
+                    return perception * 0.75
+                end
+            }
+        },
+        dependencies = {
+            INTELLIGENCE = 0.3,
+            RESOLVE = 0.2
         }
     },
 

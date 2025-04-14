@@ -20,11 +20,13 @@ ObjectService.Dependencies = {
 --[[ Modules ]]
 ObjectService.Modules = {
     "Object",
+    "Zone",
     "Weapon",
     "Equipment",
     "Craft",
     "Food",
-    "Zone"
+    "Fish",
+    "Farm"
 }
 
 --[[ Events ]]

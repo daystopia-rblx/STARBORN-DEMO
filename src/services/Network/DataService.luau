@@ -42,7 +42,8 @@ local READABLE_VOWELS = "aeiou"
 
 DataService.GLOBAL_KEYS = {
     FACTION_DATA = "FactionData",
-    CRIME_DATA = "CrimeData"
+    CRIME_DATA = "CrimeData",
+    GUILD_DATA = "GuildData"
 }
 
 --[[ State ]]

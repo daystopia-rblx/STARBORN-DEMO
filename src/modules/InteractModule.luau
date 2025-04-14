@@ -23,7 +23,8 @@ InteractModule.Types = {
     CRAFT = "craft",
     CONSUME = "consume",
     LOCKPICK = "lockpick",
-    OPEN = "open"
+    OPEN = "open",
+    FISH = "fish"
 }
 
 --[[ Base Templates ]]
@@ -154,6 +155,20 @@ InteractModule.Templates = {
         lineOfSight = true,
         click = false,
         maxDistance = 7,
+        visible = true
+    },
+
+    [InteractModule.Types.FISH] = {
+        prompt = "Fish",
+        key = "E",
+        gamepadKey = "ButtonX",
+        color = Color3.fromRGB(60, 170, 255),
+        hold = 0.5,
+        distance = 10,
+        style = "billboard",
+        lineOfSight = true,
+        click = false,
+        maxDistance = 8,
         visible = true
     }
 }

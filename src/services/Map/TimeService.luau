@@ -17,7 +17,14 @@ TimeService.Events = {
 
 TimeService.CONSTANTS = {
     CYCLE_DURATION = 800, -- 13.33 minutes
-    HOURS_PER_DAY = 24
+    HOURS_PER_DAY = 24,
+    SEASONS = {
+        SPRING = "spring",
+        SUMMER = "summer",
+        FALL = "fall",
+        WINTER = "winter"
+    },
+    SEASONS_PER_YEAR = 4
 }
 
 local Services
@@ -125,6 +132,21 @@ function TimeService:GetTimeOfDay(hour)
         return "Dusk"
     else
         return "Night"
+    end
+end
+
+function TimeService:GetSeason()
+    local daysElapsed = self:GetStart()
+    local yearProgress = daysElapsed % self.CONSTANTS.SEASONS_PER_YEAR
+
+    if yearProgress < 1 then
+        return self.CONSTANTS.SEASONS.SPRING
+    elseif yearProgress < 2 then
+        return self.CONSTANTS.SEASONS.SUMMER
+    elseif yearProgress < 3 then
+        return self.CONSTANTS.SEASONS.FALL
+    else
+        return self.CONSTANTS.SEASONS.WINTER
     end
 end
 
