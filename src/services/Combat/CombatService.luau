@@ -2,6 +2,13 @@ local CombatService = {
     Animations = {} :: {[string]: AnimationTrack}
 }
 
+type Info = {
+    Damage: number,
+	DamageType: string,
+	CombatTags: boolean,
+	BlockBreak: boolean,
+}
+
 CombatService.Dependencies = {
     "Event",
     "Asset",
@@ -26,6 +33,7 @@ local Services
 local Modules
 
 local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
+local SoundModule = require(game.ReplicatedStorage.Modules.SoundModule)
 
 CombatService.Listeners = {
     ["Players.PlayerAdded"] = function(self, player)
@@ -44,6 +52,13 @@ CombatService.Listeners = {
                     }
                 })
             end)
+        end
+
+        if player.Character then
+            local Animator = player.Character:FindFirstChild("Humanoid"):FindFirstChildOfClass("Animator")
+            if Animator then
+                self.Animations = Utility.Animation.Categories(Animator, {"LOCOMOTION", "ROLL"})
+            end
         end
 
         player.CharacterAdded:Connect(onCharacterAdded)
@@ -120,21 +135,102 @@ function CombatService:Unequip(Humanoid: Humanoid, Weapon: string, Data: WeaponD
 end
 
 --[[ Attacking ]]
-function CombatService:ApplyDamage(source, target, damageData)
+
+--[[ Handler ]]
+function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
+    if not Attacker or not Victim or not Info then return end
+
+    if Victim.Health == 0 or Attacker.Health == 0 then return end
+
+    local ATKRoot = Attacker.Parent:FindFirstChild("HumanoidRootPart")
+    local VICRoot = Victim.Params:FindFirstChild("HumanoidRootPart")
+
+    if not ATKRoot or not VICRoot then return end
+
+    local Behind = (VICRoot.Position - ATKRoot.Position).Unit:Dot(VICRoot.CFrame.LookVector) >= 0.25
+
+    for Key, Value in pairs(Info) do
+        if Key == "Damage" and Value and Victim.Parent:FindFirstChildOfClass("ForceField") == nil then
+            if Services.State:CheckSpecific(Victim, {Connection = true}, "Dodging") == true then
+                self.Animations["ROLL_CANCEL"].Priority = Enum.AnimationPriority.Action2
+                self.Animations["ROLL_CANCEL"]:Play()
+                return
+            elseif Services.State:CheckSpecific(Victim, {Connection = true}, "Parrying") == true then
+                
+                return
+            elseif Services.State:CheckSpecific(Victim, {Connection = true}, "Blocking") == true then
+                self:DamageType(Victim.Parent, Info.DamageType, true)
+
+                local postureChange = Value * 1.25 -- We can add posture scaling here
+                Services.Stat:ModifyStat(Victim.Parent, "POSTURE", {
+                    operation = "add",
+                    value = postureChange,
+                })
+                
+                local currentPosture = Services.Stat:GetStat(Victim.Parent, "POSTURE")
+                local postureMax = Modules.Stat.Templates.POSTURE.maxValue
+
+                if currentPosture >= postureMax or Info.BlockBreak == true then
+                    -- Handle posture break
+                    return
+                end
+                -- Check
+
+                return
+            else
+                self:DamageType(Victim.Parent, Info.DamageType)
+                -- Stun handle
+
+                -- Ai damage handle Event
+
+                -- Hit animation here
+
+                self:ApplyDamage(Attacker, Victim, Value)
+                -- Fire Combat Tag
+                return
+            end
+        end
+    end
+end
+
+function CombatService:DamageType(Character: model, DamageType: string, Blocking: boolean)
+    if Blocking == true then
+        -- Get Victim WeaponData
+        -- Play Block impact Animation
+        local WeaponBlock = false -- For now blocking will appear from arms, will next time reference WeaponData
+
+        if WeaponBlock == true then
+            -- Find weapon model/blade, play VFX
+        else
+            Services.Effect:CreateEffect("Character", {VFX = game.ReplicatedStorage.Asset.Particles.BlockedHit, Parent = Character["Left Arm"], NotAttachment = true})
+            Services.Effect:CreateEffect("Character", {VFX = game.ReplicatedStorage.Asset.Particles.BlockedHit, Parent = Character["Right Arm"], NotAttachment = true})
+            Services.Effect:CreateEffect("Sound", {SFX = SoundModule.SFX.Blocked_Hit.id, Parent = Character.HumanoidRootPart, Time = 2})
+        end
+    else
+        if not DamageType then return end
+
+        if DamageType == "Slash" then
+            Services.Effect:CreateEffect("Blood", {Parent = Character.HumanoidRootPart})
+        end
+        Services.Effect:CreateEffect("Character", {VFX = game.ReplicatedStorage.Asset.Particles[DamageType], Parent = Character.HumanoidRootPart})
+        Services.Effect:CreateEffect("Sound", {SFX = SoundModule.SFX[DamageType].id, Parent = Character.HumanoidRootPart, Time = 2})
+    end
+end
+
+function CombatService:ApplyDamage(source, target, damageValue)
     if not source or not target then return false end
 
     local humanoid = target:FindFirstChild("Humanoid")
     if not humanoid then return false end
 
-    local damageAmount = damageData.amount or 0
-    if damageAmount <= 0 then return false end
+    if damageValue <= 0 then return false end
 
-    humanoid:TakeDamage(damageAmount)
+    humanoid:TakeDamage(damageValue)
 
     Services.Event:Fire("Combat.Damage", {
         source = source,
         target = target,
-        damage = damageData
+        damage = damageValue
     })
 
     return true
