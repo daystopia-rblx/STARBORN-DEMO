@@ -312,15 +312,15 @@ ObjectModule.Templates = {
         TEST_PICKUP = {
             defaults = { properties = { interaction = "pickup", value = 5 } },
             variants = {
-                standard = { name = "Test Pickup Item", description = "A test item for pickup interaction" }
+                standard = { name = "Unowned Item", description = "An item that can be picked up by anyone" }
             }
         },
 
         TEST_OWNED = {
             defaults = { properties = { interaction = "pickup", value = 10 } },
             variants = {
-                standard = { 
-                    name = "Owned Test Item",
+                standard = {
+                    name = "Owned Item",
                     description = "A test item with an owner",
                     initialAttributes = { OWNER = "TestOwner" }
                 }

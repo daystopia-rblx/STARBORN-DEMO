@@ -37,14 +37,7 @@ TradeService.OwnershipTypes = {
 local State = {
     ownership = {},
     tradeRequests = {},
-    pendingTransfers = {},
-    reputationThresholds = {
-        HOSTILE = -50,
-        SUSPICIOUS = -20,
-        NEUTRAL = 0,
-        FRIENDLY = 20,
-        ALLIED = 50
-    }
+    pendingTransfers = {}
 }
 
 --[[ Core Functions ]]
@@ -185,57 +178,6 @@ function TradeService:GetOwned(ownerId, instanceType): {string}
     end
 
     return ownedInstances
-end
-
---[[ Permission Functions ]]
-function TradeService:CanAccess(entityId, instanceId): (boolean, string?)
-    if not (entityId and instanceId) then return false, "Invalid parameters" end
-
-    local ownerId, ownershipType = self:GetOwner(instanceId)
-    if not ownerId then return true, nil end
-
-    if entityId == ownerId then return true, nil end
-
-    if ownershipType == self.OwnershipTypes.PUBLIC then
-        return true, nil
-    elseif ownershipType == self.OwnershipTypes.PRIVATE then
-        return false, "Private access only"
-    elseif ownershipType == self.OwnershipTypes.RESTRICTED then
-        local reputation = Services.Memory:GetReputation(entityId, ownerId)
-        local reputationLevel = self:GetReputationLevel(reputation)
-
-        if reputationLevel == "HOSTILE" or reputationLevel == "SUSPICIOUS" then
-            return false, "Insufficient reputation"
-        end
-        return true, nil
-    elseif ownershipType == self.OwnershipTypes.FACTION then
-        local factionId
-        local instance = Services.Object:GetInstance(instanceId)
-        if instance then
-            factionId = instance:GetAttribute("FACTION")
-        end
-
-        if not factionId then return false, "No faction assigned" end
-
-        local reputation = Services.Memory:GetReputation(entityId, factionId)
-        local reputationLevel = self:GetReputationLevel(reputation)
-
-        if reputationLevel == "HOSTILE" or reputationLevel == "SUSPICIOUS" then
-            return false, "Insufficient faction reputation"
-        end
-        return true, nil
-    end
-
-    return false, "Unknown ownership type"
-end
-
-function TradeService:GetReputationLevel(reputation)
-    for level, threshold in pairs(State.reputationThresholds) do
-        if reputation >= threshold then
-            return level
-        end
-    end
-    return "NEUTRAL"
 end
 
 --[[ Trade Functions ]]

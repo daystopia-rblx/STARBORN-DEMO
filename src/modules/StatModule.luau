@@ -247,7 +247,9 @@ StatModule.EntityProfiles = {
             "FORGING",
             "SMITHING",
             "COOKING",
-            "ALCHEMY"
+            "ALCHEMY",
+            "FISHING",
+            "FARMING"
         },
         cycles = {
             "HEALTH",
@@ -467,6 +469,78 @@ StatModule.Templates = {
                 type = "ADD",
                 value = function(entity)
                     return 0.5
+                end
+            }
+        }
+    },
+
+    FISHING = {
+        baseValue = 1,
+        minValue = 1,
+        maxValue = StatModule.Constants.CRAFT.MAX_SKILL_LEVEL,
+        category = "CRAFT",
+        displayName = "Fishing",
+        description = "Skill at catching fish and other aquatic creatures",
+        icon = "",
+        color = Color3.fromRGB(0, 120, 255),
+        format = "%.0f",
+        playerSpecific = true,
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        effects = {
+            FISHING_SUCCESS_RATE = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("FISHING") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_SUCCESS_BONUS
+                end
+            },
+            FISHING_RARE_CATCH_CHANCE = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("FISHING") or 1
+                    return skillLevel * 0.005
+                end
+            },
+            LEVEL_PROGRESS = {
+                type = "ADD",
+                value = function(entity)
+                    return 0.4
+                end
+            }
+        }
+    },
+
+    FARMING = {
+        baseValue = 1,
+        minValue = 1,
+        maxValue = StatModule.Constants.CRAFT.MAX_SKILL_LEVEL,
+        category = "CRAFT",
+        displayName = "Farming",
+        description = "Skill at cultivating crops and managing farmland",
+        icon = "",
+        color = Color3.fromRGB(139, 69, 19),
+        format = "%.0f",
+        playerSpecific = true,
+        storageType = StatModule.Constants.STORAGE_TYPE.PLAYER_DATA,
+        effects = {
+            FARMING_YIELD_BONUS = {
+                type = "ADD",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("FARMING") or 1
+                    return skillLevel * StatModule.Constants.CRAFT.SKILL_SUCCESS_BONUS
+                end
+            },
+            FARMING_GROWTH_SPEED = {
+                type = "MULTIPLY",
+                value = function(entity)
+                    local skillLevel = entity:GetAttribute("FARMING") or 1
+                    return 1 + (skillLevel * 0.005)
+                end
+            },
+            LEVEL_PROGRESS = {
+                type = "ADD",
+                value = function(entity)
+                    return 0.3
                 end
             }
         }

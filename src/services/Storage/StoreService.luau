@@ -15,7 +15,9 @@ StoreService.Dependencies = {
     "Economy",
     "Inventory",
     "Zone",
-    "Time"
+    "Time",
+    "Memory",
+    "Trade"
 }
 
 --[[ Modules ]]
@@ -52,7 +54,14 @@ local Modules
 --[[ State ]]
 local State = {
     stores = {},
-    inventories = {}
+    inventories = {},
+    reputationThresholds = {
+        HOSTILE = -50,
+        SUSPICIOUS = -20,
+        NEUTRAL = 0,
+        FRIENDLY = 20,
+        ALLIED = 50
+    }
 }
 
 --[[ Event Listeners ]]
@@ -216,6 +225,11 @@ function StoreService:BrowseStore(playerId, storeId)
         if locationInstance and not locationInstance:GetAttribute("OPEN") then
             return false, "Store is closed"
         end
+
+        local canAccess, accessError = self:CanAccess(playerId, store.locationId)
+        if not canAccess then
+            return false, accessError or "Access denied"
+        end
     end
 
     if store.isGuildLocked and store.requiredGuild then
@@ -378,6 +392,57 @@ function StoreService:SellItem(playerId, storeId, itemId, quantity)
         quantity = quantity,
         value = sellValue
     }
+end
+
+--[[ Permission Functions ]]
+function StoreService:GetReputationLevel(reputation)
+    for level, threshold in pairs(State.reputationThresholds) do
+        if reputation >= threshold then
+            return level
+        end
+    end
+    return "NEUTRAL"
+end
+
+function StoreService:CanAccess(entityId, instanceId): (boolean, string?)
+    if not (entityId and instanceId) then return false, "Invalid parameters" end
+
+    local ownerId, ownershipType = Services.Trade:GetOwner(instanceId)
+    if not ownerId then return true, nil end
+
+    if entityId == ownerId then return true, nil end
+
+    if ownershipType == Services.Trade.OwnershipTypes.PUBLIC then
+        return true, nil
+    elseif ownershipType == Services.Trade.OwnershipTypes.PRIVATE then
+        return false, "Private access only"
+    elseif ownershipType == Services.Trade.OwnershipTypes.RESTRICTED then
+        local reputation = Services.Memory:GetReputation(entityId, ownerId)
+        local reputationLevel = self:GetReputationLevel(reputation)
+
+        if reputationLevel == "HOSTILE" or reputationLevel == "SUSPICIOUS" then
+            return false, "Insufficient reputation"
+        end
+        return true, nil
+    elseif ownershipType == Services.Trade.OwnershipTypes.FACTION then
+        local factionId
+        local instance = Services.Object:GetInstance(instanceId)
+        if instance then
+            factionId = instance:GetAttribute("FACTION")
+        end
+
+        if not factionId then return false, "No faction assigned" end
+
+        local reputation = Services.Memory:GetReputation(entityId, factionId)
+        local reputationLevel = self:GetReputationLevel(reputation)
+
+        if reputationLevel == "HOSTILE" or reputationLevel == "SUSPICIOUS" then
+            return false, "Insufficient faction reputation"
+        end
+        return true, nil
+    end
+
+    return false, "Unknown ownership type"
 end
 
 return StoreService

@@ -1059,7 +1059,6 @@ function Component.CreateNotification(config: {
     duration: number?,
     type: string?,
     position: UDim2?,
-    rewards: {[string]: any}?,
     headerColor: Color3?
 })
     if config.type and NotificationQueue.lastNotificationTypes[config.type] then
@@ -1084,6 +1083,7 @@ function Component.CreateNotification(config: {
                 notificationGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
                 notificationGui.DisplayOrder = 9999
                 notificationGui.Parent = LocalPlayer.PlayerGui
+                Scale.AutoScale(notificationGui)
             end
 
             local notificationFolder = notificationGui:FindFirstChild("NotificationFolder")
@@ -1093,103 +1093,96 @@ function Component.CreateNotification(config: {
                 notificationFolder.Parent = notificationGui
             end
 
-            local cleanTitle = (queueConfig.title or ""):gsub("<[^>]+>", "")
-            local cleanMessage = queueConfig.message:gsub("<[^>]+>", "")
-            local textLength = math.max(cleanTitle:len() * 1.2, cleanMessage:len())
-            local width = math.clamp(textLength * 4 + 40, 250, 300)
-            local height = queueConfig.rewards and 145 or 105
-
-            local accentColor = queueConfig.type == "success" and Color3.fromRGB(0, 255, 127) or
-                               queueConfig.type == "error" and Color3.fromRGB(255, 85, 85) or
-                               queueConfig.type == "warning" and Color3.fromRGB(255, 165, 0) or
-                               queueConfig.type == "info" and Color3.fromRGB(0, 170, 255) or
-                               Color3.fromRGB(0, 170, 255)
+            local accentColor = queueConfig.type == "success" and Color3.fromRGB(40, 120, 40) or
+                               queueConfig.type == "error" and Color3.fromRGB(187, 42, 53) or
+                               queueConfig.type == "warning" and Color3.fromRGB(180, 100, 20) or
+                               queueConfig.type == "info" and Color3.fromRGB(76, 53, 197) or
+                               Color3.fromRGB(76, 53, 197)
 
             local frame = Component.CreateFrame({
-                Size = UDim2.new(0, width * 0.5, 0, height * 0.5),
-                Position = UDim2.new(0.5, 0, 0, -height),
+                Size = UDim2.new(0, 0, 0, 0),
+                Position = UDim2.new(0.5, 0, 0, 20),
                 AnchorPoint = Vector2.new(0.5, 0),
                 BackgroundColor3 = Color3.fromRGB(40, 40, 50),
-                BackgroundTransparency = 0.1,
+                BackgroundTransparency = 1,
+                AutomaticSize = Enum.AutomaticSize.XY,
+                BorderSizePixel = 0,
                 cornerRadius = 12,
                 Parent = notificationFolder
             })
 
-            local accentBar = Instance.new("Frame")
-            accentBar.Name = "AccentBar"
-            accentBar.Size = UDim2.new(1, 0, 0, 10)
-            accentBar.Position = UDim2.new(0, 0, 0, 0)
-            accentBar.BackgroundColor3 = accentColor
-            accentBar.BorderSizePixel = 0
-            accentBar.Parent = frame
+            local stroke = Instance.new("UIStroke")
+            stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+            stroke.Color = accentColor
+            stroke.Thickness = 3
+            stroke.LineJoinMode = Enum.LineJoinMode.Round
+            stroke.Parent = frame
 
-            local accentCorner = Instance.new("UICorner")
-            accentCorner.CornerRadius = UDim.new(0, 2)
-            accentCorner.Parent = accentBar
+            local padding = Instance.new("UIPadding")
+            padding.PaddingTop = UDim.new(0, 10)
+            padding.PaddingBottom = UDim.new(0, 10)
+            padding.PaddingLeft = UDim.new(0, 20)
+            padding.PaddingRight = UDim.new(0, 20)
+            padding.Parent = frame
+
+            local contentLayout = Instance.new("UIListLayout")
+            contentLayout.Padding = UDim.new(0, 5)
+            contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+            contentLayout.Parent = frame
 
             local title = Component.CreateLabel({
-                Size = UDim2.new(1, -40, 0, 32),
-                Position = UDim2.new(0, 20, 0, 20),
+                Size = UDim2.new(0, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.XY,
+                Position = UDim2.new(0, 0, 0, 0),
                 Text = (queueConfig.title or ""):upper(),
                 TextSize = Style.Typography.Subtitle.Size,
                 FontFace = Font.new(Style.Typography.Subtitle.Font, Style.Typography.Subtitle.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextTransparency = 1,
                 RichText = true,
-                TextColor3 = queueConfig.headerColor or accentColor,
+                LayoutOrder = 1,
+                TextColor3 = Color3.new(1, 1, 1),
+                TextWrapped = true,
                 Parent = frame
             })
 
+            local titleGradient = Instance.new("UIGradient")
+            titleGradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, queueConfig.headerColor or accentColor),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(230, 230, 230))
+            })
+            titleGradient.Rotation = 90
+            titleGradient.Parent = title
+
             local message = Component.CreateLabel({
-                Size = UDim2.new(1, -40, 0, 45),
-                Position = UDim2.new(0, 20, 0, 52),
+                Size = UDim2.new(0, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.XY,
+                Position = UDim2.new(0, 0, 0, 0),
                 Text = queueConfig.message,
                 TextSize = Style.Typography.Subtitle.Size,
-                TextColor3 = Color3.fromRGB(200, 200, 200),
+                TextColor3 = Color3.new(1, 1, 1),
                 FontFace = Font.new(Style.Typography.Subtitle.Font, Style.Typography.Subtitle.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextWrapped = true,
                 TextTransparency = 1,
                 RichText = true,
+                LayoutOrder = 2,
                 Parent = frame
             })
 
-            local rewardsContainer
-            if queueConfig.rewards then
-                rewardsContainer = Component.CreateFrame({
-                    Size = UDim2.new(1, -40, 0, 40),
-                    Position = UDim2.new(0, 20, 0, height - 52),
-                    BackgroundTransparency = 1,
-                    Parent = frame
-                })
+            local messageGradient = Instance.new("UIGradient")
+            messageGradient.Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 220, 220)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 180, 180))
+            })
+            messageGradient.Rotation = 90
+            messageGradient.Parent = message
 
-                local rewardsText = ""
-                for item, amount in pairs(queueConfig.rewards) do
-                    rewardsText = rewardsText .. string.format("+%d %s ", amount, item)
-                end
-
-                local rewardsLabel = Component.CreateLabel({
-                    Size = UDim2.new(1, 0, 1, 0),
-                    Text = rewardsText,
-                    TextSize = Style.Typography.Caption.Size,
-                    TextColor3 = accentColor,
-                    FontFace = Font.new(Style.Typography.Caption.Font, Style.Typography.Caption.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
-                    TextXAlignment = Enum.TextXAlignment.Center,
-                    TextTransparency = 1,
-                    Parent = rewardsContainer
-                })
-            end
-
-            Scale.AutoScale(frame)
-
-            frame.BackgroundTransparency = 1
-            frame.Position = UDim2.new(0.5, 0, 0, -height)
-            frame.Size = UDim2.new(0, width * 0.5, 0, height * 0.5)
-
+            frame.Position = UDim2.new(0.5, 0, 0, -50)
             Controller.Update({
                 instance = frame,
                 properties = {
-                    Size = UDim2.fromOffset(width, height),
                     Position = UDim2.new(0.5, 0, 0, 20),
                     BackgroundTransparency = 0.1
                 },
@@ -1206,17 +1199,6 @@ function Component.CreateNotification(config: {
                         properties = { TextTransparency = 0 },
                         duration = Controller.Duration.Short
                     })
-                    if queueConfig.rewards then
-                        for _, child in ipairs(rewardsContainer:GetChildren()) do
-                            if child:IsA("TextLabel") then
-                                Controller.Update({
-                                    instance = child,
-                                    properties = { TextTransparency = 0 },
-                                    duration = Controller.Duration.Short
-                                })
-                            end
-                        end
-                    end
                 end
             })
 
@@ -1232,23 +1214,13 @@ function Component.CreateNotification(config: {
                         properties = { TextTransparency = 1 },
                         duration = Controller.Duration.Short
                     })
-                    if queueConfig.rewards then
-                        for _, child in ipairs(rewardsContainer:GetChildren()) do
-                            if child:IsA("TextLabel") then
-                                Controller.Update({
-                                    instance = child,
-                                    properties = { TextTransparency = 1 },
-                                    duration = Controller.Duration.Short
-                                })
-                            end
-                        end
-                    end
 
                     task.delay(0.15, function()
+                        local currentHeight = frame.AbsoluteSize.Y
                         Controller.Update({
                             instance = frame,
                             properties = {
-                                Position = UDim2.new(0.5, 0, 0, -height),
+                                Position = UDim2.new(0.5, 0, 0, -currentHeight),
                                 BackgroundTransparency = 1
                             },
                             duration = Controller.Duration.Medium,
@@ -1259,12 +1231,11 @@ function Component.CreateNotification(config: {
                         })
 
                         Controller.Update({
-                            instance = accentBar,
+                            instance = stroke,
                             properties = {
-                                BackgroundTransparency = 1,
-                                Size = UDim2.new(0.5, 0, 0, 4)
+                                Transparency = 1
                             },
-                            duration = 0.25,
+                            duration = Controller.Duration.Short,
                             easingStyle = Controller.Easing.Quad
                         })
                     end)

@@ -49,9 +49,12 @@ StatService.Listeners = {
         local player = data.player
         if player.Character then
             player.Character:SetAttribute("ENTITY", true)
+            self:RegisterEntity(player.Character)
         end
         player.CharacterAdded:Connect(function(character)
             character:SetAttribute("ENTITY", true)
+            task.wait()
+            self:RegisterEntity(character)
         end)
     end,
 
@@ -1082,11 +1085,21 @@ function StatService:ApplyProfile(entity, profileName, options)
 
     options = options or {}
 
+    local player = Players:GetPlayerFromCharacter(entity)
+    local targetId = player and tostring(player.UserId)
+
     for _, statName in ipairs(profile.stats) do
         local template = Modules.Stat.Templates[statName]
         if template then
             local baseValue = options[statName] or template.baseValue
-            self:SetStat(entity, statName, baseValue, { source = "profile_" .. profileName:lower() })
+            local statOptions = { source = "profile_" .. profileName:lower() }
+
+            if template.playerSpecific and player and targetId then
+                statOptions.player = player
+                statOptions.targetId = targetId
+            end
+
+            self:SetStat(entity, statName, baseValue, statOptions)
         end
     end
 
@@ -1118,9 +1131,15 @@ function StatService:RegisterEntity(entity: Instance): boolean
     State.connections[entity] = {}
 
     local isCharacter = Players:GetPlayerFromCharacter(entity) ~= nil
-    local entityType = entity:GetAttribute("TYPE") or (isCharacter and "Player" or "Person")
+    local entityType = entity:GetAttribute("TYPE") or (isCharacter and "CHARACTER" or "Person")
 
-    self:ApplyProfile(entity, entityType)
+    local success = self:ApplyProfile(entity, entityType)
+
+    if success and isCharacter then
+        for _, statName in ipairs(Modules.Stat.EntityProfiles.CHARACTER.stats) do
+            local value = entity:GetAttribute(statName)
+        end
+    end
 
     if entityType == "Person" or Modules.Person.Categories[entityType] then
         local personType = entityType
