@@ -10,6 +10,11 @@ ZoneController.Dependencies = {
     "Event"
 }
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Utility = {
+    Component = require(ReplicatedStorage.Modules.Utility.Component)
+}
+
 --[[ State ]]
 local Controllers
 local Modules
@@ -27,6 +32,12 @@ ZoneController.Events = {
 ZoneController.Listeners = {
     ["Zone.Enter"] = function(self, data)
         State.currentZone = data.zoneName
+        Utility.Component.CreateNotification({
+            title = "Entering Area",
+            message = data.zoneName or "Unknown Area",
+            duration = 3,
+            type = "info"
+        })
     end,
 
     ["Zone.Exit"] = function(self, data)

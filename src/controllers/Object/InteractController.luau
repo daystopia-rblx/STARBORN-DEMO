@@ -39,7 +39,8 @@ local PromptUI
 local Utility = {
     Controller = require(ReplicatedStorage.Modules.Utility.Controller),
     Sound = require(ReplicatedStorage.Modules.Utility.Sound),
-    Scale = require(ReplicatedStorage.Modules.Utility.Scale)
+    Scale = require(ReplicatedStorage.Modules.Utility.Scale),
+    Style = require(ReplicatedStorage.Modules.Utility.Style)
 }
 
 --[[ Constants ]]
@@ -149,7 +150,7 @@ function InteractController:CreatePrompt()
     actionText.Position = UDim2.new(0, 0, 0.1, 0)
     actionText.BackgroundTransparency = 1
     actionText.TextColor3 = Color3.fromRGB(255, 255, 255)
-    actionText.Font = Enum.Font.Antique
+    actionText.FontFace = Font.new(Utility.Style.Typography.Body.Font, Utility.Style.Typography.Body.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
     actionText.TextWrapped = true
     actionText.TextScaled = true
     actionText.TextXAlignment = Enum.TextXAlignment.Center
@@ -163,7 +164,7 @@ function InteractController:CreatePrompt()
     keyText.Position = UDim2.new(0, 0, 0.40, 0)
     keyText.BackgroundTransparency = 1
     keyText.TextColor3 = Color3.fromRGB(200, 200, 200)
-    keyText.Font = Enum.Font.Antique
+    keyText.FontFace = Font.new(Utility.Style.Typography.Body.Font, Utility.Style.Typography.Body.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
     keyText.TextWrapped = true
     keyText.TextScaled = true
     keyText.TextXAlignment = Enum.TextXAlignment.Center
@@ -342,7 +343,7 @@ function InteractController:CreateTooltip(parent: Instance, isScreen: boolean?)
         textLabel.BackgroundTransparency = 1
         textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         textLabel.TextTransparency = 1
-        textLabel.Font = Enum.Font.Antique
+        textLabel.FontFace = Font.new(Utility.Style.Typography.Body.Font, Utility.Style.Typography.Body.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
         textLabel.TextWrapped = true
         textLabel.TextScaled = true
         textLabel.TextXAlignment = Enum.TextXAlignment.Center
@@ -384,7 +385,7 @@ function InteractController:CreateTooltip(parent: Instance, isScreen: boolean?)
         textLabel.BackgroundTransparency = 1
         textLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         textLabel.TextTransparency = 1
-        textLabel.Font = Enum.Font.Antique
+        textLabel.FontFace = Font.new(Utility.Style.Typography.Body.Font, Utility.Style.Typography.Body.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
         textLabel.TextWrapped = true
         textLabel.TextScaled = true
         textLabel.TextXAlignment = Enum.TextXAlignment.Center

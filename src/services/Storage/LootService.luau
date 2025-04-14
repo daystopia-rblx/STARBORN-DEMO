@@ -13,7 +13,6 @@ LootService.Dependencies = {
 
 --[[ Modules ]]
 LootService.Modules = {
-    "Location",
     "Person",
     "Loot"
 }

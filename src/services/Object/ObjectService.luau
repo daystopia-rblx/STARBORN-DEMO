@@ -24,7 +24,6 @@ ObjectService.Modules = {
     "Equipment",
     "Craft",
     "Food",
-    "Location",
     "Zone"
 }
 
@@ -33,6 +32,12 @@ ObjectService.Events = {
     Register = true,
     Unregister = true,
     Update = true
+}
+
+ObjectService.Listeners = {
+    ["Start.Init"] = function(self)
+        self:ScanWorkspace()
+    end
 }
 
 --[[ Services & Modules ]]
@@ -59,12 +64,6 @@ function ObjectService:Init(services, modules)
     Modules = modules
     return true
 end
-
-ObjectService.Listeners = {
-    ["Start.Init"] = function(self)
-        self:ScanWorkspace()
-    end
-}
 
 function ObjectService:Start()
     self:RegisterObjects()

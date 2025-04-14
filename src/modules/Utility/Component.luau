@@ -7,10 +7,9 @@ local Component = {}
 local TweenService = game:GetService("TweenService")
 local Players = game:GetService("Players")
 local Style = require(script.Parent.Style)
-local Animation = require(script.Parent.Animation)
+local Controller = require(script.Parent.Controller)
 local Scale = require(script.Parent.Scale)
 local Sound = require(script.Parent.Sound)
-local Controller = require(script.Parent.Controller)
 local UserInputService = game:GetService("UserInputService")
 
 -- Types
@@ -152,18 +151,18 @@ local function setupButton(button: TextButton, defaultColor: Color3, config: Com
 
     button.MouseEnter:Connect(function()
         Sound.Button("Hover")
-        Animation.Tween(button, {
+        Controller.Tween(button, {
             BackgroundColor3 = Style.Colors.Button.Hover
         }, {
-            duration = Animation.Duration.Shortest
+            duration = Controller.Duration.Shortest
         })
     end)
 
     button.MouseLeave:Connect(function()
-        Animation.Tween(button, {
+        Controller.Tween(button, {
             BackgroundColor3 = defaultColor
         }, {
-            duration = Animation.Duration.Shortest
+            duration = Controller.Duration.Shortest
         })
     end)
 
@@ -181,7 +180,8 @@ function Component.CreateButton(config: ComponentConfig)
     button.BackgroundColor3 = defaultColor
     button.BorderSizePixel = 0
     button.Size = config.Size or UDim2.new(0, 200, 0, 40)
-    button.Font = Style.Typography.Button.Font
+    local weight = Style.Typography.Button.Weight or Enum.FontWeight.Regular
+    button.FontFace = Font.new(Style.Typography.Button.Font, weight, Enum.FontStyle.Normal)
     button.TextSize = Style.Typography.Button.Size
     button.TextColor3 = Style.Colors.Text.Primary
     button.Text = config.Text or ""
@@ -197,7 +197,8 @@ function Component.CreateLabel(config: ComponentConfig)
     local label = Instance.new("TextLabel")
     label.BackgroundTransparency = 1
     label.Size = config.Size or UDim2.new(1, 0, 0, 20)
-    label.Font = Style.Typography.Body.Font
+    local weight = Style.Typography.Body.Weight or Enum.FontWeight.Regular
+    label.FontFace = Font.new(Style.Typography.Body.Font, weight, Enum.FontStyle.Normal)
     label.TextSize = Style.Typography.Body.Size
     label.TextColor3 = Style.Colors.Text.Primary
     label.Text = config.Text or ""
@@ -261,7 +262,8 @@ function Component.CreateIconButton(config: ComponentConfig)
     icon.Text = config.Icon or ""
     icon.TextColor3 = Style.Colors.Text.Primary
     icon.TextSize = config.IconSize or Style.Typography.Button.Size
-    icon.Font = Style.Typography.Button.Font
+    local weight = Style.Typography.Button.Weight or Enum.FontWeight.Regular
+    icon.FontFace = Font.new(Style.Typography.Button.Font, weight, Enum.FontStyle.Normal)
     icon.Parent = button
 
     setupButton(button, defaultColor, config)
@@ -279,7 +281,8 @@ function Component.CreateInput(config: ComponentConfig)
     input.Size = UDim2.new(1, 0, 1, 0)
     input.BackgroundColor3 = Style.Colors.Background.Secondary
     input.BorderSizePixel = 0
-    input.Font = Style.Typography.Body.Font
+    local weight = Style.Typography.Body.Weight or Enum.FontWeight.Regular
+    input.FontFace = Font.new(Style.Typography.Body.Font, weight, Enum.FontStyle.Normal)
     input.TextSize = Style.Typography.Body.Size
     input.TextColor3 = Style.Colors.Text.Primary
     input.PlaceholderText = config.PlaceholderText or ""
@@ -312,7 +315,8 @@ function Component.CreateDropdown(config: ComponentConfig)
     button.Size = UDim2.new(1, 0, 1, 0)
     button.BackgroundColor3 = Style.Colors.Background.Secondary
     button.BorderSizePixel = 0
-    button.Font = Style.Typography.Body.Font
+    local weight = Style.Typography.Body.Weight or Enum.FontWeight.Regular
+    button.FontFace = Font.new(Style.Typography.Body.Font, weight, Enum.FontStyle.Normal)
     button.TextSize = Style.Typography.Body.Size
     button.TextColor3 = Style.Colors.Text.Primary
     button.Text = config.Text or "Select..."
@@ -340,7 +344,7 @@ function Component.CreateDropdown(config: ComponentConfig)
             Sound.Dropdown("Close")
         end
 
-        TweenService:Create(options, Style.Animation.Short, {
+        TweenService:Create(options, Style.Controller.Short, {
             Size = UDim2.new(1, 0, 0, isOpen and optionsSize or 0)
         }):Play()
     end)
@@ -350,7 +354,8 @@ function Component.CreateDropdown(config: ComponentConfig)
         option.Size = UDim2.new(1, 0, 0, 40)
         option.BackgroundColor3 = Style.Colors.Background.Secondary
         option.BorderSizePixel = 0
-        option.Font = Style.Typography.Body.Font
+        local weight = Style.Typography.Body.Weight or Enum.FontWeight.Regular
+        option.FontFace = Font.new(Style.Typography.Body.Font, weight, Enum.FontStyle.Normal)
         option.TextSize = Style.Typography.Body.Size
         option.TextColor3 = Style.Colors.Text.Primary
         option.Text = text
@@ -408,7 +413,7 @@ function Component.CreateToggle(config: ComponentConfig)
             Sound.Toggle(false)
         end
 
-        TweenService:Create(indicator, Style.Animation.Short, {
+        TweenService:Create(indicator, Style.Controller.Short, {
             Position = targetPosition,
             BackgroundColor3 = targetColor
         }):Play()
@@ -450,8 +455,9 @@ function Component.CreateHeader(config)
     title.BackgroundTransparency = 1
     title.Text = config.title or ""
     title.TextColor3 = Color3.new(1, 1, 1)
-    title.TextSize = 32
-    title.Font = Enum.Font.GothamBold
+    title.TextSize = Style.Typography.Header.Size
+    local weight = Style.Typography.Header.Weight or Enum.FontWeight.Regular
+    title.FontFace = Font.new(Style.Typography.Header.Font, weight, Enum.FontStyle.Normal)
     title.TextXAlignment = Enum.TextXAlignment.Center
 
     if config.onClose then
@@ -462,8 +468,9 @@ function Component.CreateHeader(config)
         closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
         closeButton.Text = "X"
         closeButton.TextColor3 = Color3.new(1, 1, 1)
-        closeButton.TextSize = 24
-        closeButton.Font = Enum.Font.GothamBold
+        closeButton.TextSize = Style.Typography.Button.Size
+        local weight = Style.Typography.Button.Weight or Enum.FontWeight.Regular
+        closeButton.FontFace = Font.new(Style.Typography.Button.Font, weight, Enum.FontStyle.Normal)
         closeButton.Parent = header
 
         Instance.new("UICorner", closeButton).CornerRadius = UDim.new(0, 8)
@@ -598,7 +605,7 @@ function Component.CreateTab(config: {
             BackgroundColor3 = Style.Colors.Button.Default,
             Text = tabName,
             TextSize = Style.Typography.Button.Size,
-            Font = Style.Typography.Button.Font,
+            FontFace = Font.new(Style.Typography.Button.Font, Style.Typography.Button.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
             cornerRadius = Style.Layout.Corner.Medium,
             disableHover = true,
             Parent = tabContainer
@@ -671,7 +678,7 @@ function Component.CreateSlot(config: {
             Position = UDim2.new(0, 0, 0, 10),
             Text = config.item.icon or "📦",
             TextSize = 36,
-            Font = Enum.Font.GothamBold,
+            FontFace = Font.new(Style.Typography.Title.Font, Style.Typography.Title.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
             BackgroundTransparency = 1,
             TextXAlignment = Enum.TextXAlignment.Center,
             Parent = itemContainer
@@ -683,8 +690,8 @@ function Component.CreateSlot(config: {
                 Size = UDim2.new(1, -10, 0, 40),
                 Position = UDim2.new(0, 5, 0.6, 0),
                 Text = config.item.name,
-                TextSize = 14,
-                Font = Enum.Font.GothamBold,
+                TextSize = Style.Typography.Small.Size,
+                FontFace = Font.new(Style.Typography.Small.Font, Style.Typography.Small.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextYAlignment = Enum.TextYAlignment.Top,
                 TextWrapped = true,
@@ -700,8 +707,8 @@ function Component.CreateSlot(config: {
                 Size = UDim2.new(0, 50, 0, 30),
                 Position = UDim2.new(1, -55, 1, -35),
                 Text = tostring(config.item.quantity),
-                TextSize = 20,
-                Font = Enum.Font.GothamBold,
+                TextSize = Style.Typography.Small.Size,
+                FontFace = Font.new(Style.Typography.Small.Font, Style.Typography.Small.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                 TextXAlignment = Enum.TextXAlignment.Right,
                 TextColor3 = Color3.fromRGB(255, 200, 0),
                 BackgroundTransparency = 1,
@@ -717,8 +724,8 @@ function Component.CreateSlot(config: {
         Controller.Update({
             instance = slotContainer,
             properties = {BackgroundColor3 = Color3.fromRGB(55, 55, 65)},
-            duration = Animation.Duration.Shortest,
-            easingStyle = Animation.Easing.Linear,
+            duration = Controller.Duration.Shortest,
+            easingStyle = Controller.Easing.Linear,
             pulseSize = true
         })
     end)
@@ -727,8 +734,8 @@ function Component.CreateSlot(config: {
         Controller.Update({
             instance = slotContainer,
             properties = {BackgroundColor3 = Color3.fromRGB(45, 45, 55)},
-            duration = Animation.Duration.Shortest,
-            easingStyle = Animation.Easing.Linear
+            duration = Controller.Duration.Shortest,
+            easingStyle = Controller.Easing.Linear
         })
     end)
 
@@ -751,8 +758,8 @@ function Component.CreateSlot(config: {
         Controller.Update({
             instance = strokeUI,
             properties = strokeProps,
-            duration = Animation.Duration.Shortest,
-            easingStyle = Animation.Easing.Linear
+            duration = Controller.Duration.Shortest,
+            easingStyle = Controller.Easing.Linear
         })
 
         Controller.Update({
@@ -760,8 +767,8 @@ function Component.CreateSlot(config: {
             properties = {
                 BackgroundColor3 = (isSelected or isInSplitMode) and Style.Colors.Background.Selected or Color3.fromRGB(45, 45, 55)
             },
-            duration = Animation.Duration.Shortest,
-            easingStyle = Animation.Easing.Linear,
+            duration = Controller.Duration.Shortest,
+            easingStyle = Controller.Easing.Linear,
             pulseSize = isSelected or isInSplitMode
         })
     end
@@ -782,7 +789,7 @@ function Component.CreateSlot(config: {
             instance = slotContainer,
             properties = {BackgroundTransparency = 0.5},
             duration = 0.2,
-            easingStyle = Animation.Easing.Quad
+            easingStyle = Controller.Easing.Quad
         })
 
         for _, child in ipairs(itemContainer:GetChildren()) do
@@ -791,7 +798,7 @@ function Component.CreateSlot(config: {
                     instance = child,
                     properties = {TextTransparency = 0.5},
                     duration = 0.2,
-                    easingStyle = Animation.Easing.Quad
+                    easingStyle = Controller.Easing.Quad
                 })
             end
         end
@@ -807,7 +814,7 @@ function Component.CreateSlot(config: {
                 Position = UDim2.new(0, 0, 0.1, 10),
                 Text = newItem.icon or "📦",
                 TextSize = 36,
-                Font = Enum.Font.GothamBold,
+                FontFace = Font.new(Style.Typography.Title.Font, Style.Typography.Title.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                 BackgroundTransparency = 1,
                 TextTransparency = 1,
                 TextXAlignment = Enum.TextXAlignment.Center,
@@ -819,8 +826,8 @@ function Component.CreateSlot(config: {
                 Size = UDim2.new(1, -10, 0, 40),
                 Position = UDim2.new(0, 5, 0.6, 0),
                 Text = newItem.name,
-                TextSize = 14,
-                Font = Enum.Font.GothamBold,
+                TextSize = Style.Typography.Small.Size,
+                FontFace = Font.new(Style.Typography.Small.Font, Style.Typography.Small.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextYAlignment = Enum.TextYAlignment.Top,
                 TextWrapped = true,
@@ -836,8 +843,8 @@ function Component.CreateSlot(config: {
                     Size = UDim2.new(0, 50, 0, 30),
                     Position = UDim2.new(1, -55, 1.1, -35),
                     Text = tostring(newItem.quantity),
-                    TextSize = 20,
-                    Font = Enum.Font.GothamBold,
+                    TextSize = Style.Typography.Small.Size,
+                    FontFace = Font.new(Style.Typography.Small.Font, Style.Typography.Small.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                     TextXAlignment = Enum.TextXAlignment.Right,
                     TextTransparency = 1,
                     TextColor3 = Color3.fromRGB(255, 200, 0),
@@ -863,7 +870,7 @@ function Component.CreateSlot(config: {
                                 )
                             },
                             duration = 0.15,
-                            easingStyle = Animation.Easing.Quad
+                            easingStyle = Controller.Easing.Quad
                         })
                     end
                 end
@@ -896,7 +903,7 @@ function Component.CreateSlot(config: {
                         )
                     },
                     duration = 0.15,
-                    easingStyle = Animation.Easing.Quad,
+                    easingStyle = Controller.Easing.Quad,
                     onComplete = function()
                         child:Destroy()
                         completedAnimations += 1
@@ -1001,7 +1008,7 @@ function Component.CreateSlot(config: {
                     instance = slotContainer,
                     properties = {BackgroundTransparency = 0},
                     duration = 0.2,
-                    easingStyle = Animation.Easing.Quad
+                    easingStyle = Controller.Easing.Quad
                 })
 
                 for _, child in ipairs(itemContainer:GetChildren()) do
@@ -1010,7 +1017,7 @@ function Component.CreateSlot(config: {
                             instance = child,
                             properties = {TextTransparency = 0},
                             duration = 0.2,
-                            easingStyle = Animation.Easing.Quad
+                            easingStyle = Controller.Easing.Quad
                         })
                     end
                 end
@@ -1089,8 +1096,8 @@ function Component.CreateNotification(config: {
             local cleanTitle = (queueConfig.title or ""):gsub("<[^>]+>", "")
             local cleanMessage = queueConfig.message:gsub("<[^>]+>", "")
             local textLength = math.max(cleanTitle:len() * 1.2, cleanMessage:len())
-            local width = math.clamp(textLength * 6 + 40, 300, 400)
-            local height = queueConfig.rewards and 160 or 120
+            local width = math.clamp(textLength * 4 + 40, 250, 300)
+            local height = queueConfig.rewards and 145 or 105
 
             local accentColor = queueConfig.type == "success" and Color3.fromRGB(0, 255, 127) or
                                queueConfig.type == "error" and Color3.fromRGB(255, 85, 85) or
@@ -1122,10 +1129,10 @@ function Component.CreateNotification(config: {
 
             local title = Component.CreateLabel({
                 Size = UDim2.new(1, -40, 0, 32),
-                Position = UDim2.new(0, 20, 0, 16),
+                Position = UDim2.new(0, 20, 0, 20),
                 Text = (queueConfig.title or ""):upper(),
-                TextSize = 28,
-                Font = Enum.Font.GothamBold,
+                TextSize = Style.Typography.Subtitle.Size,
+                FontFace = Font.new(Style.Typography.Subtitle.Font, Style.Typography.Subtitle.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextTransparency = 1,
                 RichText = true,
@@ -1137,9 +1144,9 @@ function Component.CreateNotification(config: {
                 Size = UDim2.new(1, -40, 0, 45),
                 Position = UDim2.new(0, 20, 0, 52),
                 Text = queueConfig.message,
-                TextSize = 22,
+                TextSize = Style.Typography.Subtitle.Size,
                 TextColor3 = Color3.fromRGB(200, 200, 200),
-                Font = Enum.Font.GothamBold,
+                FontFace = Font.new(Style.Typography.Subtitle.Font, Style.Typography.Subtitle.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                 TextXAlignment = Enum.TextXAlignment.Center,
                 TextWrapped = true,
                 TextTransparency = 1,
@@ -1164,12 +1171,11 @@ function Component.CreateNotification(config: {
                 local rewardsLabel = Component.CreateLabel({
                     Size = UDim2.new(1, 0, 1, 0),
                     Text = rewardsText,
-                    TextSize = 24,
+                    TextSize = Style.Typography.Caption.Size,
                     TextColor3 = accentColor,
-                    Font = Enum.Font.GothamBold,
+                    FontFace = Font.new(Style.Typography.Caption.Font, Style.Typography.Caption.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
                     TextXAlignment = Enum.TextXAlignment.Center,
                     TextTransparency = 1,
-                    RichText = true,
                     Parent = rewardsContainer
                 })
             end
@@ -1187,18 +1193,18 @@ function Component.CreateNotification(config: {
                     Position = UDim2.new(0.5, 0, 0, 20),
                     BackgroundTransparency = 0.1
                 },
-                duration = Animation.Duration.Medium,
-                easingStyle = Animation.Easing.Back,
+                duration = Controller.Duration.Medium,
+                easingStyle = Controller.Easing.Back,
                 onComplete = function()
                     Controller.Update({
                         instance = title,
                         properties = { TextTransparency = 0 },
-                        duration = Animation.Duration.Short
+                        duration = Controller.Duration.Short
                     })
                     Controller.Update({
                         instance = message,
                         properties = { TextTransparency = 0 },
-                        duration = Animation.Duration.Short
+                        duration = Controller.Duration.Short
                     })
                     if queueConfig.rewards then
                         for _, child in ipairs(rewardsContainer:GetChildren()) do
@@ -1206,7 +1212,7 @@ function Component.CreateNotification(config: {
                                 Controller.Update({
                                     instance = child,
                                     properties = { TextTransparency = 0 },
-                                    duration = Animation.Duration.Short
+                                    duration = Controller.Duration.Short
                                 })
                             end
                         end
@@ -1219,12 +1225,12 @@ function Component.CreateNotification(config: {
                     Controller.Update({
                         instance = title,
                         properties = { TextTransparency = 1 },
-                        duration = Animation.Duration.Short
+                        duration = Controller.Duration.Short
                     })
                     Controller.Update({
                         instance = message,
                         properties = { TextTransparency = 1 },
-                        duration = Animation.Duration.Short
+                        duration = Controller.Duration.Short
                     })
                     if queueConfig.rewards then
                         for _, child in ipairs(rewardsContainer:GetChildren()) do
@@ -1232,7 +1238,7 @@ function Component.CreateNotification(config: {
                                 Controller.Update({
                                     instance = child,
                                     properties = { TextTransparency = 1 },
-                                    duration = Animation.Duration.Short
+                                    duration = Controller.Duration.Short
                                 })
                             end
                         end
@@ -1245,8 +1251,8 @@ function Component.CreateNotification(config: {
                                 Position = UDim2.new(0.5, 0, 0, -height),
                                 BackgroundTransparency = 1
                             },
-                            duration = Animation.Duration.Medium,
-                            easingStyle = Animation.Easing.Back,
+                            duration = Controller.Duration.Medium,
+                            easingStyle = Controller.Easing.Back,
                             onComplete = function()
                                 frame:Destroy()
                             end
@@ -1259,7 +1265,7 @@ function Component.CreateNotification(config: {
                                 Size = UDim2.new(0.5, 0, 0, 4)
                             },
                             duration = 0.25,
-                            easingStyle = Animation.Easing.Quad
+                            easingStyle = Controller.Easing.Quad
                         })
                     end)
                 end)
@@ -1330,9 +1336,9 @@ function Component.CreatePopup(text, config)
             header.BackgroundTransparency = 1
             header.Size = UDim2.new(1, 0, 0, 24)
             header.Position = UDim2.new(0, 0, 0, 8)
-            header.Font = Enum.Font.GothamBold
+            header.FontFace = Font.new(Style.Typography.Button.Font, Style.Typography.Button.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
             header.TextColor3 = popupConfig.headerColor or Color3.fromRGB(255, 100, 100)
-            header.TextSize = 24
+            header.TextSize = Style.Typography.Button.Size
             header.Text = popupConfig.headerText or ""
             header.TextTransparency = 1
             header.TextXAlignment = Enum.TextXAlignment.Center
@@ -1346,9 +1352,9 @@ function Component.CreatePopup(text, config)
             description.BackgroundTransparency = 1
             description.Size = UDim2.new(0, 0, 0, 20)
             description.Position = UDim2.new(0, 0, 0, 32)
-            description.Font = Enum.Font.GothamBold
+            description.FontFace = Font.new(Style.Typography.Small.Font, Style.Typography.Small.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
             description.TextColor3 = popupConfig.descriptionColor or Color3.fromRGB(255, 255, 255)
-            description.TextSize = 20
+            description.TextSize = Style.Typography.Small.Size
             description.Text = popupText
             description.TextTransparency = 1
             description.TextXAlignment = Enum.TextXAlignment.Center
@@ -1467,8 +1473,9 @@ function Component.CreateConfirm(config: {
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = config.title
     titleLabel.TextColor3 = Color3.new(1, 1, 1)
-    titleLabel.TextSize = 28
-    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = Style.Typography.Subtitle.Size
+    local weight = Style.Typography.Subtitle.Weight or Enum.FontWeight.Regular
+    titleLabel.FontFace = Font.new(Style.Typography.Subtitle.Font, weight, Enum.FontStyle.Normal)
     titleLabel.TextXAlignment = Enum.TextXAlignment.Left
     titleLabel.Parent = frame
 
@@ -1478,8 +1485,8 @@ function Component.CreateConfirm(config: {
     messageLabel.BackgroundTransparency = 1
     messageLabel.Text = config.message
     messageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    messageLabel.TextSize = 20
-    messageLabel.Font = Enum.Font.GothamBold
+    messageLabel.TextSize = Style.Typography.Small.Size
+    messageLabel.FontFace = Font.new(Style.Typography.Small.Font, Style.Typography.Small.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
     messageLabel.TextWrapped = true
     messageLabel.TextXAlignment = Enum.TextXAlignment.Left
     messageLabel.Parent = frame
@@ -1495,7 +1502,7 @@ function Component.CreateConfirm(config: {
         Position = UDim2.new(1, -160, 0, 0),
         Text = config.confirmText or "Confirm",
         TextSize = 20,
-        Font = Enum.Font.GothamBold,
+        FontFace = Font.new(Style.Typography.Button.Font, Style.Typography.Button.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
         BackgroundColor3 = Color3.fromRGB(85, 170, 0),
         cornerRadius = 8,
         Parent = buttonContainer
@@ -1506,7 +1513,7 @@ function Component.CreateConfirm(config: {
         Position = UDim2.new(1, -340, 0, 0),
         Text = config.cancelText or "Cancel",
         TextSize = 20,
-        Font = Enum.Font.GothamBold,
+        FontFace = Font.new(Style.Typography.Button.Font, Style.Typography.Button.Weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal),
         BackgroundColor3 = Color3.fromRGB(200, 60, 60),
         cornerRadius = 8,
         Parent = buttonContainer

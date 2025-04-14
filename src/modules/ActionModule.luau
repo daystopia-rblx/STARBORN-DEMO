@@ -81,7 +81,7 @@ ActionModule.Types = {
                 local owner = instance:GetAttribute("OWNER")
                 if owner and owner ~= "" then return false end
 
-                local success = services.Inventory:AddItem(player, itemId, 1)
+                local success = services.Inventory:AddItem(player, itemId, 1, player)
                 if success then
                     instance:Destroy()
                 end

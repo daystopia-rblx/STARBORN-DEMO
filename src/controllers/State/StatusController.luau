@@ -7,16 +7,24 @@
 
 local StatusController = {}
 
+StatusController.Dependencies = {
+    "Event",
+}
+
+StatusController.Modules = {
+    "Status"
+}
+
+local Services
 local Modules
-local StatusModule = require(game.ReplicatedStorage.Modules.StatusModule)
 
 type Info = {
     Connection: boolean,
     Exclude: {string}?
 }
 
-
-function StatusController:Init(modules)
+function StatusController:Init(services, modules)
+    Services = services
     Modules = modules
     return true
 end
@@ -55,7 +63,7 @@ end]]
 function StatusController:CheckStatus(Humanoid: Humanoid, Info: Info): {} | boolean
 	local Results = {}
 	local Active = true
-	
+
 	local Exclusions = {}
 	if Info.Exclude then
 		for _, exclusion in ipairs(Info.Exclude) do
@@ -63,7 +71,7 @@ function StatusController:CheckStatus(Humanoid: Humanoid, Info: Info): {} | bool
 		end
 	end
 
-	for Category, Actions in pairs(StatusModule) do
+	for Category, Actions in pairs(Modules.Status) do
 		Results[Category] = {}
 
 		for _, Action in ipairs(Actions) do
@@ -87,7 +95,7 @@ function StatusController:CheckSpecific(Humanoid: Humanoid, Info: Info, ...: str
 	local Requests = {...}
 	local Results = {}
 
-	for Category, Actions in pairs(StatusModule) do
+	for Category, Actions in pairs(Modules.Status) do
 		for _, Action in ipairs(Actions) do
 			for _, Requested in ipairs(Requests) do
 				if Action == Requested then

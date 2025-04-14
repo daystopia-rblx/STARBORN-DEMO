@@ -2,24 +2,37 @@
     Dynamic zone management system with region-based triggers and behaviors.
     Handles zone detection, transitions, overlapping regions, and custom zone attributes.
     @author @Daystopia
-    @version 1.0.2
-    @date 2025-04-11
+    @version 1.0.3
+    @date 2025-04-14
 ]]
 local ZoneService = {}
 
 ZoneService.Dependencies = {
     "Event",
     "Data",
-    "Object"
+    "Object",
+    "Memory",
+    "Time",
+    "Trade"
 }
 
 ZoneService.Events = {
     Enter = true,
     Exit = true,
-    Change = true
+    Change = true,
+    Lock = true,
+    Unlock = true,
+    Open = true,
+    Close = true,
+    Trespass = true
+}
+
+ZoneService.Modules = {
+    "Zone"
 }
 
 local Services
+local Modules
 
 --[[ State Management ]]--
 local State = {
@@ -28,7 +41,7 @@ local State = {
     active = {},
     check = {},
     connection = {},
-    tick = {}
+    locations = {}
 }
 
 --[[ Constants ]]--
@@ -82,12 +95,33 @@ ZoneService.Listeners = {
         end
 
         State.players[userId] = nil
+    end,
+
+    ["Time.Update"] = function(self, data)
+        self:UpdateAvailability(data.hour)
+    end,
+
+    ["Trade.Transfer"] = function(self, data)
+        local locationId = data.instanceId
+        local newOwnerId = data.newOwnerId
+        local ownershipType = data.ownershipType
+
+        if State.locations[locationId] then
+            local locationInstance = State.locations[locationId].instance or Services.Object:GetInstance(locationId)
+            if locationInstance then
+                locationInstance:SetAttribute("OWNER", newOwnerId)
+                if ownershipType then
+                    locationInstance:SetAttribute("OWNERSHIP", ownershipType)
+                end
+            end
+        end
     end
 }
 
 --[[ Core Methods ]]--
-function ZoneService:Init(services)
+function ZoneService:Init(services, modules)
     Services = services
+    Modules = modules
     return true
 end
 
@@ -97,6 +131,7 @@ function ZoneService:Start()
     end)
 
     self:RegisterZone()
+    self:RegisterLocation()
     return true
 end
 
@@ -149,6 +184,48 @@ function ZoneService:RegisterZone(zoneId, attributes)
     end
 end
 
+function ZoneService:RegisterLocation()
+    Services.Object:RegisterScanner("TYPE",
+        function(instance)
+            local locationId = Services.Object:GetID(instance)
+            if not locationId then return end
+
+            local locationType = instance:GetAttribute("TYPE")
+            if not locationType then return end
+
+            local openHour = instance:GetAttribute("OPEN_HOUR")
+            local closeHour = instance:GetAttribute("CLOSE_HOUR")
+            local isAutoLockable = true
+
+            if openHour == 0 and closeHour == 24 then
+                isAutoLockable = false
+            end
+
+            State.locations[locationId] = {
+                instance = instance,
+                isLocked = instance:GetAttribute("LOCKED") or false,
+                openHour = openHour,
+                closeHour = closeHour,
+                storeId = instance:GetAttribute("ID"),
+                isAutoLockable = isAutoLockable
+            }
+
+            local ownerId = instance:GetAttribute("OWNER")
+            local ownershipType = instance:GetAttribute("OWNERSHIP")
+
+            if ownerId then
+                Services.Trade:SetOwner(locationId, ownerId, ownershipType)
+            end
+        end,
+        function(instance)
+            local locationId = Services.Object:GetID(instance)
+            if locationId and State.locations[locationId] then
+                State.locations[locationId] = nil
+            end
+        end
+    )
+end
+
 function ZoneService:Cleanup()
     if State.connection then
         for _, connection in pairs(State.connection) do
@@ -161,6 +238,7 @@ function ZoneService:Cleanup()
     table.clear(State.zones)
     table.clear(State.active)
     table.clear(State.check)
+    table.clear(State.locations)
 end
 
 --[[ Zone Management ]]--
@@ -262,6 +340,160 @@ function ZoneService:UpdateZones()
     end
 end
 
+--[[ Location Interaction ]]--
+function ZoneService:EnterLocation(player, locationId): (boolean, string?)
+    if not player or not locationId then return false, "Invalid parameters" end
+
+    local runtimeData = State.locations[locationId]
+    if not runtimeData then return false, "Location runtime data not found" end
+
+    local locationInstance = runtimeData.instance or Services.Object:GetInstance(locationId)
+    if not locationInstance then return false, "Location instance not found" end
+
+    local currentHour = Services.Time:GetTime().hour
+    local isOpen = Modules.Zone.CheckOpen(
+        {hours = {open = runtimeData.openHour, close = runtimeData.closeHour}},
+        currentHour
+    )
+
+    local isTrespassing = false
+    local trespassReason = nil
+
+    if runtimeData.isLocked then
+        isTrespassing = true
+        trespassReason = "locked"
+        return false, "Location is locked"
+    end
+
+    if not isOpen then
+        isTrespassing = true
+        trespassReason = "closed"
+    end
+
+    local ownerId, ownershipType = Services.Trade:GetOwner(locationId)
+    if ownerId and ownerId ~= player.UserId then
+        local canAccess, accessReason = Services.Trade:CanAccess(player.UserId, locationId)
+
+        if not canAccess then
+            isTrespassing = true
+            trespassReason = accessReason or "unauthorized"
+        end
+    end
+
+    if isTrespassing then
+        local location = self:GetLocation(locationId)
+        Services.Event:Fire("Zone.Trespass", {
+            player = player,
+            locationId = locationId,
+            locationType = locationInstance:GetAttribute("TYPE"),
+            reason = trespassReason,
+            securityLevel = location.securityLevel,
+            factionId = location.factionId,
+            ownerId = ownerId
+        })
+    end
+
+    Services.Event:Fire("Zone.Enter", {
+        player = player,
+        locationId = locationId,
+        locationType = locationInstance:GetAttribute("TYPE"),
+        isTrespassing = isTrespassing,
+        trespassReason = trespassReason
+    })
+
+    return true
+end
+
+function ZoneService:ExitLocation(player, locationId): boolean
+    if not player or not locationId then return false end
+
+    Services.Event:Fire("Zone.Exit", {
+        player = player,
+        locationId = locationId
+    })
+
+    return true
+end
+
+function ZoneService:LockLocation(locationId, locked): boolean
+    local runtimeData = State.locations[locationId]
+    if not runtimeData then return false end
+
+    runtimeData.isLocked = locked
+
+    local locationInstance = runtimeData.instance or Services.Object:GetInstance(locationId)
+    if locationInstance then
+        locationInstance:SetAttribute("LOCKED", locked)
+    end
+
+    local eventName = locked and "Zone.Lock" or "Zone.Unlock"
+    Services.Event:Fire(eventName, {
+        locationId = locationId,
+        locked = locked
+    })
+
+    return true
+end
+
+function ZoneService:UpdateAvailability(currentHour)
+    for locId, location in pairs(State.locations) do
+        if location.openHour and location.closeHour then
+            local isOpen = Modules.Zone.CheckOpen(
+                {hours = {open = location.openHour, close = location.closeHour}},
+                currentHour
+            )
+
+            local locationInstance = location.instance or Services.Object:GetInstance(locId)
+            if locationInstance then
+                local previousState = locationInstance:GetAttribute("OPEN")
+                locationInstance:SetAttribute("OPEN", isOpen)
+
+                if previousState ~= isOpen and previousState ~= nil then
+                    if location.isAutoLockable then
+                        self:LockLocation(locId, not isOpen)
+
+                        local eventName = isOpen and "Zone.Open" or "Zone.Close"
+                        Services.Event:Fire(eventName, {
+                            locationId = locId,
+                            locationType = locationInstance:GetAttribute("TYPE"),
+                            hour = currentHour
+                        })
+                    end
+                end
+            end
+        end
+    end
+end
+
+function ZoneService:GetLocation(locationId)
+    if not locationId then return nil end
+
+    local runtimeData = State.locations[locationId]
+    if not runtimeData then return nil end
+
+    local locationInstance = runtimeData.instance or Services.Object:GetInstance(locationId)
+    if not locationInstance then return nil end
+
+    local ownerId, ownershipType = Services.Trade:GetOwner(locationId)
+
+    local location = {
+        id = locationId,
+        instance = locationInstance,
+        isLocked = runtimeData.isLocked,
+        securityLevel = locationInstance:GetAttribute("SECURITY_LEVEL") or 1,
+        lockLevel = locationInstance:GetAttribute("LOCK_LEVEL") or 1,
+        type = locationInstance:GetAttribute("TYPE"),
+        subType = locationInstance:GetAttribute("LOCATION_SUBTYPE"),
+        ownerId = ownerId,
+        ownershipType = ownershipType,
+        factionId = locationInstance:GetAttribute("FACTION"),
+        openHour = runtimeData.openHour,
+        closeHour = runtimeData.closeHour
+    }
+
+    return location
+end
+
 --[[ Helper Methods ]]--
 function ZoneService:GetZones(player)
     if not player then return {} end
@@ -297,7 +529,7 @@ end
 function ZoneService:CheckPlayer(player)
     if not player then return false end
     local now = tick()
-    if not State.tick[player.UserId] then
+    if not State.check[player.UserId] then
         State.check[player.UserId] = now
         return true
     end

@@ -14,14 +14,13 @@ StoreService.Dependencies = {
     "Data",
     "Economy",
     "Inventory",
-    "Location",
+    "Zone",
     "Time"
 }
 
 --[[ Modules ]]
 StoreService.Modules = {
     "Object",
-    "Location",
     "Store"
 }
 
@@ -58,11 +57,11 @@ local State = {
 
 --[[ Event Listeners ]]
 StoreService.Listeners = {
-    ["Location.Open"] = function(self, data)
+    ["Zone.Open"] = function(self, data)
         self:OpenStore(data.locationId, data.locationType)
     end,
 
-    ["Location.Close"] = function(self, data)
+    ["Zone.Close"] = function(self, data)
         self:CloseStore(data.locationId, data.locationType)
     end,
 
@@ -212,7 +211,6 @@ function StoreService:BrowseStore(playerId, storeId)
     end
 
     if store.locationId then
-        local locationData = Services.Location:GetOwner(store.locationId)
         local locationInstance = Services.Object:GetInstance(store.locationId)
 
         if locationInstance and not locationInstance:GetAttribute("OPEN") then

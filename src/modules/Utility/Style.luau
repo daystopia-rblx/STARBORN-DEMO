@@ -86,47 +86,53 @@ Style.Colors = {
 -- Typography
 Style.Typography = {
     Display = {
-        Font = Enum.Font.GothamBold,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
+        Weight = Enum.FontWeight.Bold,
         Size = 48,
         LineHeight = 1.2
     },
     Header = {
-        Font = Enum.Font.GothamBold,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
+        Weight = Enum.FontWeight.Bold,
         Size = 42,
         LineHeight = 1.2
     },
     Title = {
-        Font = Enum.Font.GothamBold,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
+        Weight = Enum.FontWeight.Bold,
         Size = 36,
         LineHeight = 1.2
     },
     Subtitle = {
-        Font = Enum.Font.GothamMedium,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
+        Weight = Enum.FontWeight.Bold,
         Size = 32,
         LineHeight = 1.3
     },
     Body = {
-        Font = Enum.Font.Gotham,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
+        Weight = Enum.FontWeight.Regular,
         Size = 28,
         LineHeight = 1.4
     },
     Button = {
-        Font = Enum.Font.GothamBold,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
+        Weight = Enum.FontWeight.Bold,
         Size = 28,
         LineHeight = 1
     },
     Caption = {
-        Font = Enum.Font.Gotham,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
         Size = 24,
         LineHeight = 1.4
     },
     Small = {
-        Font = Enum.Font.Gotham,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
         Size = 22,
         LineHeight = 1.4
     },
     Tiny = {
-        Font = Enum.Font.Gotham,
+        Font = "rbxasset://fonts/families/AccanthisADFStd.json",
         Size = 18,
         LineHeight = 1.4
     }

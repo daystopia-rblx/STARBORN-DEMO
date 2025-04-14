@@ -9,7 +9,8 @@ InventoryService.Dependencies = {
     "Data",
     "Event",
     "Stat",
-    "Object"
+    "Object",
+    "Trade"
 }
 
 InventoryService.Modules = {
@@ -24,17 +25,30 @@ InventoryService.Events = {
     Equip = { validate = true },
     Unequip = { validate = true },
     Add = { validate = true },
-    Remove = { validate = true },
-    Transfer = { validate = true }
+    Remove = { validate = true }
 }
 
 local Services
 local Modules
 
---[[ State Management ]]
 local State = {
     equipment = setmetatable({}, { __mode = "k" }),
     inventories = setmetatable({}, { __mode = "k" })
+}
+
+InventoryService.Listeners = {
+    ["Trade.Transfer"] = function(self, data)
+        local instanceId = data.instanceId
+        local newOwnerId = data.newOwnerId
+
+        for entity, inventory in pairs(State.inventories) do
+            if inventory[instanceId] then
+                inventory[instanceId].metadata = inventory[instanceId].metadata or {}
+                inventory[instanceId].metadata.lastTransfer = os.time()
+                break
+            end
+        end
+    end
 }
 
 --[[ Core Functions ]]
@@ -45,7 +59,6 @@ function InventoryService:Init(services, modules)
 end
 
 function InventoryService:Start()
-    self:RegisterOwnership()
     return true
 end
 
@@ -91,12 +104,10 @@ function InventoryService:GetTemplate(itemId: string): (any?, string?)
     return itemTemplate, sourceModule
 end
 
-
 --[[ Inventory Functions ]]
 function InventoryService:AddItem(entity: any, itemId: string, quantity: number?, owner: any?, metadata: {[string]: any}?): (boolean, string?)
     if not (entity and itemId) then return false, "Invalid input" end
     quantity = quantity or 1
-    owner = owner or entity
 
     if quantity <= 0 then return false, "Invalid quantity" end
 
@@ -109,7 +120,6 @@ function InventoryService:AddItem(entity: any, itemId: string, quantity: number?
     if not inventory[itemId] then
         inventory[itemId] = {
             quantity = quantity,
-            OWNER = owner,
             metadata = metadata or {}
         }
     else
@@ -124,13 +134,20 @@ function InventoryService:AddItem(entity: any, itemId: string, quantity: number?
         end
     end
 
+    if type(entity) == "userdata" and entity:IsA("Player") and owner then
+        local ownerId = type(owner) == "userdata" and owner:IsA("Player") and owner.UserId or owner
+        Services.Trade:SetOwner(itemId, ownerId, "PRIVATE")
+    end
+
+    local ownerId = Services.Trade:GetOwner(itemId)
+
     Services.Event:Fire("Inventory.Add", {
         entity = entity,
         itemId = itemId,
         quantity = quantity,
         newTotal = inventory[itemId].quantity,
         moduleSource = sourceModule,
-        owner = inventory[itemId].OWNER,
+        owner = ownerId,
         metadata = inventory[itemId].metadata
     })
 
@@ -154,6 +171,9 @@ function InventoryService:RemoveItem(entity: any, itemId: string, quantity: numb
 
     itemData.quantity = currentQuantity - quantity
     local remainingMetadata = itemData.metadata
+
+    local ownerId = Services.Trade:GetOwner(itemId)
+
     if itemData.quantity <= 0 then
         inventory[itemId] = nil
     end
@@ -163,7 +183,7 @@ function InventoryService:RemoveItem(entity: any, itemId: string, quantity: numb
         itemId = itemId,
         quantity = quantity,
         newTotal = itemData.quantity > 0 and itemData.quantity or 0,
-        owner = itemData.OWNER,
+        owner = ownerId,
         metadata = remainingMetadata
     })
 
@@ -317,6 +337,8 @@ function InventoryService:UseItem(entity: any, itemId: string, variant: string?)
     if success then
         self:RemoveItem(entity, itemId, 1)
 
+        local ownerId = Services.Trade:GetOwner(itemId)
+
         Services.Event:Fire("Inventory.Use", {
             entity = entity,
             itemId = itemId,
@@ -324,7 +346,7 @@ function InventoryService:UseItem(entity: any, itemId: string, variant: string?)
             moduleSource = sourceModule,
             effects = effects,
             buffs = buffList,
-            owner = self:GetOwner(entity, itemId)
+            owner = ownerId
         })
     end
 
@@ -362,7 +384,8 @@ function InventoryService:EquipItem(entity: any, itemId: string, slot: string): 
     local item = table.clone(template)
     item.owner = entity
     item.equipped = true
-    item.OWNER = self:GetOwner(entity, itemId) or entity
+
+    local ownerId = Services.Trade:GetOwner(itemId)
 
     if item.stats then
         for stat, value in pairs(item.stats) do
@@ -384,7 +407,7 @@ function InventoryService:EquipItem(entity: any, itemId: string, slot: string): 
         entity = entity,
         item = item,
         slot = slot,
-        owner = item.OWNER
+        owner = ownerId
     })
 
     return true, item
@@ -417,11 +440,13 @@ function InventoryService:UnequipItem(entity: any, slot: string): boolean
         State.equipment[entity] = nil
     end
 
+    local ownerId = Services.Trade:GetOwner(item.id)
+
     Services.Event:Fire("Inventory.Unequip", {
         entity = entity,
         item = item,
         slot = slot,
-        owner = item.OWNER
+        owner = ownerId
     })
 
     return true
@@ -435,68 +460,6 @@ end
 
 function InventoryService:GetEquipment(entity: any): {[string]: any}
     return State.equipment[entity] or {}
-end
-
---[[ Ownership Functions ]]
-function InventoryService:RegisterOwnership()
-    Services.Object:RegisterScanner("ID",
-        function(instance)
-            if not (instance:IsA("Model") or instance:IsA("BasePart")) then
-                return
-            end
-
-            local itemId = instance:GetAttribute("ID")
-            if not itemId then return end
-
-            local owner = instance:GetAttribute("OWNER")
-            if not owner then
-                local itemOwner = self:FindOwner(itemId)
-                if itemOwner then
-                    instance:SetAttribute("OWNER", itemOwner)
-                end
-            end
-        end
-    )
-end
-
-function InventoryService:FindOwner(itemId: string): any?
-    if not itemId then return nil end
-
-    for entity, inventory in pairs(State.inventories) do
-        if inventory[itemId] and inventory[itemId].OWNER then
-            return inventory[itemId].OWNER
-        end
-    end
-
-    return nil
-end
-
-function InventoryService:GetOwner(entity: any, itemId: string): any?
-    if not (entity and itemId) then return nil end
-
-    local inventory = State.inventories[entity]
-    if not inventory or not inventory[itemId] then return nil end
-
-    return inventory[itemId].OWNER
-end
-
-function InventoryService:TransferOwnership(entity: any, itemId: string, newOwner: any): (boolean, string?)
-    if not (entity and itemId and newOwner) then return false, "Invalid input" end
-
-    local inventory = State.inventories[entity]
-    if not inventory or not inventory[itemId] then return false, "Item not found" end
-
-    local previousOwner = inventory[itemId].OWNER
-    inventory[itemId].OWNER = newOwner
-
-    Services.Event:Fire("Inventory.Transfer", {
-        entity = entity,
-        itemId = itemId,
-        previousOwner = previousOwner,
-        newOwner = newOwner
-    })
-
-    return true
 end
 
 return InventoryService

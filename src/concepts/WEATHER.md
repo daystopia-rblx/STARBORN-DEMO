@@ -1,9 +1,23 @@
-1. Clear – Normal ambient lighting, subtle wind, neutral atmosphere.
-2. Sunny – Brighter skies, occasional rays of sunlight piercing through clouds.
-3. Cloudy/Overcast – Gray skies, dimmed lighting, adds a gloomy mood.
-4. Rain – Ranges from drizzle to heavy downpour. Adds ambient sound and puddles.
-5. Thunderstorm – Crashes of lightning, heavy rain, strong wind. Can affect visibility or combat.
-6. Snow – Gentle snowfall to blizzards. Changes terrain visuals, affects movement in colder regions.
-7. Fog – Dense and mystical. Reduces visibility, ideal for ambushes or eerie settings.
-8. Windy – Strong gusts that kick up dust, sway trees, or even affect projectile aim in PvP.
-9. Ashfall – A fantasy-specific weather, great for volcanic or cursed zones. Gray skies, falling ash, eerie lighting.
+### 🌦️ Weather System
+
+---
+
+### Weather Types
+
+#### Weather Conditions
+- **CLEAR**: Normal ambient lighting with subtle wind and neutral atmosphere.
+- **SUNNY**: Brighter skies with occasional rays of sunlight piercing through clouds.
+- **CLOUDY**: Gray skies with dimmed lighting that adds a gloomy mood.
+- **RAIN**: Ranges from light drizzle to heavy downpour with puddles on terrain.
+- **THUNDERSTORM**: Lightning, heavy rain, and strong wind affecting visibility.
+- **SNOW**: Gentle snowfall to blizzards affecting movement in colder regions.
+- **FOG**: Dense atmospheric condition reducing visibility significantly.
+- **WINDY**: Strong gusts that affect environment and potentially combat.
+- **ASHFALL**: Fantasy-specific weather with gray skies and falling ash.
+
+#### Weather Events
+- **METEOR SHOWER**: Rare celestial event that illuminates the night sky. May deposit valuable resources.
+- **ARCANE STORM**: Magical weather disturbance that temporarily enhances or disrupts spellcasting.
+- **BLOOD MOON**: Crimson lunar event that strengthens hostile entities and alters their behavior patterns.
+- **SOLAR ECLIPSE**: Darkens the sky during daylight hours, triggering unique mob spawns and events.
+- **AURORA**: Colorful light phenomenon in night skies that can grant subtle buffs to entities in its presence.

@@ -23,17 +23,15 @@ CrimeService.Dependencies = {
     "Economy",
     "Object",
     "Data",
-    "Location",
+    "Zone",
     "Loot",
     "Faction",
-    "Time",
-    "Zone"
+    "Time"
 }
 
 --[[ Modules ]]
 CrimeService.Modules = {
     "Store",
-    "Location",
     "Crime"
 }
 
@@ -87,14 +85,22 @@ CrimeService.Listeners = {
         end
     end,
 
-    ["Location.Trespass"] = function(self, data)
+    ["Zone.Trespass"] = function(self, data)
         local player = data.player
         local locationId = data.locationId
-        local location = Services.Location:GetLocation(locationId)
 
-        if not (player and location) then return end
+        if not player then return end
 
-        local success, result = self:StartTresspass(player, location, data.reason)
+        local locationWrapper = {
+            id = locationId,
+            type = "LOCATION",
+            locationType = data.locationType,
+            securityLevel = data.securityLevel,
+            factionId = data.factionId,
+            ownerId = data.ownerId
+        }
+
+        local success, result = self:StartTresspass(player, locationWrapper, data.reason)
 
         if success then
             Services.Event:Fire("Crime.Crime", {
@@ -343,7 +349,7 @@ function CrimeService:AddLoot(player, loot, contextData)
         end
     end
 
-    local success, msg = Services.Inventory:AddItem(player, loot.id, 1, player, metadata)
+    local success, msg = Services.Inventory:AddItem(player, loot.id, 1, nil, metadata)
     if not success then
         warn(string.format("AddLoot failed for player %s, item %s: %s", player.Name, loot.id, msg or "Unknown error"))
     end
@@ -373,7 +379,7 @@ function CrimeService:AttemptTheft(context: TheftContext): (boolean, CrimeResult
     local location
 
     if locationId then
-        location = Services.Location:GetLocation(locationId)
+        location = Services.Zone:GetLocation(locationId)
         if location and location.isTrespassing then
             isBurglary = true
             crimeType = Modules.Crime.Types.BURGLARY
@@ -572,7 +578,7 @@ end
 function CrimeService:PickLock(player, locationId): (boolean, CrimeResult)
     if not player or not locationId then return false, {error = "Invalid parameters"} end
 
-    local location = Services.Location:GetLocation(locationId)
+    local location = Services.Zone:GetLocation(locationId)
     if not location then return false, {error = "Location not found"} end
 
     if not location.isLocked then
@@ -619,8 +625,8 @@ function CrimeService:PickLock(player, locationId): (boolean, CrimeResult)
     success = roll <= successChance
 
     if success then
-        Services.Location:LockLocation(locationId, false)
-        Services.Location:EnterLocation(player, locationId)
+        Services.Zone:LockLocation(locationId, false)
+        Services.Zone:EnterLocation(player, locationId)
     end
 
     local locationWrapper = {
