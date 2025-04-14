@@ -8,7 +8,7 @@
 local StatusController = {}
 
 local Modules
-local StatusModule = require(game.ReplicatedStorage.Modules.Data.Status.StatusModule)
+local StatusModule = require(game.ReplicatedStorage.Modules.StatusModule)
 
 type Info = {
     Connection: boolean,

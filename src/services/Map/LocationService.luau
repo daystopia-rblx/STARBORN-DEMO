@@ -11,8 +11,7 @@ LocationService.Dependencies = {
     "Data",
     "Object",
     "Memory",
-    "Time",
-    "Crime"
+    "Time"
 }
 
 --[[ Modules ]]
