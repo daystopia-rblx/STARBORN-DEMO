@@ -49,8 +49,11 @@ CrimeService.Listeners = {
     ["Data.Global"] = function(self, data)
         if data.key == Services.Data.GLOBAL_KEYS.CRIME_DATA then
             local incomingData = data.data
-            if incomingData and incomingData.lastUpdate and incomingData.bounties then
-                State.bounties = incomingData.bounties
+            if incomingData and incomingData.bounties and incomingData.lastUpdate and
+               (not State.crimeData or not State.crimeData.lastUpdate or
+                incomingData.lastUpdate > State.crimeData.lastUpdate) then
+                State.crimeData = incomingData
+                State.bounties = State.crimeData.bounties
             end
         end
     end
@@ -187,7 +190,7 @@ function CrimeService:DetectPlayer(player, target, item, crimeType)
         end
     end
 
-    Services.Data:AddGlobal("CrimeData", "recentCrimes", crimeData, 100)
+    Services.Data:AddGlobal(Services.Data.GLOBAL_KEYS.CRIME_DATA, "recentCrimes", crimeData, 100)
 
     if entityType == "entity" and ownerId then
         Services.Event:Fire("Crime.Detect", {
@@ -520,6 +523,10 @@ end
 function CrimeService:AddBounty(player, amount, reason, issuerId): (boolean, number)
     local playerId = type(player) == "number" and player or player.UserId
 
+    State.crimeData = Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.CRIME_DATA)
+    State.crimeData.bounties = State.crimeData.bounties or {}
+    State.bounties = State.crimeData.bounties
+
     amount = math.min(
         math.max(amount, Modules.Crime.BountyConfig.MIN_BOUNTY),
         Modules.Crime.BountyConfig.MAX_BOUNTY
@@ -535,7 +542,7 @@ function CrimeService:AddBounty(player, amount, reason, issuerId): (boolean, num
     }
 
     local existingBountyIndex = nil
-    for i, b in ipairs(State.bounties) do
+    for i, b in ipairs(State.crimeData.bounties) do
         if b.playerId == playerId and b.reason == reason then
             existingBountyIndex = i
             break
@@ -543,12 +550,17 @@ function CrimeService:AddBounty(player, amount, reason, issuerId): (boolean, num
     end
 
     if existingBountyIndex then
-        State.bounties[existingBountyIndex].amount = State.bounties[existingBountyIndex].amount + amount
-        State.bounties[existingBountyIndex].timestamp = os.time()
-        State.bounties[existingBountyIndex].expiryTime = os.time() + Modules.Crime.BountyConfig.DEFAULT_EXPIRY
-        amount = State.bounties[existingBountyIndex].amount
+        State.crimeData.bounties[existingBountyIndex].amount = State.crimeData.bounties[existingBountyIndex].amount + amount
+        State.crimeData.bounties[existingBountyIndex].timestamp = os.time()
+        State.crimeData.bounties[existingBountyIndex].expiryTime = os.time() + Modules.Crime.BountyConfig.DEFAULT_EXPIRY
+        amount = State.crimeData.bounties[existingBountyIndex].amount
     else
-        table.insert(State.bounties, bounty)
+        table.insert(State.crimeData.bounties, bounty)
+    end
+
+    local success = Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.CRIME_DATA, State.crimeData)
+    if not success then
+        return false, 0
     end
 
     Services.Event:Fire("Crime.Bounty", {
@@ -564,11 +576,13 @@ end
 function CrimeService:GetBounty(player): (number, {BountyData})
     local playerId = type(player) == "number" and player or player.UserId
 
+    local currentBounties = State.bounties or {}
     local bounties = {}
     local totalAmount = 0
 
-    for _, bounty in ipairs(State.bounties) do
-        if bounty.playerId == playerId and bounty.expiryTime > os.time() then
+    for _, bounty in ipairs(currentBounties) do
+        local expiry = bounty.expiryTime or (bounty.timestamp + Modules.Crime.BountyConfig.DEFAULT_EXPIRY)
+        if bounty.playerId == playerId and expiry > os.time() then
             table.insert(bounties, bounty)
             totalAmount = totalAmount + bounty.amount
         end
@@ -580,22 +594,33 @@ end
 function CrimeService:ClearBounty(player, captor): boolean
     local playerId = type(player) == "number" and player or player.UserId
 
+    State.crimeData = Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.CRIME_DATA)
+    if not State.crimeData then return false end
+    State.crimeData.bounties = State.crimeData.bounties or {}
+
     local totalBounty = 0
     local remainingBounties = {}
+    local cleared = false
 
-    for _, bounty in ipairs(State.bounties) do
-        if bounty.playerId == playerId then
+    for _, bounty in ipairs(State.crimeData.bounties) do
+        local expiry = bounty.expiryTime or (bounty.timestamp + Modules.Crime.BountyConfig.DEFAULT_EXPIRY)
+        if bounty.playerId == playerId and expiry > os.time() then
             totalBounty = totalBounty + bounty.amount
-        else
+            cleared = true
+        elseif not (bounty.playerId == playerId and expiry <= os.time()) then
             table.insert(remainingBounties, bounty)
         end
     end
 
-    if totalBounty == 0 then
+    if not cleared then
         return false
     end
 
+    State.crimeData.bounties = remainingBounties
     State.bounties = remainingBounties
+
+    local success = Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.CRIME_DATA, State.crimeData)
+    if not success then return false end
 
     if captor then
         local captorId = type(captor) == "number" and captor or captor.UserId
@@ -614,6 +639,7 @@ function CrimeService:ClearBounty(player, captor): boolean
     Services.Event:Fire("Crime.Bounty", {
         playerId = playerId,
         amount = totalBounty,
+        cleared = true,
         captorId = captor and (type(captor) == "number" and captor or captor.UserId) or nil
     })
 

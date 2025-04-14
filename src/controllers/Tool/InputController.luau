@@ -9,7 +9,8 @@ local InputController = {}
 
 InputController.Dependencies = {
     "Event",
-    "Movement"
+    "Movement",
+    "Status"
 }
 
 local Controllers

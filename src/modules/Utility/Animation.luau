@@ -28,7 +28,10 @@ function Animation.Category(animator: Animator, categoryData: {[string]: any}, p
     local animations = {}
     for name, data in pairs(categoryData) do
         local animKey = prefix .. "_" .. name
-        animations[animKey] = Animation.Animation(animator, data)
+        local track = Animation.Animation(animator, data)
+        if track then
+            animations[animKey] = track
+        end
     end
     return animations
 end
@@ -51,7 +54,6 @@ end
 
 function Animation.Play(animations: {[string]: AnimationTrack}, category: string, name: string, fadeTime: number?, speed: number?): boolean
     if not category or not name then return false end
-    if not Modules.Animation.Assets.Animations[category] then return false end
 
     local animKey = category .. "_" .. name
     local track = animations[animKey]
@@ -65,7 +67,6 @@ end
 
 function Animation.Stop(animations: {[string]: AnimationTrack}, category: string, name: string, fadeTime: number?): boolean
     if not category or not name then return false end
-    if not Modules.Animation.Assets.Animations[category] then return false end
 
     local animKey = category .. "_" .. name
     if animations[animKey] then

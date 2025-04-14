@@ -183,7 +183,7 @@ function StoreService:GenerateInventory(storeId)
     Services.Event:Fire("Store.Restock", {
         storeId = storeId,
         storeType = storeType,
-        itemCount = table.getn(inventory.items)
+        itemCount = #inventory.items
     })
 
     return inventory

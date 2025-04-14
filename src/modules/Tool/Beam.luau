@@ -318,7 +318,7 @@ RunService.Heartbeat:Connect(function(dt)
                             PulseLength = 0.5,
                             PulseSpeed = RANDOM:NextNumber(spark.MinSpeed, spark.MaxSpeed),
                             FadeLength = 0.25,
-                            Color = Color3.fromHSV(Color3.toHSV(Part.Color))
+                            Color = Color3.fromHSV(Part.Color:ToHSV())
                         })
 
                         spark.SlotTable[ChosenSlot] = NewSpark

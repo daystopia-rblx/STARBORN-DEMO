@@ -47,25 +47,6 @@ FactionService.ViolationTypes = {
     STEAL_RESOURCES = "STEAL_RESOURCES"
 }
 
---[[ Helper Functions ]]
-local function ValidateData()
-    if not State.factionData then
-        State.factionData = Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
-    end
-    return State.factionData
-end
-
-local function SaveData(forced)
-    if forced then
-        local factionData = State.factionData
-        if factionData then
-            factionData.lastUpdate = os.time()
-            Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, factionData)
-            Services.Data:SaveGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
-        end
-    end
-end
-
 --[[ Listeners ]]
 FactionService.Listeners = {
     ["Data.Init"] = function(self, data)
@@ -93,8 +74,6 @@ FactionService.Listeners = {
                 }
             end
         end
-
-        ValidateData()
     end,
 
     ["Data.Global"] = function(self, data)
@@ -117,23 +96,23 @@ function FactionService:Init(services, modules)
 end
 
 function FactionService:Start()
-    ValidateData()
-    self:CheckConflicts()
     self:InitializeFactions()
 
     task.spawn(function()
         while true do
             task.wait(3600)
-            local factionDataBefore = State.factionData and HttpService:JSONEncode(State.factionData) or "{}"
 
-            State.factionData = Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, true)
+            State.factionData = Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+            if not State.factionData then
+                warn("FactionService: Could not retrieve global faction data in hourly check.")
+                continue
+            end
 
-            local hadChanges = self:UpdateRelationships()
-            hadChanges = self:CheckConflicts() or hadChanges
-            local factionDataAfter = State.factionData and HttpService:JSONEncode(State.factionData) or "{}"
+            local relationshipsChanged = self:UpdateRelationships()
+            local conflictsChanged = self:CheckConflicts()
 
-            if hadChanges or factionDataBefore ~= factionDataAfter then
-                SaveData(true)
+            if relationshipsChanged or conflictsChanged then
+                Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, State.factionData)
             end
         end
     end)
@@ -143,24 +122,25 @@ end
 
 --[[ Faction Functions ]]
 function FactionService:InitializeFactions()
-    local factionData = ValidateData()
-    if not factionData or not factionData.factions or next(factionData.factions) == nil then
+    State.factionData = Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+
+    if not State.factionData or not State.factionData.factions or next(State.factionData.factions) == nil then
         local defaultConfig = Modules.Faction.Templates.Default()
-        Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, defaultConfig)
         State.factionData = defaultConfig
-        SaveData(true)
+        Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, State.factionData)
+        warn("FactionService: Initialized default faction data.")
     end
 end
 
 function FactionService:GetFaction(factionId)
-    local factionData = ValidateData()
-    if not factionData or not factionData.factions then return nil end
-    return factionData.factions[factionId]
+    State.factionData = State.factionData or Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+    if not State.factionData or not State.factionData.factions then return nil end
+    return State.factionData.factions[factionId]
 end
 
 function FactionService:GetFactions()
-    local factionData = ValidateData()
-    return factionData and factionData.factions or {}
+    State.factionData = State.factionData or Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+    return State.factionData and State.factionData.factions or {}
 end
 
 function FactionService:GetPlayer(player)
@@ -223,6 +203,8 @@ function FactionService:UpdateRelationship(factionId1, factionId2, change)
     end
 
     if oldState ~= relationship.state then
+        Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, State.factionData)
+
         Services.Event:Fire("Faction.Relationship", {
             faction1 = factionId1,
             faction2 = factionId2,
@@ -231,8 +213,6 @@ function FactionService:UpdateRelationship(factionId1, factionId2, change)
             oldState = oldState,
             newState = relationship.state
         })
-
-        SaveData(true)
     end
 
     return true
@@ -351,7 +331,9 @@ end
 function FactionService:JoinFaction(player, factionId)
     if not player or not factionId then return false, "Invalid player or faction" end
 
-    local faction = self:GetFaction(factionId)
+    State.factionData = State.factionData or Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+    local faction = State.factionData and State.factionData.factions[factionId]
+
     if not faction then return false, "Faction not found" end
 
     local userId = tostring(player.UserId)
@@ -407,9 +389,10 @@ function FactionService:JoinFaction(player, factionId)
     end
 
     faction.members = faction.members or {}
+    local joinedNew = false
     if not table.find(faction.members, userId) then
         table.insert(faction.members, userId)
-        SaveData(true)
+        joinedNew = true
     end
 
     Services.Data:SetData(userId, "PlayerData", {
@@ -437,12 +420,14 @@ function FactionService:JoinFaction(player, factionId)
         Services.Inventory:AddItem(player, itemId, quantity)
     end
 
-    SaveData()
+    if joinedNew then
+        Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, State.factionData)
+    end
 
     Services.Event:Fire("Faction.Join", {
         player = player,
         faction = factionId,
-        isNew = not table.find(faction.members, userId),
+        isNew = joinedNew,
         standing = State.playerStandings[userId][factionId].standing,
         rank = State.playerStandings[userId][factionId].rank
     })
@@ -473,7 +458,9 @@ function FactionService:LeaveFaction(player, factionId)
         return false, "Player is not in a faction"
     end
 
-    local faction = self:GetFaction(leavingFactionId)
+    State.factionData = State.factionData or Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+    local faction = State.factionData and State.factionData.factions[leavingFactionId]
+
     if not faction then return false, "Faction not found" end
 
     local playerLevel = player:GetAttribute("LEVEL") or 1
@@ -500,18 +487,14 @@ function FactionService:LeaveFaction(player, factionId)
         end
     end
 
+    local foundMember = false
     if faction.members then
-        local foundMember = false
         for i, memberId in ipairs(faction.members) do
             if memberId == userId then
                 table.remove(faction.members, i)
                 foundMember = true
                 break
             end
-        end
-
-        if foundMember then
-            SaveData(true)
         end
     end
 
@@ -520,9 +503,11 @@ function FactionService:LeaveFaction(player, factionId)
         factions = State.playerStandings[userId] or {}
     })
 
-    SaveData()
+    if foundMember then
+        Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, State.factionData)
+    end
 
-    local standingValue = State.playerStandings[userId] and 
+    local standingValue = State.playerStandings[userId] and
                          State.playerStandings[userId][leavingFactionId] and
                          State.playerStandings[userId][leavingFactionId].standing or -2000
 
@@ -601,7 +586,9 @@ function FactionService:ExpelMember(targetUserId, factionId, reason, reasonCode)
         return false, "Missing required parameters"
     end
 
-    local faction = self:GetFaction(factionId)
+    State.factionData = State.factionData or Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+    local faction = State.factionData and State.factionData.factions[factionId]
+
     if not faction then return false, "Faction not found" end
 
     local targetPlayer = game.Players:GetPlayerByUserId(tonumber(targetUserId))
@@ -639,18 +626,14 @@ function FactionService:ExpelMember(targetUserId, factionId, reason, reasonCode)
         expulsionReasonCode = "FACTION_VIOLATION"
     end
 
+    local foundMember = false
     if faction.members then
-        local foundMember = false
         for i, memberId in ipairs(faction.members) do
             if memberId == targetUserId then
                 table.remove(faction.members, i)
                 foundMember = true
                 break
             end
-        end
-
-        if foundMember then
-            SaveData(true)
         end
     end
 
@@ -667,7 +650,9 @@ function FactionService:ExpelMember(targetUserId, factionId, reason, reasonCode)
         factions = State.playerStandings[targetUserId]
     })
 
-    SaveData()
+    if foundMember then
+        Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, State.factionData)
+    end
 
     Services.Event:Fire("Faction.Left", {
         userId = targetUserId,
@@ -689,8 +674,8 @@ function FactionService:ExpelMember(targetUserId, factionId, reason, reasonCode)
             {
                 type = "FACTION_EXPELLED",
                 title = "Faction Expulsion",
-                message = "You have been expelled from " .. (faction.name or "your faction") .. " by " .. 
-                         (faction.leaderName or "the faction leader") .. ".\nReason: " .. (expulsionReason or "Violation of faction values"),
+                message = "You have been expelled from " .. (faction.name or "your faction") .. " by " ..
+                         (faction.leaderName or "the faction leader") .. ".\\nReason: " .. (expulsionReason or "Violation of faction values"),
                 duration = 15
             }
         )
@@ -752,8 +737,8 @@ end
 
 --[[ Conflict Functions ]]
 function FactionService:GetConflicts()
-    local factionData = ValidateData()
-    return factionData and factionData.conflicts or {}
+    State.factionData = State.factionData or Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+    return State.factionData and State.factionData.conflicts or {}
 end
 
 function FactionService:GetConflict(conflictId)
@@ -784,33 +769,44 @@ function FactionService:GetFactionConflicts(factionId1, factionId2)
 end
 
 function FactionService:CheckConflicts()
-    local factionData = ValidateData()
-    if not factionData then return {} end
+    State.factionData = State.factionData or Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
+    if not State.factionData then return false end
 
     local conflicts = {}
-    local factions = factionData.factions or {}
+    local factions = State.factionData.factions or {}
     local hasChanges = false
+
+    local existingConflicts = State.factionData.conflicts or {}
+    local activeConflictIds = {}
 
     for factionId1, faction1 in pairs(factions) do
         for factionId2, relationship in pairs(faction1.relationships or {}) do
             if relationship.state == "WAR" or relationship.state == "HOSTILE" then
-                local conflictId = factionId1 .. "_vs_" .. factionId2
+                local sortedIds = {factionId1, factionId2}
+                table.sort(sortedIds)
+                local conflictId = sortedIds[1] .. "_vs_" .. sortedIds[2]
+                table.insert(activeConflictIds, conflictId)
 
                 local existingConflict = nil
-                for _, conflict in ipairs(factionData.conflicts or {}) do
-                    if conflict.id == conflictId or
-                       (conflict.factions[1] == factionId1 and conflict.factions[2] == factionId2) or
-                       (conflict.factions[1] == factionId2 and conflict.factions[2] == factionId1) then
+                for _, conflict in ipairs(existingConflicts) do
+                    if conflict.id == conflictId then
                         existingConflict = conflict
                         break
                     end
                 end
 
                 if existingConflict then
-                    if existingConflict.relationship ~= relationship or
-                       existingConflict.intensity ~= (relationship.state == "WAR" and 2 or 1) then
+                    local needsUpdate = false
+                    if existingConflict.relationship ~= relationship then
                         existingConflict.relationship = relationship
-                        existingConflict.intensity = relationship.state == "WAR" and 2 or 1
+                        needsUpdate = true
+                    end
+                    local newIntensity = relationship.state == "WAR" and 2 or 1
+                    if existingConflict.intensity ~= newIntensity then
+                        existingConflict.intensity = newIntensity
+                        needsUpdate = true
+                    end
+                    if needsUpdate then
                         hasChanges = true
                     end
                     table.insert(conflicts, existingConflict)
@@ -830,56 +826,67 @@ function FactionService:CheckConflicts()
         end
     end
 
-    local currentConflictsCount = #(factionData.conflicts or {})
-    local newConflictsCount = #conflicts
-
-    if currentConflictsCount ~= newConflictsCount then
-        hasChanges = true
+    if #existingConflicts > #conflicts then
+         hasChanges = true
+    else
+        for _, existing in ipairs(existingConflicts) do
+            local found = false
+            for _, newConflictId in ipairs(activeConflictIds) do
+                if existing.id == newConflictId then
+                    found = true
+                    break
+                end
+            end
+            if not found then
+                hasChanges = true
+                break
+            end
+        end
     end
 
     if hasChanges then
-        factionData.conflicts = conflicts
-        SaveData(true)
+        State.factionData.conflicts = conflicts
     end
 
-    return conflicts
+    return hasChanges
 end
 
 function FactionService:ResolveConflict(conflictId, resolution)
     local conflict = self:GetConflict(conflictId)
     if not conflict then return false end
 
-    local factionId1 = conflict.factions[1]
-    local factionId2 = conflict.factions[2]
-    local factionData = ValidateData()
+    State.factionData = State.factionData or Services.Data:GetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA)
 
-    if not factionData or not factionData.conflicts then return false end
+    if not State.factionData or not State.factionData.conflicts then return false end
 
     local found = false
-    for i, c in ipairs(factionData.conflicts) do
+    local newConflicts = {}
+    for i, c in ipairs(State.factionData.conflicts) do
         if c.id == conflictId then
-            table.remove(factionData.conflicts, i)
             found = true
-            break
+        else
+            table.insert(newConflicts, c)
         end
     end
 
     if found then
+        State.factionData.conflicts = newConflicts
+
         if Services.World then
             Services.World:SetState("resolved_conflict_" .. conflictId, {
                 resolution = resolution,
-                factions = {factionId1, factionId2},
+                factions = conflict.factions,
                 date = os.time()
             })
         end
 
         Services.Event:Fire("Faction.Conflict", {
             conflictId = conflictId,
-            factions = {factionId1, factionId2},
+            factions = conflict.factions,
             resolution = resolution
         })
 
-        SaveData(true)
+        Services.Data:SetGlobal(Services.Data.GLOBAL_KEYS.FACTION_DATA, State.factionData)
         return true
     end
 

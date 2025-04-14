@@ -402,7 +402,7 @@ local function GetSound(config)
             if config.effects.player then
                 local player = Instance.new("AudioPlayer")
                 if config.effects.player.AssetId then
-                    player.AssetId = config.effects.player.AssetId
+                    player.Asset = config.effects.player.AssetId
                 end
                 player.Looped = config.effects.player.Looped or false
                 player.PlaybackSpeed = config.effects.player.PlaybackSpeed or 1

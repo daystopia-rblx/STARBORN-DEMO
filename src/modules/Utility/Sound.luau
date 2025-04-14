@@ -233,7 +233,7 @@ local function AppleEffects(sound, effects)
     if effects.player then
         local player = Instance.new("AudioPlayer")
         if effects.player.AssetId then
-            player.AssetId = effects.player.AssetId
+            player.Asset = effects.player.AssetId
         end
         player.Looped = effects.player.Looped or false
         player.PlaybackSpeed = effects.player.PlaybackSpeed or 1

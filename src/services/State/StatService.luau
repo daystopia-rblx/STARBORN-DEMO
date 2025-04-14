@@ -769,7 +769,7 @@ function StatService:CycleStat(entity: {GetAttribute: (string) -> any}, statName
 
     if entity:IsA("Model") then
         local humanoid = entity:FindFirstChild("Humanoid")
-        if humanoid and (humanoid.Health <= 0 or not humanoid:GetState() == Enum.HumanoidStateType.Dead) then
+        if humanoid and (humanoid.Health <= 0 or humanoid:GetState() ~= Enum.HumanoidStateType.Dead) then
             return false, nil
         end
     end
