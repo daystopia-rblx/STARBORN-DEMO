@@ -15,7 +15,7 @@ type Info = {
 	Set: any,
 	Timed: boolean,
 	Time: number,
-	SetTo: any,
+	SetTo: boolean,
     Connection: boolean,
     Exclude: {string}?
 }
@@ -51,7 +51,7 @@ end
 
 function StatusService:TimedStatus(Humanoid: Humanoid, Type: string, Action: string, Info: Info)
 	if not Info.SetTo then
-		Info.SetTo = nil
+		Info.SetTo = false
 	end
 
 	if not Info.Time then
@@ -81,34 +81,34 @@ function StatusService:CreateStatus(Humanoid: Humanoid, Type: string, Action: st
 end
 
 function StatusService:CheckStatus(Humanoid: Humanoid, Info: Info): {} | boolean
-	local Results = {}
-	local Active = true
-
-	local Exclusions = {}
-	if Info.Exclude then
-		for _, exclusion in ipairs(Info.Exclude) do
-			Exclusions[exclusion] = true
-		end
-	end
-
-	for Category, Actions in pairs(Modules.Status) do
-		Results[Category] = {}
-
-		for _, Action in ipairs(Actions) do
-			local Value = Humanoid[Category] and Humanoid[Category]:GetAttribute(Action)
-			Results[Category][Action] = Value
-
-			if Info.Connection and Value ~= true and not Exclusions[Action] then
-				Active = false
-			end
-		end
-	end
-
-	if Info and Info.Connection then
-		return Active
-	end
-
-	return Results
+    local Results = {}
+    local Active = false
+    
+    local Exclusions = {}
+    if Info.Exclude then
+        for _, exclusion in ipairs(Info.Exclude) do
+            Exclusions[exclusion] = true
+        end
+    end
+    
+    for Category, Actions in pairs(Modules.Status) do
+        Results[Category] = {}
+        
+        for _, Action in ipairs(Actions) do
+            local Value = Humanoid[Category] and Humanoid[Category]:GetAttribute(Action)
+            Results[Category][Action] = Value
+            
+            if Info.Connection and Value == true and not Exclusions[Action] then
+                Active = true
+            end
+        end
+    end
+    
+    if Info and Info.Connection then
+        return Active
+    end
+    
+    return Results
 end
 
 function StatusService:CheckSpecific(Humanoid: Humanoid, Info: Info, ...: string): {} | boolean
@@ -127,6 +127,39 @@ function StatusService:CheckSpecific(Humanoid: Humanoid, Info: Info, ...: string
 	end
 
 	if Info.Connection then
+		for _, Value in pairs(Results) do
+			if Value ~= true then
+				return false
+			end
+		end
+		return true
+	end
+
+	return Results
+end
+
+function StatusService:CheckCooldowns(Humanoid: Humanoid, Info: Info, ...: string): {} | boolean
+	local Requests = {...}
+	local Results = {}
+    
+    local Actions = Modules.Status.Cooldown
+    if Actions then
+        for _, Action in ipairs(Actions) do
+            if #Requests > 0 then
+                for _, Requested in ipairs(Requests) do
+                    if Action == Requested then
+                        local Value = Humanoid.Cooldown and Humanoid.Cooldown:GetAttribute(Action)
+                        Results[Action] = Value
+                    end
+                end
+            else
+                local Value = Humanoid.Cooldown and Humanoid.Cooldown:GetAttribute(Action)
+                Results[Action] = Value
+            end
+        end
+    end
+
+	if Info and Info.Connection then
 		for _, Value in pairs(Results) do
 			if Value ~= true then
 				return false

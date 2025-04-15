@@ -68,7 +68,11 @@ function InputController:HandleInputBegan(input)
         end
     end
 
-    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if Controllers.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
+            Controllers.Event:FireServer("Combat.Attack", Player)
+        end
+    elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 		if Controllers.Movement:CurrentlyDodging() then
 			Controllers.Movement:CancelDodge()
 		end

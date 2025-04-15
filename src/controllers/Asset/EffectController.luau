@@ -20,7 +20,8 @@ type Info = {
 	Time: number?,
 	NotAttachment: boolean?,
 
-	SFX: Sound?,
+	SFX: string?,
+	Volume: number?,
 	RandomPitch: boolean?,
 	--Parent:Part?,
 	--Time:number?,
@@ -89,6 +90,7 @@ EffectController.Listeners = {
 			local Sound = Instance.new("Sound")
             Sound.SoundId = Info.SFX
 			Sound.Parent = Info.Parent
+			Sound.Volume = Info.Volume
 
 			if Info.RandomPitch then
 				local Equalizer = Instance.new("EqualizerSoundEffect")

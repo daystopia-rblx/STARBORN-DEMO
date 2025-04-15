@@ -1,6 +1,4 @@
-local CombatService = {
-    Animations = {} :: {[string]: AnimationTrack}
-}
+local CombatService = {}
 
 type Info = {
     Damage: number,
@@ -34,6 +32,9 @@ local Modules
 
 local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
 local SoundModule = require(game.ReplicatedStorage.Modules.SoundModule)
+local AnimationModule = require(game.ReplicatedStorage.Modules.AnimationModule)
+local HitboxService = require(script.Parent.HitboxService)
+local EffectService = require(game.ServerScriptService.Services.Asset.EffectService)
 
 CombatService.Listeners = {
     ["Players.PlayerAdded"] = function(self, player)
@@ -54,13 +55,6 @@ CombatService.Listeners = {
             end)
         end
 
-        if player.Character then
-            local Animator = player.Character:FindFirstChild("Humanoid"):FindFirstChildOfClass("Animator")
-            if Animator then
-                self.Animations = Utility.Animation.Categories(Animator, {"LOCOMOTION", "ROLL"})
-            end
-        end
-
         player.CharacterAdded:Connect(onCharacterAdded)
     end,
 
@@ -73,18 +67,8 @@ CombatService.Listeners = {
         local Weapon = "Fist"
         local Data = WeaponData[Weapon]
 
-        if Character then
-            local Animator = Character:FindFirstChild("Humanoid"):FindFirstChildOfClass("Animator")
-            if Animator then
-                local Keys = Modules.Animation.Assets.Animations.WEAPONS[string.upper(Weapon)]
-                self.Animations = Utility.Animation.Category(Animator, Keys, "WEAPONS_"..string.upper(Weapon))
-            end
-        end
-
-        local EquipKey = "WEAPONS_"..string.upper(Weapon).."_EQUIP"
-        if self.Animations[EquipKey] then
-            self.Animations[EquipKey]:Play()
-        end
+        local EquipKey = string.upper(Weapon)
+	    Utility.Animation:Play(AnimationModule.Assets.Animations.WEAPONS[EquipKey].EQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
 
         self:Equip(Humanoid, Weapon, Data)
     end,
@@ -98,17 +82,24 @@ CombatService.Listeners = {
         local Weapon = "Fist"
         local Data = WeaponData[Weapon]
 
-        local UnequipKey = "WEAPONS_"..string.upper(Weapon).."_UNEQUIP"
-        if self.Animations[UnequipKey] then
-            self.Animations[UnequipKey]:Play()
-        end
-
-        local IdleKey = "WEAPONS_"..string.upper(Weapon).."_IDLE"
-        if self.Animations[IdleKey] then
-            self.Animations[IdleKey]:Stop()
-        end
+        local UnequipKey = string.upper(Weapon)
+	    Utility.Animation:Play(AnimationModule.Assets.Animations.WEAPONS[UnequipKey].UNEQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
+        Utility.Animation:Stop(Humanoid, "Idle")
 
         self:Unequip(Humanoid, Weapon, Data)
+    end,
+
+    ["Combat.Attack"] = function(self, Player: Player)
+        local Character = Player.Character
+        local Root = Character:FindFirstChild("HumanoidRootPart")
+        local Humanoid = Character:FindFirstChild("Humanoid")
+        if not Humanoid then return end
+
+        -- Figure out how to get player Weapon from Data
+        local Weapon = "Fist"
+        local Data = WeaponData[Weapon]
+
+        self:Attack(Character, Humanoid, Root, Data)
     end,
 }
 
@@ -120,21 +111,89 @@ end
 
 --[[ Equipping ]]
 function CombatService:Equip(Humanoid: Humanoid, Weapon: string, Data: WeaponData)
-    local IdleKey = "WEAPONS_"..string.upper(Weapon).."_IDLE"
-    if self.Animations[IdleKey] then
-        self.Animations[IdleKey].Priority = Enum.AnimationPriority.Idle
-        self.Animations[IdleKey]:Play()
-    end
+    local IdleKey = string.upper(Weapon)
+    Utility.Animation:Play(AnimationModule.Assets.Animations.WEAPONS[IdleKey].IDLE.id, Humanoid, 1, Enum.AnimationPriority.Idle, "Idle")
 
     Services.Status:CreateStatus(Humanoid, "Combat", "Equipped", {Set = true})
 end
 
 function CombatService:Unequip(Humanoid: Humanoid, Weapon: string, Data: WeaponData)
-    -- Stopping logic moved to the listener function above
     Services.Status:CreateStatus(Humanoid, "Combat", "Equipped", {Set = false})
 end
 
 --[[ Attacking ]]
+function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
+    if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped"}}) == true then return end
+    if Services.Status:CheckCooldowns(Humanoid, {Connection = true}) == true then return end
+
+    local function Checker()
+        local cancelled = false
+
+        -- Run a task that checks as long as the character is "Attacking"
+        task.spawn(function()
+            while Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") do 
+                if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed", "Parried") then
+                    cancelled = true
+                    break
+                end
+                task.wait()
+            end
+        end)
+
+        return function()
+            return cancelled
+        end
+    end
+
+    local Interrupted = Checker()
+
+    local Count = Humanoid.Combat:GetAttribute("ComboCount")
+    Utility.Animation:Stop(Humanoid, "Attack")
+    Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Combo[Count].Duration}) 
+    
+    if Count >= Data.Attack.ComboMax then
+        Humanoid.Combat:SetAttribute("ComboCount", 1)
+        Services.Status:CreateStatus(Humanoid, "Cooldown", "Attack", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Cooldown})
+    else
+        local CurrentTime = tick()
+        Humanoid.Combat:SetAttribute("LastAttackTime", CurrentTime)
+		Humanoid.Combat:SetAttribute("ComboCount", Count + 1)
+
+        task.delay(Data.Attack.Combo[Count].Duration * 3, function()
+			if tick() - Humanoid.Combat:GetAttribute("LastAttackTime") >= Data.Attack.Combo[Count].Duration * 3 then
+				Humanoid.Combat:SetAttribute("ComboCount", 1)
+			end
+		end)
+    end
+
+    Utility.Animation:Play(Data.Attack.Combo[Count].Animation.id, Humanoid, Data.Attack.Speed, Enum.AnimationPriority.Action2, "Attack")
+
+    local Params = OverlapParams.new()
+	Params.FilterType = Enum.RaycastFilterType.Exclude
+	Params.FilterDescendantsInstances = {Character}
+
+    task.wait(Data.Attack.Combo[Count].Windup)
+
+    if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
+        EffectService:CreateEffect("Sound", {SFX = Data.Attack.Combo[Count].Swing, Parent = Character.HumanoidRootPart, Time = 2, Volume = 1})
+        local Hitbox = HitboxService:Create(Root.CFrame, Data.Attack.Combo[Count].Hitbox, Params)
+        Hitbox:WeldTo(Root)
+        Hitbox:SetConfig({
+            Offset = Data.Attack.Combo[Count].Offset
+        })
+
+        local CombatConfig = {
+			DamageType = Data.Attack.Combo[Count].DamageType,
+			Damage = Data.Attack.Combo[Count].Damage,
+		}
+
+        Hitbox:OnHit(function(Char, Hum, Rot)
+            self:Handler(Humanoid, Hum, CombatConfig)
+        end)
+
+        Hitbox:Run(0.15)
+    end
+end
 
 --[[ Handler ]]
 function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
@@ -143,7 +202,7 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
     if Victim.Health == 0 or Attacker.Health == 0 then return end
 
     local ATKRoot = Attacker.Parent:FindFirstChild("HumanoidRootPart")
-    local VICRoot = Victim.Params:FindFirstChild("HumanoidRootPart")
+    local VICRoot = Victim.Parent:FindFirstChild("HumanoidRootPart")
 
     if not ATKRoot or not VICRoot then return end
 
@@ -151,14 +210,17 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
 
     for Key, Value in pairs(Info) do
         if Key == "Damage" and Value and Victim.Parent:FindFirstChildOfClass("ForceField") == nil then
-            if Services.State:CheckSpecific(Victim, {Connection = true}, "Dodging") == true then
-                self.Animations["ROLL_CANCEL"].Priority = Enum.AnimationPriority.Action2
-                self.Animations["ROLL_CANCEL"]:Play()
+            --[[if Services.Status:CheckSpecific(Victim, {Connection = true}, "Dodging") == true then
+                Utility.Animation:Play(AnimationModule.Assets.Animations.ROLL.CANCEL.id, Victim, 1, Enum.AnimationPriority.Action2, "DodgeCancel")
                 return
-            elseif Services.State:CheckSpecific(Victim, {Connection = true}, "Parrying") == true then
+            end
+
+            if Services.Status:CheckSpecific(Victim, {Connection = true}, "Parrying") == true then
                 
                 return
-            elseif Services.State:CheckSpecific(Victim, {Connection = true}, "Blocking") == true then
+            end
+
+            if Services.Status:CheckSpecific(Victim, {Connection = true}, "Blocking") == true then
                 self:DamageType(Victim.Parent, Info.DamageType, true)
 
                 local postureChange = Value * 1.25 -- We can add posture scaling here
@@ -177,23 +239,24 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
                 -- Check
 
                 return
-            else
-                self:DamageType(Victim.Parent, Info.DamageType)
-                -- Stun handle
+            end]]
 
-                -- Ai damage handle Event
+            self:DamageType(Victim.Parent, Info.DamageType)
+            -- Stun handle
 
-                -- Hit animation here
+            -- Ai damage handle Event
+                
+            local Pain = "PAIN_"..tostring(math.random(1, 2))
+            Utility.Animation:Play(AnimationModule.Assets.Animations.STATUS[Pain].id, Victim, 2, Enum.AnimationPriority.Action2, "Pain")
 
-                self:ApplyDamage(Attacker, Victim, Value)
-                -- Fire Combat Tag
-                return
-            end
+            self:ApplyDamage(Attacker, Victim, Value)
+            -- Fire Combat Tag
+            return
         end
     end
 end
 
-function CombatService:DamageType(Character: model, DamageType: string, Blocking: boolean)
+function CombatService:DamageType(Character: Model, DamageType: string, Blocking: boolean)
     if Blocking == true then
         -- Get Victim WeaponData
         -- Play Block impact Animation
@@ -202,18 +265,19 @@ function CombatService:DamageType(Character: model, DamageType: string, Blocking
         if WeaponBlock == true then
             -- Find weapon model/blade, play VFX
         else
-            Services.Effect:CreateEffect("Character", {VFX = game.ReplicatedStorage.Asset.Particles.BlockedHit, Parent = Character["Left Arm"], NotAttachment = true})
-            Services.Effect:CreateEffect("Character", {VFX = game.ReplicatedStorage.Asset.Particles.BlockedHit, Parent = Character["Right Arm"], NotAttachment = true})
-            Services.Effect:CreateEffect("Sound", {SFX = SoundModule.SFX.Blocked_Hit.id, Parent = Character.HumanoidRootPart, Time = 2})
+            EffectService:CreateEffect("Character", {VFX = game.ReplicatedStorage.Assets.Particles.BlockedHit, Parent = Character["Left Arm"], NotAttachment = true})
+            EffectService:CreateEffect("Character", {VFX = game.ReplicatedStorage.Assets.Particles.BlockedHit, Parent = Character["Right Arm"], NotAttachment = true})
+            EffectService:CreateEffect("Sound", {SFX = SoundModule.Assets.SFX.Blocked_Hit.id, Parent = Character.HumanoidRootPart, Time = 2, Volume = 0.5})
         end
     else
         if not DamageType then return end
 
         if DamageType == "Slash" then
-            Services.Effect:CreateEffect("Blood", {Parent = Character.HumanoidRootPart})
+            EffectService:CreateEffect("Blood", {Parent = Character.HumanoidRootPart})
         end
-        Services.Effect:CreateEffect("Character", {VFX = game.ReplicatedStorage.Asset.Particles[DamageType], Parent = Character.HumanoidRootPart})
-        Services.Effect:CreateEffect("Sound", {SFX = SoundModule.SFX[DamageType].id, Parent = Character.HumanoidRootPart, Time = 2})
+        EffectService:CreateEffect("Character", {VFX = game.ReplicatedStorage.Assets.Particles[DamageType].Attachment, Parent = Character.HumanoidRootPart})
+        print(SoundModule.Assets.Sounds.SFX[DamageType].id)
+        EffectService:CreateEffect("Sound", {SFX = SoundModule.Assets.Sounds.SFX[DamageType].id, Parent = Character.HumanoidRootPart, Time = 2, Volume = 0.5})
     end
 end
 

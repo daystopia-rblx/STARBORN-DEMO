@@ -104,11 +104,10 @@ AnimationModule.Assets = {
 
         WEAPONS = {
             FIST = {
-                SWING_1 = { id = "rbxassetid://88649918878431", looped = false, priority = Enum.AnimationPriority.Action },
-                SWING_2 = { id = "rbxassetid://70965252565582", looped = false, priority = Enum.AnimationPriority.Action },
-                SWING_3 = { id = "rbxassetid://101002586724777", looped = false, priority = Enum.AnimationPriority.Action },
-                SWING_4 = { id = "rbxassetid://72629371626537", looped = false, priority = Enum.AnimationPriority.Action },
-                SWING_5 = { id = "rbxassetid://114028184472440", looped = false, priority = Enum.AnimationPriority.Action },
+                SWING_1 = { id = "rbxassetid://107821981061347", looped = false, priority = Enum.AnimationPriority.Action },
+                SWING_2 = { id = "rbxassetid://113191968777817", looped = false, priority = Enum.AnimationPriority.Action },
+                SWING_3 = { id = "rbxassetid://123730123029610", looped = false, priority = Enum.AnimationPriority.Action },
+                SWING_4 = { id = "rbxassetid://109427789749662", looped = false, priority = Enum.AnimationPriority.Action },
                 LUNGE = { id = "rbxassetid://77714110746670", looped = false, priority = Enum.AnimationPriority.Action },
                 PARRY_START = { id = "rbxassetid://112989725494663", looped = false, priority = Enum.AnimationPriority.Action },
                 PARRY = { id = "rbxassetid://86742188738316", looped = false, priority = Enum.AnimationPriority.Action },

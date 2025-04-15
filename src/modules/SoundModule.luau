@@ -26,11 +26,11 @@ SoundModule.Assets = {
             Death = { id = "rbxassetid://6424574135", volume = 0.5 },
 
             -- Weapon Sounds
-            Fist_Swing = { id = "rbxassetid://9114163091", volume = 0.5 },
+            Fist_Swing = { id = "rbxassetid://99449642314896", volume = 0.5 },
             Blade_Swing = { id = "rbxassetid://6241709963", volume = 0.5 },
             Critical_Hit = { id = "rbxassetid://13471740561", volume = 0.5 },
-            Blunt_Hit = { id = "rbxassetid://8278630896", volume = 0.5 },
-            Slash_Hit = { id = "rbxassetid://935843979", volume = 0.5 },
+            Blunt = { id = "rbxassetid://5501600429", volume = 0.5 },
+            Slash = { id = "rbxassetid://935843979", volume = 0.5 },
             -- Blocked_Hit = { id = "rbxassetid://122584254608380", volume = 0.5 },
             -- Block_Break = { id = "rbxassetid://126201620527102", volume = 0.5 },
             -- Feint = { id = "rbxassetid://6042053626", volume = 0.5 },

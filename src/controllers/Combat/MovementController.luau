@@ -15,8 +15,6 @@ local MovementController = {
     Cooldown = false :: boolean,
     DashVelocity = nil :: BodyVelocity,
     DashIdentity = nil :: string,
-
-    Animations = {} :: {[string]: AnimationTrack}
 }
 
 MovementController.Dependencies = {
@@ -27,6 +25,7 @@ MovementController.Dependencies = {
 local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
 local Animation = require(game.ReplicatedStorage.Modules.Utility.Animation)
+local AnimationModule = require(game.ReplicatedStorage.Modules.AnimationModule)
 
 --[[ State ]]
 local Controllers
@@ -36,22 +35,6 @@ local Modules
 function MovementController:Init(controllers, modules)
     Controllers = controllers
     Modules = modules
-
-    local Player = Players.LocalPlayer
-    Player.CharacterAdded:Connect(function(character)
-        local Animator = character:WaitForChild("Humanoid"):FindFirstChildOfClass("Animator")
-        if Animator then
-            self.Animations = Animation.Categories(Animator, {"LOCOMOTION", "ROLL"})
-        end
-    end)
-
-    if Player.Character then
-        local Animator = Player.Character:FindFirstChild("Humanoid"):FindFirstChildOfClass("Animator")
-        if Animator then
-            self.Animations = Animation.Categories(Animator, {"LOCOMOTION", "ROLL"})
-        end
-    end
-
     return true
 end
 
@@ -72,9 +55,8 @@ function MovementController:ToggleRun(Active: boolean)
     local Humanoid = Character:FindFirstChild("Humanoid")
 
     if not Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running"}}) and Active == true then
-        Humanoid.WalkSpeed = 32
-        self.Animations["LOCOMOTION_SPRINT"].Priority = Enum.AnimationPriority.Action2
-        self.Animations["LOCOMOTION_SPRINT"]:Play()
+        Humanoid.WalkSpeed = Character:GetAttribute("SPEED") * 2
+		Animation:Play(AnimationModule.Assets.Animations.LOCOMOTION.SPRINT.id, Humanoid, 1, Enum.AnimationPriority.Action, "Run")
         Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Running", {Set = true})
 
     elseif Active ~= true then
@@ -85,8 +67,8 @@ function MovementController:ToggleRun(Active: boolean)
 			end)
 		end
 
-        Humanoid.WalkSpeed = 16
-        Animation.Stop(self.Animations, "LOCOMOTION", "SPRINT")
+        Humanoid.WalkSpeed = Character:GetAttribute("SPEED")
+        Animation:Stop(Humanoid, "Run")
         Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Running", {Set = false})
     end
 end
@@ -113,13 +95,8 @@ function MovementController:CancelDodge()
 		self.DashVelocity = nil
 	end
 
-    Animation.Stop(self.Animations, "ROLL", "FORWARD")
-    Animation.Stop(self.Animations, "ROLL", "BACK")
-    Animation.Stop(self.Animations, "ROLL", "LEFT")
-    Animation.Stop(self.Animations, "ROLL", "RIGHT")
-
-    self.Animations["ROLL_CANCEL"].Priority = Enum.AnimationPriority.Action2
-    self.Animations["ROLL_CANCEL"]:Play()
+    Animation:Stop(Humanoid, "Dodge")
+	Animation:Play(AnimationModule.Assets.Animations.ROLL.CANCEL.id, Humanoid, 1, Enum.AnimationPriority.Action2, "DodgeCancel")
 
 	task.wait(0.1)
 
@@ -172,10 +149,8 @@ function MovementController:StartDodge()
 	Debris:AddItem(dashVelocity, 0.35)
 
 	self.DashVelocity = dashVelocity
-    local Dash = "ROLL_"..dashIdentity
 
-    self.Animations[Dash].Priority = Enum.AnimationPriority.Action3
-    self.Animations[Dash]:Play()
+	Animation:Play(AnimationModule.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action2, "Dodge")
 
     -- Play sound
     -- Make Velocity Service

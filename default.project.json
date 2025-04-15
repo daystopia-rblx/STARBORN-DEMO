@@ -3,6 +3,12 @@
   "tree": {
     "$className": "DataModel",
 
+    "ReplicatedFirst": {
+      "PreLoad": {
+        "$path": "src/preload"
+      }
+    },
+
     "ReplicatedStorage": {
       "Modules": {
         "$path": "src/modules"
