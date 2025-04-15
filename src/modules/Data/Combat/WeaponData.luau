@@ -5,9 +5,15 @@ local AnimationModule = require(game.ReplicatedStorage.Modules.AnimationModule)
 WeaponData = {
 	["Fist"] = {
 		General = {
-            Animation = {
-                Category = "FIST"
-            }, 
+			Parry = {
+				ParryStart = AnimationModule.Assets.Animations.WEAPONS.FIST.PARRY_START,
+				ParryImpact = AnimationModule.Assets.Animations.WEAPONS.FIST.PARRY
+			},
+
+			Block = {
+				BlockHold = AnimationModule.Assets.Animations.WEAPONS.FIST.BLOCK_POSE,
+				--BlockImpact = AnimationModule.Assets.Animations.WEAPONS.FIST.BLOCK_IMPACT
+			},
         },
 
 		Attack = {

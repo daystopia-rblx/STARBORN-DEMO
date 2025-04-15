@@ -24,6 +24,7 @@ SoundModule.Assets = {
             Dash = { id = "rbxassetid://6128977275", volume = 0.5 },
             -- Slide = { id = "rbxassetid://106761812656752", volume = 0.5 },
             Death = { id = "rbxassetid://6424574135", volume = 0.5 },
+            Dodged = { id = "rbxassetid://2239424601", volume = 0.5 },
 
             -- Weapon Sounds
             Fist_Swing = { id = "rbxassetid://99449642314896", volume = 0.5 },
@@ -31,9 +32,10 @@ SoundModule.Assets = {
             Critical_Hit = { id = "rbxassetid://13471740561", volume = 0.5 },
             Blunt = { id = "rbxassetid://5501600429", volume = 0.5 },
             Slash = { id = "rbxassetid://935843979", volume = 0.5 },
-            -- Blocked_Hit = { id = "rbxassetid://122584254608380", volume = 0.5 },
+            Blocked_Hit = { id = "rbxassetid://4958429431", volume = 0.5 },
             -- Block_Break = { id = "rbxassetid://126201620527102", volume = 0.5 },
             -- Feint = { id = "rbxassetid://6042053626", volume = 0.5 },
+            Parry = { id = "rbxassetid://15057101114", volume = 0.5 },
             -- Parry_1 = { id = "rbxassetid://95722991827031", volume = 0.5 },
             -- Parry_2 = { id = "rbxassetid://132886449936911", volume = 0.5 },
             -- Parry_3 = { id = "rbxassetid://77250810798467", volume = 0.5 },

@@ -54,7 +54,7 @@ function MovementController:ToggleRun(Active: boolean)
     if not Character then return end
     local Humanoid = Character:FindFirstChild("Humanoid")
 
-    if not Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running"}}) and Active == true then
+    if not Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) and Active == true then
         Humanoid.WalkSpeed = Character:GetAttribute("SPEED") * 2
 		Animation:Play(AnimationModule.Assets.Animations.LOCOMOTION.SPRINT.id, Humanoid, 1, Enum.AnimationPriority.Action, "Run")
         Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Running", {Set = true})
@@ -118,7 +118,7 @@ function MovementController:StartDodge()
 	local HRP = Character.HumanoidRootPart
 
 	if self.Dodging or self.Cooldown then return end
-	if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running"}}) == true then return end
+	if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) == true then return end
 
 	local velocity = self:getVel(HRP)
 	local dashIdentity
