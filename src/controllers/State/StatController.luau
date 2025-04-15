@@ -89,7 +89,7 @@ StatController.Listeners = {
         end
     end,
 
-    ["Client.Combat.Attack"] = function(self, response)
+    ["Combat.Attack"] = function(self, response)
         if not response.success then return end
         if not response.data or not response.data.ability then return end
 
@@ -102,7 +102,7 @@ StatController.Listeners = {
         end
     end,
 
-    ["Movement.State"] = function(self, response)
+    ["Status.Create"] = function(self, response)
         if not response or not response.state then return end
 
         local state = response.state:lower()

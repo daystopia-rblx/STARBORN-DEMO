@@ -123,6 +123,8 @@ StatModule.Constants = {
         POSTURE_BREAK_THRESHOLD = 0,
         POSTURE_RECOVERY_DELAY = 1.5,
         PERFECT_PARRY_WINDOW = 0.2,
+        POSTURE_BREAK_REWARD = 20,
+        POSTURE_DAMAGE_MULTIPLIER = 1.25,
 
         -- Block
         BLOCK_ANGLE = 180,

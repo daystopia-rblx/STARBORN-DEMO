@@ -160,7 +160,7 @@ function ToolController:OnEquipped(tool, mouse)
 
     State.activeTools[tool].connections = connections
 
-    Controllers.Event:FireServer("Client.Tool.Equip", {
+    Controllers.Event:FireServer("Tool.Equip", {
         tool = tool,
         player = LocalPlayer
     })
@@ -184,7 +184,7 @@ function ToolController:OnUnequipped(tool)
         State.activeTools[tool] = nil
     end
 
-    Controllers.Event:FireServer("Client.Tool.Unequip", {
+    Controllers.Event:FireServer("Tool.Unequip", {
         tool = tool,
         player = LocalPlayer
     })
@@ -216,7 +216,7 @@ function ToolController:OnActivated(tool, inputType, data)
         State.activeTools[tool].lastActivation = os.clock()
     end
 
-    Controllers.Event:FireServer("Client.Tool.Activate", {
+    Controllers.Event:FireServer("Tool.Activate", {
         tool = tool,
         player = LocalPlayer,
         inputType = inputType,
@@ -231,7 +231,7 @@ function ToolController:OnDeactivated(tool, inputType, data)
         State.activeTools[tool].lastDeactivation = os.clock()
     end
 
-    Controllers.Event:FireServer("Client.Tool.Deactivate", {
+    Controllers.Event:FireServer("Tool.Deactivate", {
         tool = tool,
         player = LocalPlayer,
         inputType = inputType,

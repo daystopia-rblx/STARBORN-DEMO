@@ -180,7 +180,7 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
     local Count = Humanoid.Combat:GetAttribute("ComboCount")
     Utility.Animation:Stop(Humanoid, "Attack")
     Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Combo[Count].Duration}) 
-    
+
     if Count >= Data.Attack.ComboMax then
         Humanoid.Combat:SetAttribute("ComboCount", 1)
         Services.Status:CreateStatus(Humanoid, "Cooldown", "Attack", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Cooldown})
@@ -308,7 +308,26 @@ function CombatService:Parried(Victim: Humanoid, Attacker: Humanoid, Value: numb
 end
 
 function CombatService:PostureCheck(Victim: Humanoid, Attacker: Humanoid, Damage: number, Type: string, BlockBreak: boolean)
-    -- get posture and max posture @val </3
+    if not Victim or not Attacker then return end
+
+    local victimPosture = StatService:GetStat(Victim.Parent, "POSTURE")
+    local attackerPosture = StatService:GetStat(Attacker.Parent, "POSTURE")
+    local maxPosture = StatModule.Templates.POSTURE.maxValue
+    local postureBreakThreshold = StatModule.Constants.COMBAT.POSTURE_BREAK_THRESHOLD
+
+    if BlockBreak or victimPosture <= postureBreakThreshold then
+        Services.Status:CreateStatus(Victim, "Combat", "Dazed", {Set = true, SetTo = false, Timed = true, Time = StatModule.Constants.COMBAT.POSTURE_RECOVERY_DELAY})
+
+        StatService:ModifyStat(Victim.Parent, "POSTURE", {
+            operation = "set",
+            value = maxPosture,
+        })
+
+        StatService:ModifyStat(Attacker.Parent, "POSTURE", {
+            operation = "add",
+            value = StatModule.Constants.COMBAT.POSTURE_BREAK_REWARD,
+        })
+    end
 end
 
 --[[ Handler ]]
@@ -335,7 +354,7 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
         end
 
         if Services.Status:CheckSpecific(Victim, {Connection = true}, "Parrying") == true then
-            Services.Status:CreateStatus(Attacker, "Combat", "Parried", {Set = true, SetTo = false, Timed = true, Time = 0.75}) 
+            Services.Status:CreateStatus(Attacker, "Combat", "Parried", {Set = true, SetTo = false, Timed = true, Time = 0.75})
             self:Parried(Victim, Attacker, Value, Info)
             return
         end
@@ -343,21 +362,15 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
         if Key == "Damage" and Value and Services.Status:CheckSpecific(Victim, {Connection = true}, "Blocking") == true then
             self:DamageType(Victim.Parent, Info.DamageType, true)
 
-            local postureChange = Value * 1.25 -- We can add posture scaling here
+            local postureDamageMultiplier = StatModule.Constants.COMBAT.POSTURE_DAMAGE_MULTIPLIER
+            local postureChange = Value * postureDamageMultiplier
+
             StatService:ModifyStat(Victim.Parent, "POSTURE", {
                 operation = "add",
                 value = postureChange,
             })
-            
-            local currentPosture = StatService:GetStat(Victim.Parent, "POSTURE")
-            local postureMax = StatModule.Templates.POSTURE.maxValue
 
-            if currentPosture >= postureMax or Info.BlockBreak == true then
-                -- Handle posture break
-                return
-            end
-            -- Check
-
+            self:PostureCheck(Victim, Attacker, postureChange, Info.DamageType, Info.BlockBreak)
             return
         end
 
@@ -366,7 +379,7 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
             Services.Status:CreateStatus(Victim, "Combat", "Stunned", {Set = true, SetTo = false, Timed = true, Time = 0.5}) 
 
             -- Ai damage handle Event
-                
+
             local Pain = "PAIN_"..tostring(math.random(1, 2))
             Utility.Animation:Play(AnimationModule.Assets.Animations.STATUS[Pain].id, Victim, 2, Enum.AnimationPriority.Action2, "Pain")
 
@@ -378,7 +391,7 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
 end
 
 function CombatService:DamageType(Character: Model, DamageType: string, Blocking: boolean)
-    if Blocking == true then 
+    if Blocking == true then
         -- Get Victim WeaponData
         -- Play Block impact Animation
         local WeaponBlock = false -- For now blocking will appear from arms, will next time reference WeaponData
