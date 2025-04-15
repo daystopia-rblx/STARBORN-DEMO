@@ -59,18 +59,20 @@ function InputController:HandleInputBegan(input)
             Controllers.Movement:HandlePressed()
         elseif input.KeyCode == Enum.KeyCode.Q then
             Controllers.Movement:StartDodge()
+        elseif input.KeyCode == Enum.KeyCode.F then
+            Controllers.Event:FireServer("Combat.Parry", true)
         elseif input.KeyCode == Enum.KeyCode.H then
             if not Controllers.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
-                Controllers.Event:FireServer("Combat.Equip", Player)
+                Controllers.Event:FireServer("Combat.Equip")
             else
-                Controllers.Event:FireServer("Combat.Unequip", Player)
+                Controllers.Event:FireServer("Combat.Unequip")
             end
         end
     end
 
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         if Controllers.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
-            Controllers.Event:FireServer("Combat.Attack", Player)
+            Controllers.Event:FireServer("Combat.Attack")
         end
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 		if Controllers.Movement:CurrentlyDodging() then
@@ -87,8 +89,8 @@ function InputController:HandleInputEnded(input)
     if input.UserInputType == Enum.UserInputType.Keyboard then
         if input.KeyCode == Enum.KeyCode.W then
             Controllers.Movement:ToggleRun(false)
-        elseif input.KeyCode == Enum.KeyCode.Q then
-
+        elseif input.KeyCode == Enum.KeyCode.F then
+            Controllers.Event:FireServer("Combat.Parry", false)
         end
     end
 end

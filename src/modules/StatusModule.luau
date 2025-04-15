@@ -7,6 +7,7 @@ StatusModule.Combat = {
     "Parrying",
     "Blocking",
     "Attacking",
+    "Parried"
 }
 
 StatusModule.Movement = {
