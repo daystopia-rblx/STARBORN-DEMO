@@ -557,6 +557,15 @@ function AudioService:PlaySound(parent: Instance, soundPath: SoundPath | string 
         end
     end
 
+    if finalConfig.randomPitch then
+        finalConfig.effects = finalConfig.effects or {}
+        finalConfig.effects.equalizer = {
+            HighGain = math.random(-5, 5),
+            MidGain = math.random(-5, 5),
+            LowGain = math.random(-5, 5)
+        }
+    end
+
     local repeatCount = finalConfig.repeatCount or 1
     if repeatCount < 1 then repeatCount = 1 end
 

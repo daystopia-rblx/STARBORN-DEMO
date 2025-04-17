@@ -10,12 +10,17 @@ type Info = {
 CombatService.Dependencies = {
     "Event",
     "Asset",
-    "Status"
+    "Status",
+    "Stat",
+    "Hitbox",
+    "Particle"
 }
 
 CombatService.Modules = {
     "Animation",
-    "Status"
+    "Status",
+    "Stat",
+    "Sound"
 }
 
 CombatService.Events = {
@@ -31,12 +36,6 @@ local Services
 local Modules
 
 local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
-local SoundModule = require(game.ReplicatedStorage.Modules.SoundModule)
-local AnimationModule = require(game.ReplicatedStorage.Modules.AnimationModule)
-local HitboxService = require(script.Parent.HitboxService)
-local EffectService = require(game.ServerScriptService.Services.Asset.EffectService)
-local StatService = require(game.ServerScriptService.Services.State.StatService)
-local StatModule = require(game.ReplicatedStorage.Modules.StatModule)
 
 CombatService.Listeners = {
     ["Players.PlayerAdded"] = function(self, player: Player)
@@ -72,7 +71,7 @@ CombatService.Listeners = {
         local Data = WeaponData[Weapon]
 
         local EquipKey = string.upper(Weapon)
-	    Utility.Animation:Play(AnimationModule.Assets.Animations.WEAPONS[EquipKey].EQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
+	    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[EquipKey].EQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
 
         self:Equip(Humanoid, Weapon, Data)
     end,
@@ -89,7 +88,7 @@ CombatService.Listeners = {
         local Data = WeaponData[Weapon]
 
         local UnequipKey = string.upper(Weapon)
-	    Utility.Animation:Play(AnimationModule.Assets.Animations.WEAPONS[UnequipKey].UNEQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
+	    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[UnequipKey].UNEQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
         Utility.Animation:Stop(Humanoid, "Idle")
 
         self:Unequip(Humanoid, Weapon, Data)
@@ -143,7 +142,7 @@ end
 --[[ Equipping ]]
 function CombatService:Equip(Humanoid: Humanoid, Weapon: string, Data: WeaponData)
     local IdleKey = string.upper(Weapon)
-    Utility.Animation:Play(AnimationModule.Assets.Animations.WEAPONS[IdleKey].IDLE.id, Humanoid, 1, Enum.AnimationPriority.Idle, "Idle")
+    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[IdleKey].IDLE.id, Humanoid, 1, Enum.AnimationPriority.Idle, "Idle")
 
     Services.Status:CreateStatus(Humanoid, "Combat", "Equipped", {Set = true})
 end
@@ -161,7 +160,7 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
         local cancelled = false
 
         task.spawn(function()
-            while Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") do 
+            while Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") do
                 if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed", "Parried") then
                     cancelled = true
                     break
@@ -205,8 +204,8 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
     task.wait(Data.Attack.Combo[Count].Windup)
 
     if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
-        EffectService:CreateEffect("Sound", {SFX = Data.Attack.Combo[Count].Swing, Parent = Character.HumanoidRootPart, Time = 2, Volume = 1})
-        local Hitbox = HitboxService:Create(Root.CFrame, Data.Attack.Combo[Count].Hitbox, Params)
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Combo[Count].Swing, parent = Character.HumanoidRootPart, duration = 2, volume = 1})
+        local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Combo[Count].Hitbox, Params)
         Hitbox:WeldTo(Root)
         Hitbox:SetConfig({
             Offset = Data.Attack.Combo[Count].Offset
@@ -285,7 +284,7 @@ function CombatService:ParryStop(Humanoid: Humanoid)
         end)
     else
         Services.Status:CreateStatus(Humanoid, "Combat", "Blocking", {Set = false})
-        Utility.Animation:Stop(Humanoid, "Block")   
+        Utility.Animation:Stop(Humanoid, "Block")
     end
 end
 
@@ -295,37 +294,37 @@ function CombatService:Parried(Victim: Humanoid, Attacker: Humanoid, Value: numb
 	local ATKWeapon = WeaponData["Fist"] -- Create get humanoid weapon data func
 	local VICWeapon = WeaponData["Fist"] -- Create get humanoid weapon data func
 
-    EffectService:CreateEffect("Character", {VFX = game.ReplicatedStorage.Assets.Particles.Parry.Attachment, Parent = Victim.Parent.HumanoidRootPart, Position = Vector3.new(0, 0, -2)})
-    EffectService:CreateEffect("Sound", {SFX = SoundModule.Assets.Sounds.SFX.Parry.id, Parent = Victim.Parent.HumanoidRootPart, Time = 2, Volume = 0.5})
-    Utility.Animation:Play(AnimationModule.Assets.Animations.COMBAT.PARRY_1.id, Attacker, 1, Enum.AnimationPriority.Action3, "Parried")
+    Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Parry.Attachment, parent = Victim.Parent.HumanoidRootPart, position = Vector3.new(0, 0, -2)})
+    Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Parry.id, parent = Victim.Parent.HumanoidRootPart, duration = 2, volume = 0.5})
+    Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.PARRY_1.id, Attacker, 1, Enum.AnimationPriority.Action3, "Parried")
 
     Utility.Animation:Stop(Victim, "Block")
     Utility.Animation:Stop(Victim, "Parry")
     Services.Status:CreateStatus(Victim, "Combat", "Blocking", {Set = false})
     Utility.Animation:Play(VICWeapon.General.Parry.ParryImpact.id, Victim, 1, Enum.AnimationPriority.Action3, "ParryImpact")
 
-    EffectService:CreateEffect("Light", {Colour = Color3.fromRGB(255, 255, 127), Brightness = 3, Radius = 5, CFPosition = Victim.Parent.HumanoidRootPart.CFrame, Time = 2, TweenTime = 1.5, TweenTable = {Brightness = 0, Range = 0}})
+    Services.Particle:CreateParticle({effectType = "LIGHT", colour = Color3.fromRGB(255, 255, 127), brightness = 3, radius = 5, parent = Victim.Parent.HumanoidRootPart, cfPosition = Victim.Parent.HumanoidRootPart.CFrame, duration = 2, tweenTime = 1.5, tweenTable = {Brightness = 0, Range = 0}})
 end
 
 function CombatService:PostureCheck(Victim: Humanoid, Attacker: Humanoid, Damage: number, Type: string, BlockBreak: boolean)
     if not Victim or not Attacker then return end
 
-    local victimPosture = StatService:GetStat(Victim.Parent, "POSTURE")
-    local attackerPosture = StatService:GetStat(Attacker.Parent, "POSTURE")
-    local maxPosture = StatModule.Templates.POSTURE.maxValue
-    local postureBreakThreshold = StatModule.Constants.COMBAT.POSTURE_BREAK_THRESHOLD
+    local victimPosture = Services.Stat:GetStat(Victim.Parent, "POSTURE")
+    local attackerPosture = Services.Stat:GetStat(Attacker.Parent, "POSTURE")
+    local maxPosture = Modules.Stat.Templates.POSTURE.maxValue
+    local postureBreakThreshold = Modules.Stat.Constants.COMBAT.POSTURE_BREAK_THRESHOLD
 
     if BlockBreak or victimPosture <= postureBreakThreshold then
-        Services.Status:CreateStatus(Victim, "Combat", "Dazed", {Set = true, SetTo = false, Timed = true, Time = StatModule.Constants.COMBAT.POSTURE_RECOVERY_DELAY})
+        Services.Status:CreateStatus(Victim, "Combat", "Dazed", {Set = true, SetTo = false, Timed = true, Time = Modules.Stat.Constants.COMBAT.POSTURE_RECOVERY_DELAY})
 
-        StatService:ModifyStat(Victim.Parent, "POSTURE", {
+        Services.Stat:ModifyStat(Victim.Parent, "POSTURE", {
             operation = "set",
             value = maxPosture,
         })
 
-        StatService:ModifyStat(Attacker.Parent, "POSTURE", {
+        Services.Stat:ModifyStat(Attacker.Parent, "POSTURE", {
             operation = "add",
-            value = StatModule.Constants.COMBAT.POSTURE_BREAK_REWARD,
+            value = Modules.Stat.Constants.COMBAT.POSTURE_BREAK_REWARD,
         })
     end
 end
@@ -348,8 +347,8 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
 
         if Services.Status:CheckSpecific(Victim, {Connection = true}, "Dodging") == true then
             Utility.Animation:Stop(Victim, "Dodge")
-	        Utility.Animation:Play(AnimationModule.Assets.Animations.ROLL.CANCEL.id, Victim, 1, Enum.AnimationPriority.Action3, "DodgeCancel")
-            EffectService:CreateEffect("Sound", {SFX = SoundModule.Assets.Sounds.SFX.Dodged.id, Parent = VICRoot, Time = 2, Volume = 0.5})
+	        Utility.Animation:Play(Modules.Animation.Assets.Animations.ROLL.CANCEL.id, Victim, 1, Enum.AnimationPriority.Action3, "DodgeCancel")
+            Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Dodged.id, parent = VICRoot, duration = 2, volume = 0.5})
             return
         end
 
@@ -362,10 +361,10 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
         if Key == "Damage" and Value and Services.Status:CheckSpecific(Victim, {Connection = true}, "Blocking") == true then
             self:DamageType(Victim.Parent, Info.DamageType, true)
 
-            local postureDamageMultiplier = StatModule.Constants.COMBAT.POSTURE_DAMAGE_MULTIPLIER
+            local postureDamageMultiplier = Modules.Stat.Constants.COMBAT.POSTURE_DAMAGE_MULTIPLIER
             local postureChange = Value * postureDamageMultiplier
 
-            StatService:ModifyStat(Victim.Parent, "POSTURE", {
+            Services.Stat:ModifyStat(Victim.Parent, "POSTURE", {
                 operation = "add",
                 value = postureChange,
             })
@@ -381,7 +380,7 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
             -- Ai damage handle Event
 
             local Pain = "PAIN_"..tostring(math.random(1, 2))
-            Utility.Animation:Play(AnimationModule.Assets.Animations.STATUS[Pain].id, Victim, 2, Enum.AnimationPriority.Action2, "Pain")
+            Utility.Animation:Play(Modules.Animation.Assets.Animations.STATUS[Pain].id, Victim, 2, Enum.AnimationPriority.Action2, "Pain")
 
             self:ApplyDamage(Attacker, Victim, Value)
             -- Fire Combat Tag
@@ -399,18 +398,18 @@ function CombatService:DamageType(Character: Model, DamageType: string, Blocking
         if WeaponBlock == true then
             -- Find weapon model/blade, play VFX
         else
-            EffectService:CreateEffect("Character", {VFX = game.ReplicatedStorage.Assets.Particles.BlockedHit.Attachment, Parent = Character.HumanoidRootPart})
-            EffectService:CreateEffect("Sound", {SFX = SoundModule.Assets.Sounds.SFX.Blocked_Hit.id, Parent = Character.HumanoidRootPart, Time = 2, Volume = 0.5})
+            Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.BlockedHit.Attachment, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
+            Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Blocked_Hit.id, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
         end
     else
         if not DamageType then return end
 
         if DamageType == "Slash" then
-            EffectService:CreateEffect("Blood", {Parent = Character.HumanoidRootPart})
+            Services.Particle:PlayParticle("Combat", "Blood", Character.HumanoidRootPart, 10)
         end
 
-        EffectService:CreateEffect("Character", {VFX = game.ReplicatedStorage.Assets.Particles[DamageType].Attachment, Parent = Character.HumanoidRootPart})
-        EffectService:CreateEffect("Sound", {SFX = SoundModule.Assets.Sounds.SFX[DamageType].id, Parent = Character.HumanoidRootPart, Time = 2, Volume = 0.5})
+        Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles[DamageType].Attachment, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[DamageType].id, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
     end
 end
 

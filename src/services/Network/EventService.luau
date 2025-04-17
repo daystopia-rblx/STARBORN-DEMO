@@ -19,9 +19,14 @@ export type FunctionDefinition = Event.FunctionDefinition
 --[[ State ]]
 EventService._isInitialized = false
 EventService._warnedInitialization = false
+EventService._isShuttingDown = false
 
 --[[ Utility Functions ]]
 local function CheckInitialized()
+    if EventService._isShuttingDown then
+        return false
+    end
+
     if not EventService._isInitialized and not EventService._warnedInitialization then
         if game:GetService("RunService"):IsStudio() and game:GetService("RunService"):IsRunning() == false then
             return false
@@ -48,11 +53,22 @@ function EventService:Init()
     self.eventConfigs = self._eventSystem.eventConfigs
     self.validators = self._eventSystem.validators
 
+    self._shutdownConnection = game:BindToClose(function()
+        self._isShuttingDown = true
+    end)
+
     self._isInitialized = true
     return true
 end
 
 function EventService:Cleanup()
+    self._isShuttingDown = true
+
+    if self._shutdownConnection then
+        self._shutdownConnection:Disconnect()
+        self._shutdownConnection = nil
+    end
+
     if self._eventSystem then
         self._eventSystem:Cleanup()
     end
