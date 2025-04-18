@@ -490,14 +490,18 @@ function CombatService:PostureCheck(Victim: Humanoid, Attacker: Humanoid, Damage
     local victimPosture = Services.Stat:GetStat(Victim.Parent, "POSTURE")
     local attackerPosture = Services.Stat:GetStat(Attacker.Parent, "POSTURE")
     local maxPosture = Modules.Stat.Templates.POSTURE.maxValue
-    local postureBreakThreshold = Modules.Stat.Constants.COMBAT.POSTURE_BREAK_THRESHOLD
 
-    if BlockBreak or victimPosture <= postureBreakThreshold then
+    if BlockBreak or victimPosture >= maxPosture then
         Services.Status:CreateStatus(Victim, "Combat", "Dazed", {Set = true, SetTo = false, Timed = true, Time = Modules.Stat.Constants.COMBAT.POSTURE_RECOVERY_DELAY})
+
+        Services.Status:CreateStatus(Victim, "Combat", "Blocking", {Set = false})
+        Services.Status:CreateStatus(Victim, "Combat", "Parrying", {Set = false})
+        Utility.Animation:Stop(Victim, "Block")
+        Utility.Animation:Stop(Victim, "Parry")
 
         Services.Stat:ModifyStat(Victim.Parent, "POSTURE", {
             operation = "set",
-            value = maxPosture,
+            value = 0,
         })
 
         Services.Stat:ModifyStat(Attacker.Parent, "POSTURE", {
@@ -553,7 +557,7 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
 
         if Key == "Damage" and Value then
             self:DamageType(Victim.Parent, Info.DamageType)
-            Services.Status:CreateStatus(Victim, "Combat", "Stunned", {Set = true, SetTo = false, Timed = true, Time = 0.5}) 
+            Services.Status:CreateStatus(Victim, "Combat", "Stunned", {Set = true, SetTo = false, Timed = true, Time = 0.5})
 
             -- Ai damage handle Event
 
@@ -648,7 +652,14 @@ function CombatService:ApplyDamage(source, target, damageValue)
 
     if damageValue <= 0 then return false end
 
-    humanoid:TakeDamage(damageValue)
+    Services.Stat:ModifyStat(target, "HEALTH", {
+        operation = "subtract",
+        value = damageValue,
+        metadata = {
+            source = source,
+            type = "combat"
+        }
+    })
 
     Services.Event:Fire("Combat.Damage", {
         source = source,

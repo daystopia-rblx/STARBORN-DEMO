@@ -71,9 +71,11 @@ StatController.Listeners = {
 
         local stat = data.stat:upper()
         local value = data.value
-        local maxValue = data.maxValue or value
 
-        if data.metadata and data.metadata.type == "decay" then
+        local existingStat = State.stats[stat]
+        local maxValue = data.maxValue or (existingStat and existingStat.maxValue) or value
+
+        if data.metadata and data.metadata.type == "decay" and stat ~= "POSTURE" then
             return
         end
 
@@ -142,9 +144,11 @@ function StatController:Init(controllers, modules)
 end
 
 function StatController:Start()
-    for _, bar in pairs(State.ui.center) do
-        self:UpdateBar(bar, 100, 100)
-    end
+    self:UpdateBar(State.ui.center.health, 100, 100)
+    self:UpdateBar(State.ui.center.resonance, 100, 100)
+    self:UpdateBar(State.ui.center.blood, 100, 100)
+
+    self:UpdateBar(State.ui.center.posture, 0, 100)
 
     for _, bar in pairs(State.ui.left) do
         self:UpdateBar(bar, 100, 100)
@@ -166,6 +170,7 @@ end
 function StatController:UpdateBar(bar, value, maxValue)
     if not bar or not bar:FindFirstChild("Mask") or not bar.Mask:FindFirstChild("Fill") then return end
 
+    if maxValue == 0 then maxValue = 1 end
     local fillAmount = math.clamp(value / maxValue, 0, 1)
     self:Update({
         instance = bar.Mask.Fill,

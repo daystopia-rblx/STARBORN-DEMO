@@ -120,8 +120,8 @@ StatModule.Constants = {
         HEADSHOT_MULTIPLIER = 1.25,
 
         -- Posture
-        POSTURE_BREAK_THRESHOLD = 0,
-        POSTURE_RECOVERY_DELAY = 1.5,
+        POSTURE_BREAK_THRESHOLD = 100,
+        POSTURE_RECOVERY_DELAY = 3.0,
         PERFECT_PARRY_WINDOW = 0.2,
         POSTURE_BREAK_REWARD = 20,
         POSTURE_DAMAGE_MULTIPLIER = 1.25,
@@ -158,7 +158,7 @@ StatModule.Constants = {
 
         -- Resource Caps
         BASE_HEALTH = 100,
-        MAX_HEALTH = 1000,
+        MAX_HEALTH = 100,
         BASE_STAMINA = 100,
         MAX_STAMINA = 200,
         BASE_RESONANCE = 100,
@@ -641,19 +641,21 @@ StatModule.Templates = {
     },
 
     POSTURE = {
-        baseValue = 100,
+        baseValue = 0,
         minValue = 0,
         maxValue = 100,
         regen = {
-            amount = 5,
+            amount = -5,
             interval = 1,
             condition = function(entity)
-                return not entity:GetAttribute("BLOCKING")
+                local humanoid = entity:FindFirstChild("Humanoid")
+                if not humanoid then return false end
+                return not humanoid.Combat:GetAttribute("Blocking")
             end
         },
         category = "COMBAT",
         displayName = "Posture",
-        description = "Block pressure tolerance",
+        description = "Block pressure tolerance - higher values lead to break",
         icon = "",
         color = Color3.fromRGB(255, 215, 0),
         format = "%.0f/%.0f"
@@ -667,7 +669,9 @@ StatModule.Templates = {
             amount = StatModule.Constants.RESOURCE.STAMINA_REGEN_AMOUNT,
             interval = StatModule.Constants.RESOURCE.STAMINA_REGEN_INTERVAL,
             condition = function(entity)
-                return not (entity:GetAttribute("RUNNING") or entity:GetAttribute("BLOCKING"))
+                local humanoid = entity:FindFirstChild("Humanoid")
+                if not humanoid then return false end
+                return not (humanoid.Movement:GetAttribute("Running") or humanoid.Combat:GetAttribute("Blocking"))
             end
         },
         category = "RESOURCE",
