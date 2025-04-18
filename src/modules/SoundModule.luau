@@ -18,6 +18,7 @@ SoundModule.Assets = {
             PromptHover = { id = "rbxassetid://408524543", volume = 0.5 },
             PromptError = { id = "rbxassetid://2130284653", volume = 0.5 },
         },
+
         SFX = {
             -- Player Sounds
             Equip = { id = "rbxassetid://2706199011", volume = 0.5 },
@@ -25,6 +26,7 @@ SoundModule.Assets = {
             -- Slide = { id = "rbxassetid://106761812656752", volume = 0.5 },
             Death = { id = "rbxassetid://6424574135", volume = 0.5 },
             Dodged = { id = "rbxassetid://2239424601", volume = 0.5 },
+            Stomp = { id = "rbxassetid://3784888301", volume = 0.5 },
 
             -- Weapon Sounds
             Fist_Swing = { id = "rbxassetid://99449642314896", volume = 0.5 },

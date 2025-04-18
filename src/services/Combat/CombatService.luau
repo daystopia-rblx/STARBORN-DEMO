@@ -122,6 +122,15 @@ CombatService.Listeners = {
 
         self:Lunge(Character, Humanoid, Root, Data)
     end,
+
+    ["Combat.Stomp"] = function(self, Player: Player)
+        local Character = Player.Character
+        local Root = Character:FindFirstChild("HumanoidRootPart")
+        local Humanoid = Character:FindFirstChild("Humanoid")
+        if not Humanoid then return end
+
+        self:Stomp(Character, Humanoid, Root)
+    end,
     
     ["Combat.Parry"] = function(self, Player: Player, Active: boolean)
         local Character = Player.Character
@@ -192,6 +201,7 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
                 if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed", "Parried") then
                     cancelled = true
                     Utility.Animation:Stop(Humanoid, "Attack")
+                    Humanoid.Combat:SetAttribute("ComboCount", 1)
                     break
                 end
                 task.wait()
@@ -296,7 +306,7 @@ function CombatService:Aerial(Character: Model, Humanoid: Humanoid, Root: BasePa
 
 	AerialVel.P = 3e3
 	AerialVel.MaxForce = Vector3.new(50000,50000,50000)
-	AerialVel.Velocity = (Root.CFrame.LookVector * 40) + (Root.CFrame.UpVector * -20)
+	AerialVel.Velocity = (Root.CFrame.LookVector * 50) + (Root.CFrame.UpVector * -20)
 
 	AerialVel.Parent = Root
 
@@ -400,6 +410,57 @@ function CombatService:Lunge(Character: Model, Humanoid: Humanoid, Root: BasePar
 
         Hitbox:Run(0.15)
     end
+end
+
+--[[ Stomp ]]
+function CombatService:Stomp(Character: Model, Humanoid: Humanoid, Root: BasePart)
+    if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
+    if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Stomp") == true then return end
+
+    local Params = OverlapParams.new()
+	Params.FilterType = Enum.RaycastFilterType.Exclude
+	Params.FilterDescendantsInstances = {Character}
+
+    if not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
+        local Hitbox = Services.Hitbox:Create(Root.CFrame, Vector3.new(5, 3, 5), Params)
+        Hitbox:WeldTo(Root)
+        Hitbox:SetConfig({
+            Offset = CFrame.new(0, -3, 0)
+        })
+
+        local CombatConfig = {
+			DamageType = "Blunt",
+			Damage = 5,
+		}
+
+        Hitbox:OnHit(function(Char, Hum, Rot)
+            self:Handler(Humanoid, Hum, CombatConfig)
+            self:StompAttack(Character, Humanoid, Root)
+        end)
+
+        Hitbox:Run(0.15)
+    end
+end
+
+function CombatService:StompAttack(Character: Model, Humanoid: Humanoid, Root: BasePart)
+    if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
+    if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Stomp") == true then return end
+
+    Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = 0.25}) 
+    Services.Status:CreateStatus(Humanoid, "Cooldown", "Stomp", {Set = true, SetTo = false, Timed = true, Time = 3})
+    Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.STOMP.id, Humanoid, 1, Enum.AnimationPriority.Action2, "Stomp")
+
+	local StompVel = Instance.new("BodyVelocity")
+	StompVel.Name = "StompVelocity"
+	Debris:AddItem(StompVel, 0.3)
+
+	StompVel.P = 3e3
+	StompVel.MaxForce = Vector3.new(30000, 30000, 30000)
+	StompVel.Velocity = (Root.CFrame.LookVector * -30) + (Root.CFrame.UpVector * 20)
+
+	StompVel.Parent = Root
+
+    Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Stomp.id, parent = Root, duration = 2, volume = 0.5})
 end
 
 --[[ Blocking & Parrying ]]

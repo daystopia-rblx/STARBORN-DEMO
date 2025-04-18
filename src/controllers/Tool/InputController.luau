@@ -67,6 +67,8 @@ function InputController:HandleInputBegan(input)
             else
                 Controllers.Event:FireServer("Combat.Unequip")
             end
+        elseif input.KeyCode == Enum.KeyCode.Space then
+            Controllers.Event:FireServer("Combat.Stomp")
         elseif input.KeyCode == Enum.KeyCode.LeftAlt then
             self.AltPressed = true
         end

@@ -83,7 +83,8 @@ AnimationModule.Assets = {
 
         COMBAT = {
             PARRY_1 = { id = "rbxassetid://104915035560099", looped = false, priority = Enum.AnimationPriority.Action },
-            PARRY_2 = { id = "rbxassetid://92814853491938", looped = false, priority = Enum.AnimationPriority.Action }
+            PARRY_2 = { id = "rbxassetid://92814853491938", looped = false, priority = Enum.AnimationPriority.Action },
+            STOMP = { id = "rbxassetid://134559026527676", looped = false, priority = Enum.AnimationPriority.Action },
         },
 
         EMOTES = {

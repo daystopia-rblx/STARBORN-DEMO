@@ -39,14 +39,16 @@ function StatusController:CheckStatus(Humanoid: Humanoid, Info: Info): {} | bool
     end
     
     for Category, Actions in pairs(Modules.Status) do
-        Results[Category] = {}
-        
-        for _, Action in ipairs(Actions) do
-            local Value = Humanoid[Category] and Humanoid[Category]:GetAttribute(Action)
-            Results[Category][Action] = Value
+        if Category ~= "Cooldown" then
+            Results[Category] = {}
             
-            if Info.Connection and Value == true and not Exclusions[Action] then
-                Active = true
+            for _, Action in ipairs(Actions) do
+                local Value = Humanoid[Category] and Humanoid[Category]:GetAttribute(Action)
+                Results[Category][Action] = Value
+                
+                if Info.Connection and Value == true and not Exclusions[Action] then
+                    Active = true
+                end
             end
         end
     end
