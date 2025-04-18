@@ -67,12 +67,18 @@ function InputController:HandleInputBegan(input)
             else
                 Controllers.Event:FireServer("Combat.Unequip")
             end
+        elseif input.KeyCode == Enum.KeyCode.LeftAlt then
+            self.AltPressed = true
         end
     end
 
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         if Controllers.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
-            Controllers.Event:FireServer("Combat.Attack")
+            if self.AltPressed == true then
+                Controllers.Event:FireServer("Combat.Lunge")
+            else
+                Controllers.Event:FireServer("Combat.Attack")
+            end
         end
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 		if Controllers.Movement:CurrentlyDodging() then
@@ -91,6 +97,8 @@ function InputController:HandleInputEnded(input)
             Controllers.Movement:ToggleRun(false)
         elseif input.KeyCode == Enum.KeyCode.F then
             Controllers.Event:FireServer("Combat.Parry", false)
+        elseif input.KeyCode == Enum.KeyCode.LeftAlt then
+            self.AltPressed = false
         end
     end
 end

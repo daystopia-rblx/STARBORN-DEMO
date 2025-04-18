@@ -21,7 +21,9 @@ StatusModule.Interaction = {
 }
 
 StatusModule.Cooldown = {
-    "Attack"
+    "Attack",
+    "Aerial",
+    "Lunge"
 }
 
 return StatusModule

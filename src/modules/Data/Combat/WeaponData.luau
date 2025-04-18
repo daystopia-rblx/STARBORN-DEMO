@@ -5,6 +5,8 @@ local AnimationModule = require(game.ReplicatedStorage.Modules.AnimationModule)
 WeaponData = {
 	["Fist"] = {
 		General = {
+			WeaponBlock = false,
+
 			Parry = {
 				ParryStart = AnimationModule.Assets.Animations.WEAPONS.FIST.PARRY_START,
 				ParryImpact = AnimationModule.Assets.Animations.WEAPONS.FIST.PARRY
@@ -12,12 +14,12 @@ WeaponData = {
 
 			Block = {
 				BlockHold = AnimationModule.Assets.Animations.WEAPONS.FIST.BLOCK_POSE,
-				--BlockImpact = AnimationModule.Assets.Animations.WEAPONS.FIST.BLOCK_IMPACT
+				BlockImpact = AnimationModule.Assets.Animations.WEAPONS.FIST.BLOCK_IMPACT
 			},
         },
 
 		Attack = {
-            Speed = 0.75,
+            Speed =  1,
             Cooldown = 1.5,
             ComboMax = 4,
 
@@ -76,22 +78,28 @@ WeaponData = {
 			},
 
             Aerial = {
+				Windup = 0.225,
+				Duration = 0.35,
+
 				Damage = 8,
 				DamageType = "Blunt",
 				Hitbox = Vector3.new(5, 6, 5),
 				Offset = CFrame.new(0,0,-3),
 
-                Animation = "AERIAL",
+				Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.AERIAL,
                 Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing.id
 			},
 
             Lunge = {
+				Windup = 0.4,
+				Duration = 0.6,
+
 				Damage = 8,
 				DamageType = "Blunt",
 				Hitbox = Vector3.new(5, 6, 5),
 				Offset = CFrame.new(0,0,-3),
 
-                Animation = "LUNGE",
+				Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.LUNGE,
                 Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing.id
 			},
 

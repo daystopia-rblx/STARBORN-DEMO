@@ -36,6 +36,7 @@ local Services
 local Modules
 
 local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
+local Debris = game:GetService("Debris")
 
 CombatService.Listeners = {
     ["Players.PlayerAdded"] = function(self, player: Player)
@@ -68,7 +69,7 @@ CombatService.Listeners = {
 
         -- Figure out how to get player Weapon from Data
         local Weapon = "Fist"
-        local Data = WeaponData[Weapon]
+        local Data = WeaponData["Fist"]
 
         local EquipKey = string.upper(Weapon)
 	    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[EquipKey].EQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
@@ -85,7 +86,7 @@ CombatService.Listeners = {
 
         -- Figure out how to get player Weapon from Data
         local Weapon = "Fist"
-        local Data = WeaponData[Weapon]
+        local Data = WeaponData["Fist"]
 
         local UnequipKey = string.upper(Weapon)
 	    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[UnequipKey].UNEQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
@@ -101,10 +102,25 @@ CombatService.Listeners = {
         if not Humanoid then return end
 
         -- Figure out how to get player Weapon from Data
-        local Weapon = "Fist"
-        local Data = WeaponData[Weapon]
+        local Data = WeaponData["Fist"]
 
-        self:Attack(Character, Humanoid, Root, Data)
+        if Humanoid.FloorMaterial == Enum.Material.Air then
+            self:Aerial(Character, Humanoid, Root, Data)
+        else
+            self:Attack(Character, Humanoid, Root, Data)
+        end
+    end,
+
+    ["Combat.Lunge"] = function(self, Player: Player)
+        local Character = Player.Character
+        local Root = Character:FindFirstChild("HumanoidRootPart")
+        local Humanoid = Character:FindFirstChild("Humanoid")
+        if not Humanoid then return end
+
+        -- Figure out how to get player Weapon from Data
+        local Data = WeaponData["Fist"]
+
+        self:Lunge(Character, Humanoid, Root, Data)
     end,
     
     ["Combat.Parry"] = function(self, Player: Player, Active: boolean)
@@ -120,13 +136,13 @@ CombatService.Listeners = {
         if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Equipped") then
             -- Figure out how to get player Weapon from Data
             local Weapon = "Fist"
-            local Data = WeaponData[Weapon]
+            local Data = WeaponData["Fist"]
 
             self:ParryStart(Humanoid, Weapon, Data)
         else
             -- Default to fist parrying (so you can parry without equipping)
             local Weapon = "Fist"
-            local Data = WeaponData[Weapon]
+            local Data = WeaponData["Fist"]
 
             self:ParryStart(Humanoid, Weapon, Data)
         end
@@ -137,6 +153,18 @@ function CombatService:Init(services, modules)
     Services = services
     Modules = modules
     return true
+end
+
+--[[ Trail ]]
+function CombatService:Trail(Character, Duration)
+    for _, trail in ipairs(Character:GetDescendants()) do
+        if trail:IsA("Trail") and ((trail:GetAttribute("GripTrail") == true)) then
+            trail.Enabled = true
+            task.delay(Duration, function()
+                trail.Enabled = false
+            end)
+        end
+    end
 end
 
 --[[ Equipping ]]
@@ -153,8 +181,8 @@ end
 
 --[[ Attacking ]]
 function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
-    if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped"}}) == true then return end
-    if Services.Status:CheckCooldowns(Humanoid, {Connection = true}) == true then return end
+    if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
+    if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Attack") == true then return end
 
     local function Checker()
         local cancelled = false
@@ -163,6 +191,7 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
             while Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") do
                 if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed", "Parried") then
                     cancelled = true
+                    Utility.Animation:Stop(Humanoid, "Attack")
                     break
                 end
                 task.wait()
@@ -196,6 +225,7 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
     end
 
     Utility.Animation:Play(Data.Attack.Combo[Count].Animation.id, Humanoid, Data.Attack.Speed, Enum.AnimationPriority.Action2, "Attack")
+    self:Trail(Character, Data.Attack.Combo[Count].Duration)
 
     local Params = OverlapParams.new()
 	Params.FilterType = Enum.RaycastFilterType.Exclude
@@ -204,7 +234,7 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
     task.wait(Data.Attack.Combo[Count].Windup)
 
     if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
-        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Combo[Count].Swing, parent = Character.HumanoidRootPart, duration = 2, volume = 1})
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Combo[Count].Swing, parent = Root, duration = 2, volume = 1})
         local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Combo[Count].Hitbox, Params)
         Hitbox:WeldTo(Root)
         Hitbox:SetConfig({
@@ -214,6 +244,154 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
         local CombatConfig = {
 			DamageType = Data.Attack.Combo[Count].DamageType,
 			Damage = Data.Attack.Combo[Count].Damage,
+		}
+
+        Hitbox:OnHit(function(Char, Hum, Rot)
+            self:Handler(Humanoid, Hum, CombatConfig)
+        end)
+
+        Hitbox:Run(0.15)
+    end
+end
+
+--[[ Aerial ]]
+function CombatService:Aerial(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
+    if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
+    if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Aerial") == true then return end
+
+    local function Checker()
+        local cancelled = false
+
+        task.spawn(function()
+            while Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") do
+                if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed", "Parried") then
+                    cancelled = true
+                    Utility.Animation:Stop(Humanoid, "Aerial")
+                    break
+                end
+                task.wait()
+            end
+        end)
+
+        return function()
+            return cancelled
+        end
+    end
+
+    local Interrupted = Checker()
+
+    Utility.Animation:Stop(Humanoid, "Stomp")
+    Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Aerial.Duration}) 
+    Services.Status:CreateStatus(Humanoid, "Cooldown", "Aerial", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Cooldown})
+    Utility.Animation:Play(Data.Attack.Aerial.Animation.id, Humanoid, Data.Attack.Speed, Enum.AnimationPriority.Action2, "Aerial")
+    self:Trail(Character, Data.Attack.Aerial.Duration)
+
+    local Params = OverlapParams.new()
+	Params.FilterType = Enum.RaycastFilterType.Exclude
+	Params.FilterDescendantsInstances = {Character}
+
+    local AerialVel = Instance.new("BodyVelocity")
+	AerialVel.Name = "AerialVelocity"
+	Debris:AddItem(AerialVel, 0.2)
+
+	AerialVel.P = 3e3
+	AerialVel.MaxForce = Vector3.new(50000,50000,50000)
+	AerialVel.Velocity = (Root.CFrame.LookVector * 40) + (Root.CFrame.UpVector * -20)
+
+	AerialVel.Parent = Root
+
+    task.wait(Data.Attack.Aerial.Windup)
+
+    if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Aerial.Swing, parent = Root, duration = 2, volume = 1})
+        local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Aerial.Hitbox, Params)
+        Hitbox:WeldTo(Root)
+        Hitbox:SetConfig({
+            Offset = Data.Attack.Aerial.Offset
+        })
+
+        local CombatConfig = {
+			DamageType = Data.Attack.Aerial.DamageType,
+			Damage = Data.Attack.Aerial.Damage,
+		}
+
+        Hitbox:OnHit(function(Char, Hum, Rot)
+            self:Handler(Humanoid, Hum, CombatConfig)
+        end)
+
+        Hitbox:Run(0.15)
+    end
+end
+
+--[[ Lunge ]]
+function CombatService:Lunge(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
+    if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
+    if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Lunge") == true then return end
+
+    local function Checker()
+        local cancelled = false
+
+        task.spawn(function()
+            while Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") do
+                if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed", "Parried") then
+                    cancelled = true
+                    Utility.Animation:Stop(Humanoid, "Lunge")
+                    break
+                end
+                task.wait()
+            end
+        end)
+
+        return function()
+            return cancelled
+        end
+    end
+
+    local Interrupted = Checker()
+
+    Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Lunge.Duration}) 
+    Services.Status:CreateStatus(Humanoid, "Cooldown", "Lunge", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Cooldown})
+    Utility.Animation:Play(Data.Attack.Lunge.Animation.id, Humanoid, Data.Attack.Speed * 1.35, Enum.AnimationPriority.Action2, "Lunge")
+    self:Trail(Character, Data.Attack.Lunge.Duration)
+
+    local Params = OverlapParams.new()
+	Params.FilterType = Enum.RaycastFilterType.Exclude
+	Params.FilterDescendantsInstances = {Character}
+
+    
+    local LungeVel = Instance.new("BodyVelocity")
+    LungeVel.Name = "AerialVelocity"
+    Debris:AddItem(LungeVel, 0.35)
+
+    LungeVel.P = 3e3
+    LungeVel.MaxForce = Vector3.new(50000, 50000, 50000)
+    
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        if LungeVel then
+            LungeVel.Velocity = Root.CFrame.LookVector * 60
+        else
+            if connection then
+                connection:Disconnect()
+            end
+        end
+    end)
+
+    LungeVel.Parent = Root
+
+    task.wait(Data.Attack.Lunge.Windup)
+
+    if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Lunge.Swing, parent = Root, duration = 2, volume = 1})
+        local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Lunge.Hitbox, Params)
+        Hitbox:WeldTo(Root)
+        Hitbox:SetConfig({
+            Offset = Data.Attack.Lunge.Offset
+        })
+
+        local CombatConfig = {
+			DamageType = Data.Attack.Lunge.DamageType,
+			Damage = Data.Attack.Lunge.Damage,
 		}
 
         Hitbox:OnHit(function(Char, Hum, Rot)
@@ -391,9 +569,11 @@ end
 
 function CombatService:DamageType(Character: Model, DamageType: string, Blocking: boolean)
     if Blocking == true then
-        -- Get Victim WeaponData
-        -- Play Block impact Animation
-        local WeaponBlock = false -- For now blocking will appear from arms, will next time reference WeaponData
+
+        local VICWeapon = WeaponData["Fist"] -- Create get humanoid weapon data func
+        local WeaponBlock = VICWeapon.General.WeaponBlock -- For now blocking will appear from arms, will next time reference WeaponData
+
+        Utility.Animation:Play(VICWeapon.General.Block.BlockImpact.id, Character.Humanoid, 1, Enum.AnimationPriority.Action3, "BlockImpact")
 
         if WeaponBlock == true then
             -- Find weapon model/blade, play VFX

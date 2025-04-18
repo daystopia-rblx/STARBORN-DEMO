@@ -61,6 +61,8 @@ PlayerService.Listeners = {
             end
             ]]
 
+            PlayerService:SetupGrips(character)
+
             local animateScript = character:FindFirstChild("Animate")
             animateScript.idle.Animation1.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.IDLE.id
             animateScript.idle.Animation2.AnimationId = Modules.Animation.Assets.Animations.LOCOMOTION.IDLE_2.id
@@ -79,6 +81,29 @@ PlayerService.Listeners = {
         })
     end
 }
+
+--[[ Character Functions ]]
+function PlayerService:SetupGrips(Character)
+    local LeftGrip = ReplicatedStorage.Assets.Grips.Grip:Clone()
+    LeftGrip.Name = "LeftGrip"
+    LeftGrip.Parent = Character
+
+    local RightGrip = ReplicatedStorage.Assets.Grips.Grip:Clone()
+    RightGrip.Name = "RightGrip"
+    RightGrip.Parent = Character
+
+    local WeldLeft = Instance.new("Motor6D", Character:FindFirstChild("LeftGrip"))
+    WeldLeft.Name = "LeftGrip"
+    WeldLeft.Part0 = Character:FindFirstChild("Left Arm")
+    WeldLeft.Part1 = LeftGrip
+    WeldLeft.C0 = CFrame.new(0, -1, 0)
+
+    local WeldRight = Instance.new("Motor6D", Character:FindFirstChild("RightGrip"))
+    WeldRight.Name = "RightGrip"
+    WeldRight.Part0 = Character:FindFirstChild("Right Arm")
+    WeldRight.Part1 = RightGrip
+    WeldRight.C0 = CFrame.new(0, -1, 0)
+end 
 
 function PlayerService:Init(services)
     Services = services

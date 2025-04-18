@@ -54,6 +54,15 @@ function MovementController:ToggleRun(Active: boolean)
     if not Character then return end
     local Humanoid = Character:FindFirstChild("Humanoid")
 
+	task.spawn(function()
+		while task.wait() do
+			if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") then
+				self:ToggleRun(false)
+				break
+			end
+		end
+	end)
+
     if not Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) and Active == true then
         Humanoid.WalkSpeed = Character:GetAttribute("SPEED") * 2
 		Animation:Play(AnimationModule.Assets.Animations.LOCOMOTION.SPRINT.id, Humanoid, 1, Enum.AnimationPriority.Action, "Run")
@@ -153,7 +162,6 @@ function MovementController:StartDodge()
 	Animation:Play(AnimationModule.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action2, "Dodge")
 
     -- Play sound
-    -- Make Velocity Service
 
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude

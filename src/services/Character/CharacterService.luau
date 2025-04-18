@@ -229,6 +229,8 @@ function CharacterService:SpawnCharacter(player, characterData)
 
     local character = player.Character or player:LoadCharacter()
 
+    self:SetupGrips(character)
+
     self:ApplyAppearance(character, characterData)
 
     self:ApplyAttributes(character, characterData)
