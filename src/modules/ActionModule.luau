@@ -1,8 +1,8 @@
 --[[ ActionModule
     Defines action types and their configurations
     @author @Daystopia
-    @version 1.1.2
-    @date 2025-04-14
+    @version 1.1.3
+    @date 2025-04-18
 ]]
 local ActionModule = {}
 
@@ -562,6 +562,128 @@ ActionModule.Types = {
 
     FISH = {
 
+    },
+
+    CHOP = {
+        id = "chop",
+        name = "Chop",
+        category = ActionModule.Categories.INTERACTION,
+        requiresTarget = true,
+        cooldown = 1.2,
+        repeatable = true,
+        handler = {
+            validate = function(services, context)
+                if not services.Tool:ValidateTool(context.player, {"axe"}) then
+                    return false
+                end
+                local health = context.instance:GetAttribute("HEALTH")
+                return health and health > 0
+            end,
+            onStart = function(services, context)
+                local playerId = context.player.UserId
+                local nodeId = context.instance:GetAttribute("ID")
+                if not nodeId then
+                    warn("Target object missing ID attribute for chop action: ", context.instance:GetFullName())
+                    return false, "Target missing ID"
+                end
+
+                local success, message = services.Harvesting:UpdateHarvest(playerId, nodeId, 1.0)
+                if not success then
+                    warn("Failed to chop: ", message)
+                end
+                return success, message
+            end
+        }
+    },
+
+    MINE = {
+        id = "mine",
+        name = "Mine",
+        category = ActionModule.Categories.INTERACTION,
+        requiresTarget = true,
+        cooldown = 1.5,
+        repeatable = true,
+        handler = {
+            validate = function(services, context)
+                if not services.Tool:ValidateTool(context.player, {"pickaxe"}) then
+                    return false, "Requires pickaxe"
+                end
+                local health = context.instance:GetAttribute("HEALTH")
+                return health and health > 0
+            end,
+            onStart = function(services, context)
+                local playerId = context.player.UserId
+                local nodeId = context.instance:GetAttribute("ID")
+                if not nodeId then
+                    warn("Target object missing ID attribute for mine action: ", context.instance:GetFullName())
+                    return false, "Target missing ID"
+                end
+
+                local success, message = services.Harvesting:UpdateHarvest(playerId, nodeId, 1.0)
+                if not success then
+                    warn("Failed to mine: ", message)
+                end
+                return success, message
+            end
+        }
+    },
+
+    GATHER = {
+        id = "gather",
+        name = "Gather",
+        category = ActionModule.Categories.INTERACTION,
+        requiresTarget = true,
+        cooldown = 0.8,
+        repeatable = true,
+        handler = {
+            validate = function(services, context)
+                local health = context.instance:GetAttribute("HEALTH")
+                return health and health > 0
+            end,
+            onStart = function(services, context)
+                local playerId = context.player.UserId
+                local nodeId = context.instance:GetAttribute("ID")
+                if not nodeId then
+                    warn("Target object missing ID attribute for gather action: ", context.instance:GetFullName())
+                    return false, "Target missing ID"
+                end
+
+                local success, message = services.Harvesting:UpdateHarvest(playerId, nodeId, 1.0)
+                if not success then
+                    warn("Failed to gather: ", message)
+                end
+                return success, message
+            end
+        }
+    },
+
+    HARVEST = {
+        id = "harvest",
+        name = "Harvest",
+        category = ActionModule.Categories.INTERACTION,
+        requiresTarget = true,
+        cooldown = 1.0,
+        repeatable = true,
+        handler = {
+            validate = function(services, context)
+                local health = context.instance:GetAttribute("HEALTH")
+                return health and health > 0
+            end,
+            onStart = function(services, context)
+                local playerId = context.player.UserId
+                local nodeId = context.instance:GetAttribute("ID")
+                if not nodeId then
+                    warn("Target object missing ID attribute for harvest action: ", context.instance:GetFullName())
+                    return false, "Target missing ID"
+                end
+
+                local success, message = services.Harvesting:UpdateHarvest(playerId, nodeId, 1.0)
+                if not success then
+                    warn("Failed to harvest: ", message)
+                end
+                return success, message
+            end
+        }
     }
 }
 

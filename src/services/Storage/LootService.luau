@@ -1,7 +1,7 @@
 --[[ LootService
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-04-11
+    @version 1.0.1
+    @date 2025-04-18
 ]]
 local LootService = {}
 
@@ -83,32 +83,29 @@ function LootService:GenerateLoot(sourceType: string, sourceId: string, tier: st
     tier = tier and tier:lower() or "low"
     count = count or 1
 
+    local selectedItem
     local lootTable = Modules.Loot:GetTable(sourceType, sourceId, tier, variant)
     if not lootTable or #lootTable == 0 then
         return nil
     end
 
-    local selectedItem
-    if sourceType:upper() == "ENTITY" then
-        local totalWeight = 0
-        for _, item in ipairs(lootTable) do
-            totalWeight = totalWeight + (item.weight or 1)
-        end
+    if sourceType:upper() == "ENTITY" or sourceType:upper() == "NODE" then
+        selectedItem = Modules.Loot:SelectItem(lootTable)
+        if not selectedItem then return nil end
 
-        local roll = math.random(1, totalWeight)
-        local currentWeight = 0
-
-        for _, item in ipairs(lootTable) do
-            currentWeight = currentWeight + (item.weight or 1)
-            if roll <= currentWeight then
-                selectedItem = item
-                break
-            end
-        end
-
-        if not selectedItem then
-            selectedItem = lootTable[1]
-        end
+        local quantity = Modules.Loot:GetQuantity(selectedItem) 
+        return {
+            id = selectedItem.item,
+            value = selectedItem.value or 0,
+            quantity = quantity,
+            rarity = selectedItem.rarity or "COMMON",
+            metadata = {
+                source = sourceType,
+                sourceId = sourceId,
+                tier = tier,
+                variant = variant
+            }
+        }
     else
         local itemId = lootTable[math.random(1, #lootTable)]
         if not itemId then return nil end
@@ -119,19 +116,20 @@ function LootService:GenerateLoot(sourceType: string, sourceId: string, tier: st
         local valueRange = Modules.Loot:GetValue(rarity)
         local value = math.random(valueRange.min, valueRange.max)
 
+        local quantity = Modules.Loot:GetQuantity(itemId)
+
         selectedItem = {
-            id = itemId,
+            id = itemId.id or itemId,
             value = value,
-            rarity = rarity
+            rarity = rarity,
+            quantity = quantity
         }
     end
-
-    local quantity = selectedItem.quantity or Modules.Loot:GetQuantity(selectedItem.id) or 1
 
     return {
         id = selectedItem.id,
         value = selectedItem.value or 0,
-        quantity = quantity,
+        quantity = selectedItem.quantity or 1,
         rarity = selectedItem.rarity or "COMMON",
         metadata = {
             source = sourceType,

@@ -1,7 +1,7 @@
 --[[ InteractModule
     @author @Daystopia
     @version 1.0.2
-    @date 2025-04-14
+    @date 2025-04-18
 ]]
 local InteractModule = {}
 
@@ -24,7 +24,11 @@ InteractModule.Types = {
     CONSUME = "consume",
     LOCKPICK = "lockpick",
     OPEN = "open",
-    FISH = "fish"
+    FISH = "fish",
+    CHOP = "chop",
+    MINE = "mine",
+    GATHER = "gather",
+    HARVEST = "harvest"
 }
 
 --[[ Base Templates ]]
@@ -169,6 +173,60 @@ InteractModule.Templates = {
         lineOfSight = true,
         click = false,
         maxDistance = 8,
+        visible = true
+    },
+
+    [InteractModule.Types.CHOP] = {
+        prompt = "Chop",
+        key = "E",
+        gamepadKey = "ButtonX",
+        color = Color3.fromRGB(255, 224, 85),
+        hold = 0.6,
+        distance = 8,
+        style = "billboard",
+        click = false,
+        maxDistance = 7,
+        visible = true,
+        requires = {"axe"}
+    },
+
+    [InteractModule.Types.MINE] = {
+        prompt = "Mine",
+        key = "E",
+        gamepadKey = "ButtonX",
+        color = Color3.fromRGB(160, 140, 120),
+        hold = 0.7,
+        distance = 8,
+        style = "billboard",
+        click = false,
+        maxDistance = 7,
+        visible = true,
+        requires = {"pickaxe"}
+    },
+
+    [InteractModule.Types.GATHER] = {
+        prompt = "Gather",
+        key = "E",
+        gamepadKey = "ButtonX",
+        color = Color3.fromRGB(120, 180, 80),
+        hold = 0.4,
+        distance = 8,
+        style = "billboard",
+        click = false,
+        maxDistance = 7,
+        visible = true
+    },
+
+    [InteractModule.Types.HARVEST] = {
+        prompt = "Harvest",
+        key = "E",
+        gamepadKey = "ButtonX",
+        color = Color3.fromRGB(140, 190, 70),
+        hold = 0.5,
+        distance = 8,
+        style = "billboard",
+        click = false,
+        maxDistance = 7,
         visible = true
     }
 }

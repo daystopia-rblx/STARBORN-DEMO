@@ -1,7 +1,7 @@
 --[[ ObjectModule
     @author @Daystopia
-    @version 1.0.1
-    @date 2025-03-31
+    @version 1.0.2
+    @date 2025-04-18
 ]]
 local ObjectModule = {}
 
@@ -50,6 +50,7 @@ ObjectModule.CategoryGroups = {
     TOOLS = {
         "FARMING_TOOLS",
         "SMITHING_TOOLS",
+        "MINING_TOOLS",
         "WRITING_TOOLS",
         "UTILITY_TOOLS"
     }
@@ -109,34 +110,43 @@ ObjectModule.Templates = {
 
     FARMING_TOOLS = {
         WATERING_CAN = {
-            defaults = { properties = { interaction = "use", value = 15, tool = true } },
+            defaults = { properties = { interaction = "use", value = 15, tool = "watering_can", capability = "water" } },
             variants = {
                 standard = { name = "Watering Can", description = "Used to water crops and plants" }
             }
         },
-        SOW = {
-            defaults = { properties = { interaction = "use", value = 18, tool = true } },
+        PLOW = {
+            defaults = { properties = { interaction = "use", value = 18, tool = "plow", capability = "plow" } },
             variants = {
-                standard = { name = "Sow", description = "Used to till soil for planting" }
+                standard = { name = "Plow", description = "Used to till soil for planting" }
             }
         },
         SICKLE = {
-            defaults = { properties = { interaction = "use", value = 20, tool = true } },
+            defaults = { properties = { interaction = "use", value = 20, tool = "sickle", capability = "harvest" } },
             variants = {
                 standard = { name = "Sickle", description = "Used to harvest crops efficiently" }
+            }
+        },
+    },
+
+    MINING_TOOLS = {
+        IRON_PICKAXE = {
+            defaults = { properties = { interaction = "use", value = 20, tool = "pickaxe", capability = "mine" } },
+            variants = {
+                standard = { name = "Iron Pickaxe", description = "A powerful iron pickaxe" }
             }
         }
     },
 
     SMITHING_TOOLS = {
         HAMMER = {
-            defaults = { properties = { interaction = "use", value = 25, tool = true } },
+            defaults = { properties = { interaction = "use", value = 25, tool = "hammer", capability = "smith" } },
             variants = {
                 standard = { name = "Hammer", description = "A sturdy smithing hammer" }
             }
         },
         TONGS = {
-            defaults = { properties = { interaction = "use", value = 15, tool = true } },
+            defaults = { properties = { interaction = "use", value = 15, tool = "tongs", capability = "smith" } },
             variants = {
                 standard = { name = "Tongs", description = "Used for handling hot metal in forges" }
             }
@@ -145,19 +155,19 @@ ObjectModule.Templates = {
 
     WRITING_TOOLS = {
         QUILL = {
-            defaults = { properties = { interaction = "use", value = 8, tool = true } },
+            defaults = { properties = { interaction = "use", value = 8, tool = "quill", capability = "write" } },
             variants = {
                 standard = { name = "Quill", description = "A writing implement made from a feather" }
             }
         },
         INK_BOTTLE = {
-            defaults = { properties = { interaction = "use", value = 12, tool = true } },
+            defaults = { properties = { interaction = "use", value = 12, tool = "ink_bottle", capability = "write" } },
             variants = {
                 standard = { name = "Ink Bottle", description = "A small bottle of black ink" }
             }
         },
         PARCHMENT = {
-            defaults = { properties = { interaction = "use", value = 5, tool = true } },
+            defaults = { properties = { interaction = "use", value = 5, tool = "parchment", capability = "write" } },
             variants = {
                 standard = { name = "Parchment", description = "Prepared animal skin for writing" }
             }

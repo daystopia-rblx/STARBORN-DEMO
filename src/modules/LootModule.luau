@@ -1,7 +1,7 @@
 --[[ LootModule
     @author @Daystopia
-    @version 1.0.0
-    @date 2025-04-11
+    @version 1.0.1
+    @date 2025-04-18
 ]]
 local LootModule = {}
 
@@ -116,6 +116,88 @@ LootModule.CONTAINER = {
     }
 }
 
+LootModule.NODE = {
+    OAK_TREE = {
+        low = {
+            {item = "oak_log", quantity = {1, 3}, weight = 80},
+            {item = "oak_branch", quantity = {2, 4}, weight = 15},
+            {item = "acorn", quantity = {1, 2}, weight = 5}
+        }
+    },
+    PINE_TREE = {
+        low = {
+            {item = "pine_log", quantity = {1, 3}, weight = 75},
+            {item = "pine_cone", quantity = {1, 3}, weight = 15},
+            {item = "pine_needles", quantity = {2, 4}, weight = 10}
+        }
+    },
+    BIRCH_TREE = {
+         low = {
+            {item = "birch_log", quantity = {1, 2}, weight = 80},
+            {item = "birch_bark", quantity = {1, 3}, weight = 20}
+        }
+    },
+    IRON_ORE = {
+        low = {
+            {item = "iron_ore", quantity = {1, 2}, weight = 100}
+        },
+        high = {
+            {item = "iron_ore", quantity = {2, 3}, weight = 95},
+            {item = "raw_gemstone", quantity = {1}, weight = 5}
+        }
+    },
+    COPPER_ORE = {
+        low = {
+            {item = "copper_ore", quantity = {1, 3}, weight = 100}
+        }
+    },
+    GOLD_ORE = {
+        low = {
+            {item = "gold_ore", quantity = {1, 2}, weight = 100}
+        }
+    },
+    SILVER_ORE = {
+        low = {
+            {item = "silver_ore", quantity = {1, 2}, weight = 100}
+        }
+    },
+    COTTON_PLANT = {
+        low = {
+            {item = "cotton_boll", quantity = {2, 4}, weight = 90},
+            {item = "plant_fiber", quantity = {1, 2}, weight = 10}
+        }
+    },
+    FLAX_PLANT = {
+        low = {
+            {item = "flax_fiber", quantity = {2, 4}, weight = 90},
+            {item = "flax_seeds", quantity = {1, 2}, weight = 10}
+        }
+    },
+    BERRY_BUSH = {
+        low = {
+            {item = "berries", quantity = {2, 5}, weight = 100}
+        }
+    },
+    FIRE_CRYSTAL = {
+        low = {
+            {item = "fire_crystal_shard", quantity = {1, 2}, weight = 90},
+            {item = "fire_dust", quantity = {2, 4}, weight = 10}
+        }
+    },
+    WATER_CRYSTAL = {
+        low = {
+            {item = "water_crystal_shard", quantity = {1, 2}, weight = 90},
+            {item = "water_dust", quantity = {2, 4}, weight = 10}
+        }
+    },
+    CORAL = {
+         low = {
+            {item = "coral_fragment", quantity = {1, 2}, weight = 95},
+            {item = "pearl", quantity = {1}, weight = 5}
+        }
+    }
+}
+
 function LootModule:GetTable(sourceType, sourceId, tier, variant)
     if not sourceType or not sourceId then return nil end
 
@@ -134,6 +216,11 @@ function LootModule:GetTable(sourceType, sourceId, tier, variant)
         if not containerTable then return nil end
 
         return containerTable[tier] or containerTable.low
+    elseif sourceType == "NODE" then
+        local nodeTable = self.NODE[sourceId]
+        if not nodeTable then return nil end
+
+        return nodeTable[tier] or nodeTable.low
     end
 
     return nil

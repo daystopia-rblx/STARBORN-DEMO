@@ -26,7 +26,8 @@ ObjectService.Modules = {
     "Craft",
     "Food",
     "Fish",
-    "Farm"
+    "Farm",
+    "Node"
 }
 
 --[[ Events ]]
