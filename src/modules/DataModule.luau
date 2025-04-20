@@ -111,6 +111,24 @@ DataModule.Templates = {
         }
     },
 
+    AdminData = {
+        permissions = {},
+        warnings = {},
+        muted = nil,
+        chatLogs = {},
+        history = {},
+        whitelist = {
+            enabled = false,
+            users = {},
+            roles = {}
+        },
+        blacklist = {
+            enabled = false,
+            users = {}
+        },
+        lastUpdate = 0
+    },
+
     FactionData = {
         factions = {},
         conflicts = {},
@@ -168,6 +186,17 @@ DataModule.Validation = {
             memory = "table",
             economy = "table",
             quests = "table"
+        }
+    },
+
+    AdminData = {
+        required = {"permissions", "warnings"},
+        types = {
+            permissions = "table",
+            warnings = "table",
+            muted = "table",
+            chatLogs = "table",
+            history = "table"
         }
     }
 }

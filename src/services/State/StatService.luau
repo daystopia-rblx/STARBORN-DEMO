@@ -407,7 +407,7 @@ function StatService:GetStat(target, statName, options)
         if typeof(target) ~= "Instance" then return nil end
 
         local baseValue = target:GetAttribute(statKey) or template.baseValue
-        local buffMultiplier = 1 -- No buffs for non-player-specific stats
+        local buffMultiplier = 1
 
         return baseValue * buffMultiplier
     end
