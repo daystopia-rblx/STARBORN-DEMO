@@ -55,7 +55,7 @@ AnimationModule.Assets = {
             SLIDE = { id = "rbxassetid://127776657665417", looped = false, priority = Enum.AnimationPriority.Action },
             SWING = { id = "rbxassetid://110764238186844", looped = true, priority = Enum.AnimationPriority.Action },
             CLIMB = { id = "rbxassetid://130390595288877", looped = true, priority = Enum.AnimationPriority.Action },
-            VAULT = { id = "rbxassetid://101998356719605", looped = false, priority = Enum.AnimationPriority.Action },
+            VAULT = { id = "rbxassetid://103974702055910", looped = false, priority = Enum.AnimationPriority.Action },
             AIR_DASH = { id = "rbxassetid://119303443959406", looped = false, priority = Enum.AnimationPriority.Action }
         },
 
