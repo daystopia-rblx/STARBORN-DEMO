@@ -61,30 +61,30 @@ function StatusController:CheckStatus(Humanoid: Humanoid, Info: Info): {} | bool
 end
 
 function StatusController:CheckSpecific(Humanoid: Humanoid, Info: Info, ...: string): {} | boolean
-	local Requests = {...}
-	local Results = {}
+    local Requests = {...}
+    local Results = {}
 
-	for Category, Actions in pairs(Modules.Status) do
-		for _, Action in ipairs(Actions) do
-			for _, Requested in ipairs(Requests) do
-				if Action == Requested then
-					local Specific = Humanoid[Category]:GetAttribute(Action)
-					Results[Action] = Specific
-				end
-			end
-		end
-	end
+    for Category, Actions in pairs(Modules.Status) do
+        for _, Action in ipairs(Actions) do
+            for _, Requested in ipairs(Requests) do
+                if Action == Requested then
+                    local Specific = Humanoid[Category]:GetAttribute(Action)
+                    Results[Action] = Specific
+                end
+            end
+        end
+    end
 
-	if Info.Connection then
-		for _, Value in pairs(Results) do
-			if Value ~= true then
-				return false
-			end
-		end
-		return true
-	end
+    if Info.Connection then
+    	for _, Value in pairs(Results) do
+            if Value == true then
+                return true
+            end
+        end
+        return false
+    end
 
-	return Results
+    return Results
 end
 
 function StatusController:CheckCooldowns(Humanoid: Humanoid, Info: Info, ...: string): {} | boolean
@@ -110,11 +110,11 @@ function StatusController:CheckCooldowns(Humanoid: Humanoid, Info: Info, ...: st
 
 	if Info and Info.Connection then
 		for _, Value in pairs(Results) do
-			if Value ~= true then
-				return false
+			if Value == true then
+				return true
 			end
 		end
-		return true
+		return false
 	end
 
 	return Results

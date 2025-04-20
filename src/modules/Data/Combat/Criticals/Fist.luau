@@ -1,3 +1,0 @@
-local Fist = {}
-
-return Fist

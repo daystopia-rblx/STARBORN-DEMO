@@ -19,13 +19,17 @@ local MovementController = {
 
 MovementController.Dependencies = {
     "Event",
-    "Status"
+    "Status",
+}
+
+MovementController.Modules = {
+    "Animation",
+    "Sound"
 }
 
 local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
 local Animation = require(game.ReplicatedStorage.Modules.Utility.Animation)
-local AnimationModule = require(game.ReplicatedStorage.Modules.AnimationModule)
 
 --[[ State ]]
 local Controllers
@@ -56,7 +60,7 @@ function MovementController:ToggleRun(Active: boolean)
 
 	task.spawn(function()
 		while task.wait() do
-			if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") then
+			if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking", "Critical", "Parrying", "Blocking") then
 				self:ToggleRun(false)
 				break
 			end
@@ -65,7 +69,7 @@ function MovementController:ToggleRun(Active: boolean)
 
     if not Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) and Active == true then
         Humanoid.WalkSpeed = Character:GetAttribute("SPEED") * 2
-		Animation:Play(AnimationModule.Assets.Animations.LOCOMOTION.SPRINT.id, Humanoid, 1, Enum.AnimationPriority.Action, "Run")
+		Animation:Play(Modules.Animation.Assets.Animations.LOCOMOTION.SPRINT.id, Humanoid, 1, Enum.AnimationPriority.Action, "Run")
         Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Running", {Set = true})
 
     elseif Active ~= true then
@@ -105,7 +109,7 @@ function MovementController:CancelDodge()
 	end
 
     Animation:Stop(Humanoid, "Dodge")
-	Animation:Play(AnimationModule.Assets.Animations.ROLL.CANCEL.id, Humanoid, 1, Enum.AnimationPriority.Action2, "DodgeCancel")
+	Animation:Play(Modules.Animation.Assets.Animations.ROLL.CANCEL.id, Humanoid, 1, Enum.AnimationPriority.Action3, "DodgeCancel")
 
 	task.wait(0.1)
 
@@ -128,6 +132,7 @@ function MovementController:StartDodge()
 
 	if self.Dodging or self.Cooldown then return end
 	if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) == true then return end
+	if Controllers.Status:CheckCooldowns(Humanoid, {Connection = true}, "Dodge") == true then return end
 
 	local velocity = self:getVel(HRP)
 	local dashIdentity
@@ -149,18 +154,22 @@ function MovementController:StartDodge()
 
 	self.Dodging = true
 	self.Cooldown = true
-    Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Dodging", {Set = true})
+
+	Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Dodging", {Set = true, SetTo = false, Timed = true, Time = 0.2}) 
+	Controllers.Event:FireServer("Status.Create", Humanoid, "Cooldown", "Dodge", {Set = true, SetTo = false, Timed = true, Time = 1.5})
     Controllers.Event:FireServer("Velocity.Create", Character)
 
-	local dashVelocity = Instance.new("BodyVelocity")
+	local dashVelocity = Instance.new("BodyVelocity")	
 	dashVelocity.MaxForce = Vector3.new(30000, 0, 30000)
 	dashVelocity.Parent = HRP
 	Debris:AddItem(dashVelocity, 0.35)
 
 	self.DashVelocity = dashVelocity
 
-	Animation:Play(AnimationModule.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action2, "Dodge")
+	Animation:Play(Modules.Animation.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action4, "Dodge")
 
+	local Dodge = "Dodge_"..tostring(math.random(1,3))
+	Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Dodge].id, parent = HRP, duration = 2, volume = 0.35})
     -- Play sound
 
 	local rayParams = RaycastParams.new()
@@ -193,7 +202,6 @@ function MovementController:StartDodge()
 
 	if self.Dodging then
 		task.delay(0.2, function()
-            Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Dodging", {Set = false})
 			self.Dodging = false
 			self.DashIdentity = nil
 		end)

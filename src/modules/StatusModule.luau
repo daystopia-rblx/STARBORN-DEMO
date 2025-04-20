@@ -7,7 +7,8 @@ StatusModule.Combat = {
     "Parrying",
     "Blocking",
     "Attacking",
-    "Parried"
+    "Parried",
+    "Critical"
 }
 
 StatusModule.Movement = {
@@ -24,7 +25,9 @@ StatusModule.Cooldown = {
     "Attack",
     "Aerial",
     "Lunge",
-    "Stomp"
+    "Stomp",
+    "Dodge",
+    "Critical"
 }
 
 return StatusModule

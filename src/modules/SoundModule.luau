@@ -25,22 +25,29 @@ SoundModule.Assets = {
             Dash = { id = "rbxassetid://6128977275", volume = 0.5 },
             -- Slide = { id = "rbxassetid://106761812656752", volume = 0.5 },
             Death = { id = "rbxassetid://6424574135", volume = 0.5 },
-            Dodged = { id = "rbxassetid://2239424601", volume = 0.5 },
+            Dodged = { id = "rbxassetid://6300588705", volume = 0.5 },
+            Dodge_1 = { id = "rbxassetid://87129714918446", volume = 0.5 },
+            Dodge_2 = { id = "rbxassetid://128542000862016", volume = 0.5 },
+            Dodge_3 = { id = "rbxassetid://135660444133774", volume = 0.5 },
             Stomp = { id = "rbxassetid://3784888301", volume = 0.5 },
 
             -- Weapon Sounds
-            Fist_Swing = { id = "rbxassetid://99449642314896", volume = 0.5 },
+            Critical_Indicator = { id = "rbxassetid://8649690928", volume = 0.5},
             Blade_Swing = { id = "rbxassetid://6241709963", volume = 0.5 },
             Critical_Hit = { id = "rbxassetid://13471740561", volume = 0.5 },
             Blunt = { id = "rbxassetid://5501600429", volume = 0.5 },
             Slash = { id = "rbxassetid://935843979", volume = 0.5 },
             Blocked_Hit = { id = "rbxassetid://4958429431", volume = 0.5 },
-            -- Block_Break = { id = "rbxassetid://126201620527102", volume = 0.5 },
+            Block_Break = { id = "rbxassetid://4516507682", volume = 0.5 },
             -- Feint = { id = "rbxassetid://6042053626", volume = 0.5 },
             Parry = { id = "rbxassetid://15057101114", volume = 0.5 },
-            -- Parry_1 = { id = "rbxassetid://95722991827031", volume = 0.5 },
-            -- Parry_2 = { id = "rbxassetid://132886449936911", volume = 0.5 },
-            -- Parry_3 = { id = "rbxassetid://77250810798467", volume = 0.5 },
+
+            -- Fist Sounds
+            Swing_1 = { id = "rbxassetid://100585648620385", volume = 0.5 },
+            Swing_2 = { id = "rbxassetid://102311297724844", volume = 0.5 },
+            Swing_3 = { id = "rbxassetid://78434445989096", volume = 0.5 },
+            Swing_4 = { id = "rbxassetid://137521196315412", volume = 0.5 },
+            Fist_Stomp = { id = "rbxassetid://75364604862973", volume = 0.5},
 
             -- Weather Sounds
             RainSound = { id = "", volume = 0.5 },

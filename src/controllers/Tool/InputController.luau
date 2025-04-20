@@ -67,6 +67,8 @@ function InputController:HandleInputBegan(input)
             else
                 Controllers.Event:FireServer("Combat.Unequip")
             end
+        elseif input.KeyCode == Enum.KeyCode.R then
+            Controllers.Event:FireServer("Combat.Critical")
         elseif input.KeyCode == Enum.KeyCode.Space then
             Controllers.Event:FireServer("Combat.Stomp")
         elseif input.KeyCode == Enum.KeyCode.LeftAlt then
@@ -85,7 +87,9 @@ function InputController:HandleInputBegan(input)
     elseif input.UserInputType == Enum.UserInputType.MouseButton2 then
 		if Controllers.Movement:CurrentlyDodging() then
 			Controllers.Movement:CancelDodge()
-		end
+        end
+    elseif input.UserInputType == Enum.UserInputType.MouseButton3 then
+        Controllers.Event:FireServer("Combat.Critical")
     end
 end
 
