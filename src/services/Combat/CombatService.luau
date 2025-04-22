@@ -284,7 +284,13 @@ function CombatService:Critical(Character: Model, Humanoid: Humanoid, Root: Base
     if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
     if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Critical") == true then return end
 
-    Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Critical_Indicator.id, parent = Root, duration = 4, volume = 0.75})
+    Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Critical_Indicator.id, parent = Root, duration = 5, volume = 0.75})
+
+    -- Temp stuff
+    Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.CriticalIndicator.HRP, parent = Root, duration = 5})
+    Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.CriticalIndicator.Attachment, parent = Root, duration = 5})
+    Services.Particle:CreateParticle({effectType = "LIGHT", colour = Color3.fromRGB(255, 0, 0), brightness = 3, radius = 5, parent = Root, cfPosition = Root.CFrame, duration = 4, tweenTime = 3, tweenTable = {Brightness = 0, Range = 0}})
+
 
     local WeaponCritical = require(Data.Attack.Critical.Module)
     WeaponCritical:Critical(Character, Humanoid, Root, Data)
@@ -295,7 +301,7 @@ function CombatService:Aerial(Character: Model, Humanoid: Humanoid, Root: BasePa
     if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
     if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Aerial") == true then return end
 
-    Utility.Animation:Stop(Humanoid, "Stomp")
+    Utility.Animation:Stop(Humanoid, "Stomp")   
     Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Aerial.Duration}) 
     Services.Status:CreateStatus(Humanoid, "Cooldown", "Aerial", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Cooldown})
 

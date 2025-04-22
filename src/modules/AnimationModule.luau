@@ -11,8 +11,8 @@ AnimationModule.Assets = {
         LOCOMOTION = {
             IDLE = { id = "rbxassetid://125447710881406", looped = true, priority = Enum.AnimationPriority.Core },
             IDLE_2 = { id = "rbxassetid://125447710881406", looped = true, priority = Enum.AnimationPriority.Core },
-            WALK = { id = "rbxassetid://102908195345043", looped = true, priority = Enum.AnimationPriority.Core },
-            SPRINT = { id = "rbxassetid://89163440753116", looped = true, priority = Enum.AnimationPriority.Core },
+            WALK = { id = "rbxassetid://138695488380642", looped = true, priority = Enum.AnimationPriority.Core },
+            SPRINT = { id = "rbxassetid://88422981533627", looped = true, priority = Enum.AnimationPriority.Core },
             JUMP = { id = "rbxassetid://117683847104181", looped = false, priority = Enum.AnimationPriority.Action },
             FALL = { id = "rbxassetid://95957590187070", looped = true, priority = Enum.AnimationPriority.Action },
             CROUCH_IDLE = { id = "rbxassetid://17665952892", looped = true, priority = Enum.AnimationPriority.Core },

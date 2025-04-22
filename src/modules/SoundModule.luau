@@ -47,7 +47,7 @@ SoundModule.Assets = {
             Swing_2 = { id = "rbxassetid://102311297724844", volume = 0.5 },
             Swing_3 = { id = "rbxassetid://78434445989096", volume = 0.5 },
             Swing_4 = { id = "rbxassetid://137521196315412", volume = 0.5 },
-            Fist_Stomp = { id = "rbxassetid://75364604862973", volume = 0.5},
+            Fist_Stomp = { id = "rbxassetid://113561434533124", volume = 0.5},
 
             -- Weather Sounds
             RainSound = { id = "", volume = 0.5 },
@@ -59,31 +59,36 @@ SoundModule.Assets = {
 
             -- Footstep Sounds
             Footsteps = {
-                Brick = { id = "rbxassetid://178190837", volume = 0.3 },
-                Climb = { id = "rbxassetid://145180175", volume = 0.3 },
-                Cobblestone = { id = "rbxassetid://178190837", volume = 0.3 },
-                Concrete = { id = "rbxassetid://277067660", volume = 0.3 },
-                CorrodedMetal = { id = "rbxassetid://177940974", volume = 0.3 },
-                DiamondPlate = { id = "rbxassetid://177940974", volume = 0.3 },
-                Fabric = { id = "rbxassetid://133705377", volume = 0.3 },
-                Foil = { id = "rbxassetid://178190837", volume = 0.3 },
-                ForceField = { id = "rbxassetid://329997777", volume = 0.3 },
-                Glass = { id = "rbxassetid://178190837", volume = 0.3 },
-                Granite = { id = "rbxassetid://178054124", volume = 0.3 },
-                Grass = { id = "rbxassetid://177940963", volume = 0.3 },
-                Ice = { id = "rbxassetid://178190837", volume = 0.3 },
-                Marble = { id = "rbxassetid://178190837", volume = 0.3 },
-                Metal = { id = "rbxassetid://177940974", volume = 0.3 },
-                Neon = { id = "rbxassetid://177940974", volume = 0.3 },
-                Pebble = { id = "rbxassetid://178190837", volume = 0.3 },
-                Plastic = { id = "rbxassetid://177940974", volume = 0.3 },
-                Sand = { id = "rbxassetid://212011266", volume = 0.3 },
-                Slate = { id = "rbxassetid://178054124", volume = 0.3 },
-                SmoothPlastic = { id = "rbxassetid://178190837", volume = 0.3 },
-                Snow = { id = "rbxassetid://212011266", volume = 0.3 },
-                Wood = { id = "rbxassetid://177940988", volume = 0.3 },
-                WoodPlanks = { id = "rbxassetid://211987063", volume = 0.3 },
-                Air = { id = "rbxassetid://5113213873", volume = 0.3 }
+                 -- Rock Sounds
+                Slate = {
+                    Slate_1 = { id = "rbxassetid://74474626894858", volume = 0.5 },
+                    Slate_2 = { id = "rbxassetid://75353944635768", volume = 0.5 },
+                    Slate_3 = { id = "rbxassetid://124989661719768", volume = 0.5 },
+                    Slate_4 = { id = "rbxassetid://78572928885821", volume = 0.5 },
+                },
+
+                -- Wood Sounds
+                Wood = {
+                    Wood_1 = { id = "rbxassetid://109144036561008", volume = 0.5 },
+                    Wood_2 = { id = "rbxassetid://135840855435388", volume = 0.5 },
+                    Wood_3 = { id = "rbxassetid://91792623097365", volume = 0.5 },
+                    Wood_4 = { id = "rbxassetid://132901965058520", volume = 0.5 },
+                },
+
+                WoodPlanks = {
+                    WoodPlanks_1 = { id = "rbxassetid://109144036561008", volume = 0.5 },
+                    WoodPlanks_2 = { id = "rbxassetid://135840855435388", volume = 0.5 },
+                    WoodPlanks_3 = { id = "rbxassetid://91792623097365", volume = 0.5 },
+                    WoodPlanks_4 = { id = "rbxassetid://132901965058520", volume = 0.5 },
+                },
+
+                -- Grass Sounds
+                Grass = {
+                    Grass_1 = { id = "rbxassetid://71254262451490", volume = 0.5 },
+                    Grass_2 = { id = "rbxassetid://89109150507709", volume = 0.5 },
+                    Grass_3 = { id = "rbxassetid://126121969971381", volume = 0.5 },
+                    Grass_4 = { id = "rbxassetid://139779904313432", volume = 0.5 },
+                },
             }
         }
     }

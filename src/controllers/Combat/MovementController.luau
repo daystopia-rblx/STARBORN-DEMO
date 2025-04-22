@@ -39,7 +39,70 @@ local Modules
 function MovementController:Init(controllers, modules)
     Controllers = controllers
     Modules = modules
+	self:Footsteps()
     return true
+end
+
+--[[ Footsteps ]]
+function MovementController:Footsteps()
+    local Player = Players.LocalPlayer
+    repeat task.wait() until Player.Character and Player.Character.Parent
+    local Character = Player.Character
+	local HRP = Character:WaitForChild("HumanoidRootPart")
+    local Humanoid = Character:WaitForChild("Humanoid")
+    local Animator = Humanoid:WaitForChild("Animator")
+
+    local walkConnections = {}
+    local runConnections = {}
+
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {Character}
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+	local function RunSound(stepEvent: string)
+		if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Dodging") then return end
+
+		local Floor = Humanoid.FloorMaterial.Name
+		if Floor == "Air" then return end
+
+		if Modules.Sound.Assets.Sounds.SFX.Footsteps[Floor] == nil then
+			Floor = "Slate"
+		end
+
+		local Sound = tostring(Floor.."_"..math.random(1, 4))
+		Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Footsteps[Floor][Sound].id, parent = Character[stepEvent], duration = 2, volume = 0.15})
+	end
+
+    local function handleAnimations()
+        for _, conn in pairs(walkConnections) do conn:Disconnect() end
+        for _, conn in pairs(runConnections) do conn:Disconnect() end
+
+        walkConnections = {}
+        runConnections = {}
+
+        local tracks = Animator:GetPlayingAnimationTracks()
+
+        local isRunning = Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Running")
+
+        for _, track in ipairs(tracks) do
+            if isRunning and track.Name == "Run" then
+                runConnections[track] = track.KeyframeReached:Connect(function(stepEvent)
+					RunSound(stepEvent)
+				end)
+
+            elseif not isRunning and track.Name == "WalkAnim" then
+                walkConnections[track] = track.KeyframeReached:Connect(function(stepEvent)
+					RunSound(stepEvent)
+				end)
+            end
+        end
+    end
+
+    task.spawn(function()
+        while task.wait() do
+            handleAnimations()
+        end
+    end)
 end
 
 --[[ Running ]]
@@ -87,10 +150,6 @@ function MovementController:ToggleRun(Active: boolean)
 end
 
 --[[ Dodging ]]
-function MovementController:getVel(HRP)
-	return Vector3.new(1, 0, 1) * HRP.Velocity
-end
-
 function MovementController:CurrentlyDodging()
 	return self.Dodging
 end
@@ -134,7 +193,7 @@ function MovementController:StartDodge()
 	if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) == true then return end
 	if Controllers.Status:CheckCooldowns(Humanoid, {Connection = true}, "Dodge") == true then return end
 
-	local velocity = self:getVel(HRP)
+	local velocity = Vector3.new(1, 0, 1) * HRP.Velocity
 	local dashIdentity
 
 	if velocity.Magnitude < 0.1 then
