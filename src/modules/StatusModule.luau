@@ -13,7 +13,6 @@ StatusModule.Combat = {
 
 StatusModule.Movement = {
     "Running",
-    "Dodging",
     "Dodging"
 }
 

@@ -31,7 +31,7 @@ local Utility = {
 --[[ References ]]
 local Player = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
-local PlayerGui = Player:WaitForChild("PlayerGui")
+--local PlayerGui = Player:WaitForChild("PlayerGui")
 local Alphabet = "abcdefghijklmnopqrstuvwxyz"
 
 CharacterController.Frames = {
@@ -59,7 +59,7 @@ local State = {
     CurrentSlot = nil,
     CharacterData = {},
     CurrentCreatorTab = 1,
-    GUI = PlayerGui:WaitForChild("CharacterGui"),
+    --GUI = PlayerGui:WaitForChild("CharacterGui"),
     ui = {
         container = {
             background = nil,

@@ -43,11 +43,7 @@ SoundModule.Assets = {
             Parry = { id = "rbxassetid://15057101114", volume = 0.5 },
 
             -- Fist Sounds
-            Swing_1 = { id = "rbxassetid://100585648620385", volume = 0.5 },
-            Swing_2 = { id = "rbxassetid://102311297724844", volume = 0.5 },
-            Swing_3 = { id = "rbxassetid://78434445989096", volume = 0.5 },
-            Swing_4 = { id = "rbxassetid://137521196315412", volume = 0.5 },
-            Fist_Stomp = { id = "rbxassetid://113561434533124", volume = 0.5},
+            Fist_Swing = { id = "rbxassetid://100585648620385", volume = 0.5 },
 
             -- Weather Sounds
             RainSound = { id = "", volume = 0.5 },

@@ -126,18 +126,6 @@ CombatService.Listeners = {
         self:Critical(Character, Humanoid, Root, Data)
     end,
 
-    ["Combat.Lunge"] = function(self, Player: Player)
-        local Character = Player.Character
-        local Root = Character:FindFirstChild("HumanoidRootPart")
-        local Humanoid = Character:FindFirstChild("Humanoid")
-        if not Humanoid then return end
-
-        -- Figure out how to get player Weapon from Data
-        local Data = WeaponData["Fist"]
-
-        self:Lunge(Character, Humanoid, Root, Data)
-    end,
-
     ["Combat.Stomp"] = function(self, Player: Player)
         local Character = Player.Character
         local Root = Character:FindFirstChild("HumanoidRootPart")
@@ -356,86 +344,6 @@ function CombatService:Aerial(Character: Model, Humanoid: Humanoid, Root: BasePa
         local CombatConfig = {
 			DamageType = Data.Attack.Aerial.DamageType,
 			Damage = Data.Attack.Aerial.Damage,
-		}
-
-        Hitbox:OnHit(function(Char, Hum, Rot)
-            self:Handler(Humanoid, Hum, CombatConfig)
-        end)
-
-        Hitbox:Run(0.15)
-    end
-end
-
---[[ Lunge ]]
-function CombatService:Lunge(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
-    if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
-    if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Lunge") == true then return end
-
-    Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Lunge.Duration}) 
-    Services.Status:CreateStatus(Humanoid, "Cooldown", "Lunge", {Set = true, SetTo = false, Timed = true, Time = Data.Attack.Cooldown})
-
-    local function Checker()
-        local cancelled = false
-
-        task.spawn(function()
-            while Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") do
-                if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed", "Parried") then
-                    cancelled = true
-                    Utility.Animation:Stop(Humanoid, "Lunge")
-                    break
-                end
-                task.wait()
-            end
-        end)
-
-        return function()
-            return cancelled
-        end
-    end
-
-    local Interrupted = Checker()
-
-    Utility.Animation:Play(Data.Attack.Lunge.Animation.id, Humanoid, Data.Attack.Speed * 1.35, Enum.AnimationPriority.Action4, "Lunge")
-    self:Trail(Character, Data.Attack.Lunge.Duration)
-
-    local Params = OverlapParams.new()
-	Params.FilterType = Enum.RaycastFilterType.Exclude
-	Params.FilterDescendantsInstances = {Character}
-
-    
-    local LungeVel = Instance.new("BodyVelocity")
-    LungeVel.Name = "AerialVelocity"
-    Debris:AddItem(LungeVel, 0.3)
-
-    LungeVel.P = 3e3
-    LungeVel.MaxForce = Vector3.new(50000, 50000, 50000)
-    
-    local connection
-    connection = game:GetService("RunService").Heartbeat:Connect(function()
-        if LungeVel then
-            LungeVel.Velocity = Root.CFrame.LookVector * 60
-        else
-            if connection then
-                connection:Disconnect()
-            end
-        end
-    end)
-
-    LungeVel.Parent = Root
-
-    task.wait(Data.Attack.Lunge.Windup)
-
-    if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
-        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Lunge.Swing, parent = Root, duration = 2, volume = 0.75})
-        local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Lunge.Hitbox, Params)
-        Hitbox:WeldTo(Root)
-        Hitbox:SetConfig({
-            Offset = Data.Attack.Lunge.Offset
-        })
-
-        local CombatConfig = {
-			DamageType = Data.Attack.Lunge.DamageType,
-			Damage = Data.Attack.Lunge.Damage,
 		}
 
         Hitbox:OnHit(function(Char, Hum, Rot)
@@ -683,7 +591,7 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
             -- Ai damage handle Event
 
             local prevCount = self.HitCounts[Victim] or 0
-            local newCount = (prevCount % 4) + 1
+            local newCount = (prevCount % 3) + 1
             self.HitCounts[Victim] = newCount
         
             local Pain = "PAIN_" .. tostring(newCount)

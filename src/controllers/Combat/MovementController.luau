@@ -225,7 +225,7 @@ function MovementController:StartDodge()
 
 	self.DashVelocity = dashVelocity
 
-	Animation:Play(Modules.Animation.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action4, "Dodge")
+	Animation:Play(Modules.Animation.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1.25, Enum.AnimationPriority.Action4, "Dodge")
 
 	local Dodge = "Dodge_"..tostring(math.random(1,3))
 	Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Dodge].id, parent = HRP, duration = 2, volume = 0.35})

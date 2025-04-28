@@ -14,20 +14,20 @@ StatController.Dependencies = {
 }
 
 --[[ State ]]
-local Controllers
+--[[local Controllers
 local Modules
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local HUD = PlayerGui:WaitForChild("HUD")
 
 --[[ Constants ]]
-local UPDATE_SETTINGS = {
+--[[local UPDATE_SETTINGS = {
     FILL_DURATION = 0.2,
     COOLDOWN_DURATION = 0.5
 }
 
 --[[ State ]]
-local State = {
+--[[local State = {
     ui = {
         center = {
             health = HUD.Center.Health,
@@ -60,12 +60,12 @@ for i = 1, 5 do
 end
 
 --[[ Events ]]
-StatController.Events = {
+--[[StatController.Events = {
     Update = true
 }
 
 --[[ Listeners ]]
-StatController.Listeners = {
+--[[StatController.Listeners = {
     ["Stat.Update"] = function(self, data)
         if not data or not data.stat then return end
 
@@ -137,7 +137,7 @@ StatController.Listeners = {
 }
 
 --[[ Core Functions ]]
-function StatController:Init(controllers, modules)
+--[[function StatController:Init(controllers, modules)
     Controllers = controllers
     Modules = modules
     return true
@@ -167,7 +167,7 @@ function StatController:Start()
 end
 
 --[[ UI Functions ]]
-function StatController:UpdateBar(bar, value, maxValue)
+--[[function StatController:UpdateBar(bar, value, maxValue)
     if not bar or not bar:FindFirstChild("Mask") or not bar.Mask:FindFirstChild("Fill") then return end
 
     if maxValue == 0 then maxValue = 1 end
@@ -206,7 +206,7 @@ function StatController:UpdateCooldown(indicator, duration)
 end
 
 --[[ Utility Functions ]]
-function StatController:Update(config)
+--[[function StatController:Update(config)
     local instance = config.instance
     local properties = config.properties
     local duration = config.duration or 0.3
@@ -240,9 +240,10 @@ StatController.Easing = {
 }
 
 --[[ Getters ]]
-function StatController:GetStat(statName)
+--[[function StatController:GetStat(statName)
     local stat = State.stats[statName:upper()]
     return stat and stat.value, stat and stat.maxValue
 end
 
 return StatController
+]]
