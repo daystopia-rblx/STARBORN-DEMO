@@ -377,20 +377,20 @@ function CombatService:Stomp(Character: Model, Humanoid: Humanoid, Root: BasePar
 
         Hitbox:OnHit(function(Char, Hum, Rot)
             self:Handler(Humanoid, Hum, CombatConfig)
-            self:StompAttack(Character, Humanoid, Root)
+            self:StompAttack(Character, Humanoid, Root, Char)
         end)
 
         Hitbox:Run(0.15)
     end
 end
 
-function CombatService:StompAttack(Character: Model, Humanoid: Humanoid, Root: BasePart)
+function CombatService:StompAttack(Character: Model, Humanoid: Humanoid, Root: BasePart, Victim: Model)
     if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
     if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Stomp") == true then return end
 
     Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = 0.25}) 
     Services.Status:CreateStatus(Humanoid, "Cooldown", "Stomp", {Set = true, SetTo = false, Timed = true, Time = 3})
-    Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.STOMP.id, Humanoid, 0.9, Enum.AnimationPriority.Action3, "Stomp")
+    Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.STOMP.id, Humanoid, 1.35, Enum.AnimationPriority.Action3, "Stomp")
 
 	local StompVel = Instance.new("BodyVelocity")
 	StompVel.Name = "StompVelocity"
@@ -403,6 +403,7 @@ function CombatService:StompAttack(Character: Model, Humanoid: Humanoid, Root: B
 	StompVel.Parent = Root
 
     Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Stomp.id, parent = Root, duration = 2, volume = 0.5})
+    Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.HeadStomp.Attachment, parent = Victim.Head})
 end
 
 --[[ Blocking & Parrying ]]
@@ -524,7 +525,6 @@ function CombatService:PostureCheck(Victim: Humanoid, Attacker: Humanoid, Damage
         Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.DAZE_LOOP.id, Victim, 1, Enum.AnimationPriority.Action3, "Dazed")
         Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.DAZE_START.id, Victim, 1, Enum.AnimationPriority.Action3, "DazeStart")
         Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Block_Break.id, parent = Victim.Parent.HumanoidRootPart, duration = 2, volume = 0.5})
-        Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.BlockBreak.Attachment, parent = Victim.Parent.HumanoidRootPart})
         Services.Particle:PlayParticle("Combat", "Blood", Victim.Parent.HumanoidRootPart, 10)
 
         Services.Stat:ModifyStat(Victim.Parent, "POSTURE", {
@@ -557,7 +557,8 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
 
         if Services.Status:CheckSpecific(Victim, {Connection = true}, "Dodging") == true then
             Utility.Animation:Stop(Victim, "Dodge")
-	        Utility.Animation:Play(Modules.Animation.Assets.Animations.ROLL.CANCEL.id, Victim, 1, Enum.AnimationPriority.Action4, "DodgeCancel")
+	        Utility.Animation:Play(Modules.Animation.Assets.Animations.ROLL.CANCEL.id, Victim, 1.15, Enum.AnimationPriority.Action4, "DodgeCancel")
+            Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Dodged.Attachment, parent = VICRoot, notAttachment = true})
             Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Dodged.id, parent = VICRoot, duration = 2, volume = 0.5})
             return
         end
@@ -618,7 +619,8 @@ function CombatService:DamageType(Character: Model, DamageType: string, Blocking
         if WeaponBlock == true then
             -- Find weapon model/blade, play VFX
         else
-            Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.BlockedHit.Attachment, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
+            Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Block.FistBlock.Attachment, parent = Character["Left Arm"], duration = 2, notAttachment = true})
+            Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Block.FistBlock.Attachment, parent = Character["Right Arm"], duration = 2, notAttachment = true})
             Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Blocked_Hit.id, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
         end
     else
@@ -629,7 +631,6 @@ function CombatService:DamageType(Character: Model, DamageType: string, Blocking
         end
 
         Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles[DamageType].Attachment, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
-        Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles[DamageType].Attachment.Attachment, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
         Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[DamageType].id, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
     end
 end

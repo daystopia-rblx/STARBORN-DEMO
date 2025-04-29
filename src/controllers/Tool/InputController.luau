@@ -70,7 +70,6 @@ function InputController:HandleInputBegan(input)
         elseif input.KeyCode == Enum.KeyCode.R then
             Controllers.Event:FireServer("Combat.Critical")
         elseif input.KeyCode == Enum.KeyCode.Space then
-            Controllers.Movement:StartVault()
             Controllers.Event:FireServer("Combat.Stomp")
         end
     end

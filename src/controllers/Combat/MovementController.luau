@@ -70,7 +70,7 @@ function MovementController:Footsteps()
 		end
 
 		local Sound = tostring(Floor.."_"..math.random(1, 4))
-		Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Footsteps[Floor][Sound].id, parent = Character[stepEvent], duration = 2, volume = 0.15})
+		Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Footsteps[Floor][Sound].id, parent = Character[stepEvent], duration = 2, volume = 0.5})
 	end
 
     local function handleAnimations()
@@ -168,7 +168,7 @@ function MovementController:CancelDodge()
 	end
 
     Animation:Stop(Humanoid, "Dodge")
-	Animation:Play(Modules.Animation.Assets.Animations.ROLL.CANCEL.id, Humanoid, 1, Enum.AnimationPriority.Action3, "DodgeCancel")
+	Animation:Play(Modules.Animation.Assets.Animations.ROLL.CANCEL.id, Humanoid, 1.15, Enum.AnimationPriority.Action3, "DodgeCancel")
 
 	task.wait(0.1)
 
@@ -219,16 +219,16 @@ function MovementController:StartDodge()
     Controllers.Event:FireServer("Velocity.Create", Character)
 
 	local dashVelocity = Instance.new("BodyVelocity")	
-	dashVelocity.MaxForce = Vector3.new(30000, 0, 30000)
+	dashVelocity.MaxForce = Vector3.new(30000, 30000, 30000)
 	dashVelocity.Parent = HRP
 	Debris:AddItem(dashVelocity, 0.35)
 
 	self.DashVelocity = dashVelocity
 
-	Animation:Play(Modules.Animation.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1.25, Enum.AnimationPriority.Action4, "Dodge")
+	Animation:Play(Modules.Animation.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action4, "Dodge")
 
 	local Dodge = "Dodge_"..tostring(math.random(1,3))
-	Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Dodge].id, parent = HRP, duration = 2, volume = 0.35})
+	Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Dodge].id, parent = HRP, duration = 2, volume = 0.5})
 
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -268,53 +268,6 @@ function MovementController:StartDodge()
 			self.Cooldown = false
 		end)
 	end
-end
-
---[[ Vaulting ]]
-function MovementController:StartVault()
-	local Player = game.Players.LocalPlayer
-	local Character = Player.Character
-	local Humanoid = Character.Humanoid
-	local HRP = Character.HumanoidRootPart
-
-	local Params = RaycastParams.new()
-	Params.RespectCanCollide = true
-	Params.FilterType = Enum.RaycastFilterType.Exclude
-	Params.FilterDescendantsInstances = {Character, workspace.Entities:GetDescendants(), }
-
-	if Humanoid.FloorMaterial == Enum.Material.Air then
-		return
-	end
-
-	local VaultCastHead = workspace:Raycast(Character.Head.CFrame.Position + Vector3.new(0, -0.5, -0.5), HRP.CFrame.LookVector * 5, Params)
-	local VaultCast = workspace:Raycast(HRP.CFrame.Position + Vector3.new(0, -0.5, 0), HRP.CFrame.LookVector * 4, Params)
-
-	if VaultCastHead then
-		return
-	end
-
-	if not VaultCast or not VaultCast.Instance or VaultCast.Instance.Transparency == 1 or VaultCast.Instance:IsDescendantOf(workspace.Entities) or VaultCast.Instance:IsDescendantOf(workspace.Debris) then
-		Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-		return
-	end
-
-	Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
-	VaultCast.Instance.CanCollide = false -- Might not do this
-
-	Animation:Play(Modules.Animation.Assets.Animations.SPECIAL.VAULT.id, Humanoid, 1.5, Enum.AnimationPriority.Action2, "Vault")
-	Controllers.Event:FireServer("Particle.Create", {effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Vault.Attachment, parent = HRP})
-
-	local bodyVelocity = Instance.new("BodyVelocity")
-	bodyVelocity.MaxForce = Vector3.new(100000, 100000, 100000)
-	bodyVelocity.Velocity = HRP.CFrame.LookVector * 45
-	bodyVelocity.P = 5000
-	bodyVelocity.Parent = HRP
-	Debris:AddItem(bodyVelocity, 0.2)
-
-	task.delay(0.2, function()
-		VaultCast.Instance.CanCollide = true
-		Humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
-	end)
 end
 
 return MovementController

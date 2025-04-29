@@ -19,7 +19,7 @@ WeaponData = {
         },
 
 		Attack = {
-            Speed =  0.85,
+            Speed =  1,
             Cooldown = 1.5,
             ComboMax = 4,
 
@@ -94,7 +94,7 @@ WeaponData = {
 				Module = game.ServerScriptService.Services.Combat.Criticals.Fist.FistService,
 				Duration = 1.25,
 				Windup = 0.65,
-				Speed = 1.25,
+				Speed = 1,
 				Cooldown = 5,
 
 				Damage = 16,
