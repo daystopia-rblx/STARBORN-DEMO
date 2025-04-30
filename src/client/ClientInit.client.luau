@@ -1,6 +1,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Promise = require(ReplicatedStorage.Modules.Tool.Promise)
+local KinematicCore = require(game.ReplicatedStorage.Assets.Imports.KinematicCore).Init()
 
 local StartController = require(ReplicatedStorage.Controllers.Network.StartController)
 

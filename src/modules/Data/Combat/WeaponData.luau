@@ -34,7 +34,7 @@ WeaponData = {
 					Offset = CFrame.new(0, 0, -3),
 
 					Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.SWING_1,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing.id
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
 				},
 
                 [2] = {
@@ -47,7 +47,7 @@ WeaponData = {
 					Offset = CFrame.new(0, 0, -3),
 
 					Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.SWING_2,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing.id
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing2.id
 				},
 
                 [3] = {
@@ -60,7 +60,7 @@ WeaponData = {
 					Offset = CFrame.new(0, 0, -3),
 
 					Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.SWING_3,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing.id
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing3.id
 				},
 
                 [4] = {
@@ -73,7 +73,7 @@ WeaponData = {
 					Offset = CFrame.new(0, 0, -3),
 
 					Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.SWING_4,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing.id
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
 				},
 			},
 
@@ -87,7 +87,7 @@ WeaponData = {
 				Offset = CFrame.new(0,0,-3),
 
 				Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.AERIAL,
-                Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing.id
+                Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
 			},
 
 			Critical = {
@@ -103,8 +103,8 @@ WeaponData = {
 				Offset = CFrame.new(0,0,-4),
 
 				Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.CRITICAL,
-                Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing.id,
-				--Stomp = SoundModule.Assets.Sounds.SFX.Fist_Stomp.id
+                Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id,
+				Stomp = SoundModule.Assets.Sounds.SFX.Fist_Stomp.id
 			}
 		},
 	},

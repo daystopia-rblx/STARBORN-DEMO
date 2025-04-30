@@ -107,10 +107,12 @@ CombatService.Listeners = {
         -- Figure out how to get player Weapon from Data
         local Data = WeaponData["Fist"]
 
-        if Humanoid.FloorMaterial == Enum.Material.Air then
-            self:Aerial(Character, Humanoid, Root, Data)
-        else
-            self:Attack(Character, Humanoid, Root, Data)
+        if Services.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
+            if Humanoid.FloorMaterial == Enum.Material.Air then
+                self:Aerial(Character, Humanoid, Root, Data)
+            else
+                self:Attack(Character, Humanoid, Root, Data)
+            end
         end
     end,
 
@@ -120,10 +122,13 @@ CombatService.Listeners = {
         local Humanoid = Character:FindFirstChild("Humanoid")
         if not Humanoid then return end
 
-        -- Figure out how to get player Weapon from Data
-        local Data = WeaponData["Fist"]
+        if Services.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
 
-        self:Critical(Character, Humanoid, Root, Data)
+            -- Figure out how to get player Weapon from Data
+            local Data = WeaponData["Fist"]
+
+            self:Critical(Character, Humanoid, Root, Data)
+        end
     end,
 
     ["Combat.Stomp"] = function(self, Player: Player)
@@ -247,7 +252,7 @@ function CombatService:Attack(Character: Model, Humanoid: Humanoid, Root: BasePa
     task.wait(Data.Attack.Combo[Count].Windup)
 
     if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
-        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Combo[Count].Swing, parent = Root, duration = 2, volume = 0.75})
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Combo[Count].Swing, parent = Root, duration = 2, volume = 0.5})
         local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Combo[Count].Hitbox, Params)
         Hitbox:WeldTo(Root)
         Hitbox:SetConfig({
@@ -275,7 +280,6 @@ function CombatService:Critical(Character: Model, Humanoid: Humanoid, Root: Base
     Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Critical_Indicator.id, parent = Root, duration = 5, volume = 0.75})
 
     -- Temp stuff
-    Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.CriticalIndicator.HRP, parent = Root, duration = 5})
     Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.CriticalIndicator.Attachment, parent = Root, duration = 5})
     Services.Particle:CreateParticle({effectType = "LIGHT", colour = Color3.fromRGB(255, 0, 0), brightness = 3, radius = 5, parent = Root, cfPosition = Root.CFrame, duration = 4, tweenTime = 3, tweenTable = {Brightness = 0, Range = 0}})
 
@@ -334,7 +338,7 @@ function CombatService:Aerial(Character: Model, Humanoid: Humanoid, Root: BasePa
     task.wait(Data.Attack.Aerial.Windup)
 
     if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
-        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Aerial.Swing, parent = Root, duration = 2, volume = 0.75})
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Aerial.Swing, parent = Root, duration = 2, volume = 0.5})
         local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Aerial.Hitbox, Params)
         Hitbox:WeldTo(Root)
         Hitbox:SetConfig({

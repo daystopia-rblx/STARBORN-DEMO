@@ -26,7 +26,7 @@ AnimationModule.Assets = {
             BACK = { id = "rbxassetid://134096203261668", looped = false, priority = Enum.AnimationPriority.Action },
             LEFT = { id = "rbxassetid://128164659045187", looped = false, priority = Enum.AnimationPriority.Action },
             RIGHT = { id = "rbxassetid://79415757119555", looped = false, priority = Enum.AnimationPriority.Action },
-            CANCEL = { id = "rbxassetid://81584974725045", looped = false, priority = Enum.AnimationPriority.Action }
+            CANCEL = { id = "rbxassetid://78730007511144", looped = false, priority = Enum.AnimationPriority.Action }
         },
 
         WALL = {
@@ -34,7 +34,7 @@ AnimationModule.Assets = {
             --RUN_RIGHT = { id = "rbxassetid://74903089680298", looped = true, priority = Enum.AnimationPriority.Action },
             --CLIMB = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action },
             --HOLD = { id = "rbxassetid://115086722054003", looped = true, priority = Enum.AnimationPriority.Action }
-        },
+        },  
 
         LEDGE = {
             --GRAB = { id = "rbxassetid://138462721425923", looped = false, priority = Enum.AnimationPriority.Action },
@@ -101,42 +101,22 @@ AnimationModule.Assets = {
 
         WEAPONS = {
             FIST = {
-                SWING_1 = { id = "rbxassetid://120984774960856", looped = false, priority = Enum.AnimationPriority.Action },
+                SWING_1 = { id = "rbxassetid://133569150898553", looped = false, priority = Enum.AnimationPriority.Action },
                 SWING_2 = { id = "rbxassetid://112280660000076", looped = false, priority = Enum.AnimationPriority.Action },
                 SWING_3 = { id = "rbxassetid://93286245817913", looped = false, priority = Enum.AnimationPriority.Action },
                 SWING_4 = { id = "rbxassetid://99450466658990", looped = false, priority = Enum.AnimationPriority.Action },
-                --LUNGE = { id = "rbxassetid://122164766445600", looped = false, priority = Enum.AnimationPriority.Action },
-                AERIAL = { id = "rbxassetid://123971786255680", looped = false, priority = Enum.AnimationPriority.Action },
+                AERIAL = { id = "rbxassetid://133600722655351", looped = false, priority = Enum.AnimationPriority.Action },
                 PARRY_START = { id = "rbxassetid://93991307067268", looped = false, priority = Enum.AnimationPriority.Action },
                 PARRY = { id = "rbxassetid://122805960251167", looped = false, priority = Enum.AnimationPriority.Action },
                 EQUIP = { id = "rbxassetid://0", looped = false, priority = Enum.AnimationPriority.Action },
                 UNEQUIP = { id = "rbxassetid://0", looped = false, priority = Enum.AnimationPriority.Action },
-                IDLE = { id = "rbxassetid://103846718852308", looped = true, priority = Enum.AnimationPriority.Core },
-                WALK = { id = "rbxassetid://127682659663071", looped = true, priority = Enum.AnimationPriority.Core },
+                IDLE = { id = "rbxassetid://135536264419059", looped = true, priority = Enum.AnimationPriority.Core },
+                WALK = { id = "rbxassetid://135536264419059", looped = true, priority = Enum.AnimationPriority.Core },
                 --SPRINT = { id = "rbxassetid://91170009929269", looped = true, priority = Enum.AnimationPriority.Core },
-                --RUN_ATTACK = { id = "rbxassetid://111166542519601", looped = false, priority = Enum.AnimationPriority.Action },
-                CRITICAL = { id = "rbxassetid://74083637023977", looped = false, priority = Enum.AnimationPriority.Action },
+                CRITICAL = { id = "rbxassetid://104607566914268", looped = false, priority = Enum.AnimationPriority.Action },
                 BLOCK_POSE = { id = "rbxassetid://70601470557911", looped = true, priority = Enum.AnimationPriority.Core },
                 BLOCK_IMPACT = { id = "rbxassetid://136897473293714", looped = true, priority = Enum.AnimationPriority.Core }
             },
-
-            DAGGER = {
-                --SWING_1 = { id = "rbxassetid://120146568175354", looped = false, priority = Enum.AnimationPriority.Action },
-                --SWING_2 = { id = "rbxassetid://95193900736899", looped = false, priority = Enum.AnimationPriority.Action },
-                --SWING_3 = { id = "rbxassetid://101695034489717", looped = false, priority = Enum.AnimationPriority.Action },
-               --SWING_4 = { id = "rbxassetid://123156924052689", looped = false, priority = Enum.AnimationPriority.Action },
-                --LUNGE = { id = "rbxassetid://129328009977391", looped = false, priority = Enum.AnimationPriority.Action },
-               --PARRY_START = { id = "rbxassetid://112989725494663", looped = false, priority = Enum.AnimationPriority.Action },
-                --PARRY = { id = "rbxassetid://86742188738316", looped = false, priority = Enum.AnimationPriority.Action },
-                --EQUIP = { id = "rbxassetid://93567396967679", looped = false, priority = Enum.AnimationPriority.Action },
-                --UNEQUIP = { id = "", looped = false, priority = Enum.AnimationPriority.Action },
-                --IDLE = { id = "rbxassetid://88340023034298", looped = true, priority = Enum.AnimationPriority.Core },
-                --WALK = { id = "rbxassetid://88634727417929", looped = true, priority = Enum.AnimationPriority.Core },
-                --SPRINT = { id = "rbxassetid://91170009929269", looped = true, priority = Enum.AnimationPriority.Core },
-                --RUN_ATTACK = { id = "rbxassetid://111166542519601", looped = false, priority = Enum.AnimationPriority.Action },
-                --CRITICAL = { id = "rbxassetid://81940178754669", looped = false, priority = Enum.AnimationPriority.Action },
-                --BLOCK_POSE = { id = "rbxassetid://139368084700439", looped = true, priority = Enum.AnimationPriority.Core }
-            }
         }
     }
 }

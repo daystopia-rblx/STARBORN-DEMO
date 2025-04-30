@@ -26,11 +26,11 @@ SoundModule.Assets = {
             -- Slide = { id = "rbxassetid://106761812656752", volume = 0.5 },
             --Death = { id = "rbxassetid://6424574135", volume = 0.5 },
             Dodged = { id = "rbxassetid://2239424601", volume = 0.5 },
-            Dodge_1 = { id = "rbxassetid://72799891356866", volume = 0.5 },
-            Dodge_2 = { id = "rbxassetid://94975097781798", volume = 0.5 },
-            Dodge_3 = { id = "rbxassetid://137276306998823", volume = 0.5 },
-            Dodge_4 = { id = "rbxassetid://121043909282404", volume = 0.5 },
-            Dodge_5 = { id = "rbxassetid://71516916492417", volume = 0.5 },
+            Dodge_1 = { id = "rbxassetid://106785817961018", volume = 0.5 },
+            Dodge_2 = { id = "rbxassetid://103899765053253", volume = 0.5 },
+            Dodge_3 = { id = "rbxassetid://122955001893264", volume = 0.5 },
+            Dodge_4 = { id = "rbxassetid://85072497915464", volume = 0.5 },
+            Dodge_5 = { id = "rbxassetid://98587559422210", volume = 0.5 },
             Stomp = { id = "rbxassetid://3784888301", volume = 0.5 },
 
             -- Weapon Sounds
@@ -45,7 +45,10 @@ SoundModule.Assets = {
             Parry = { id = "rbxassetid://15057101114", volume = 0.5 },
 
             -- Fist Sounds
-            Fist_Swing = { id = "rbxassetid://9114162449", volume = 0.5 },
+            Fist_Swing1 = { id = "rbxassetid://132891698914204", volume = 0.5 },
+            Fist_Swing2 = { id = "rbxassetid://128948962517421", volume = 0.5 },
+            Fist_Swing3 = { id = "rbxassetid://121177353646531", volume = 0.5 },
+            Fist_Stomp = { id = "rbxassetid://75364604862973", volume = 0.5 },
 
             -- Weather Sounds
             RainSound = { id = "", volume = 0.5 },

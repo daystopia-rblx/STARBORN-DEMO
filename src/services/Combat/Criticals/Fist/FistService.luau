@@ -91,7 +91,7 @@ function FistService:Critical(Character: Model, Humanoid: Humanoid, Root: BasePa
     task.wait(Data.Attack.Critical.Windup)
 
     if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
-        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Critical.Swing, parent = Root, duration = 2, volume = 0.75})
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Critical.Swing, parent = Root, duration = 2, volume = 0.5})
         Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Critical.Stomp, parent = Root, duration = 2, volume = 0.75})
         local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Critical.Hitbox, Params)
         Hitbox:WeldTo(Root)
