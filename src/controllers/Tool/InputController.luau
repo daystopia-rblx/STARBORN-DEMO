@@ -70,6 +70,10 @@ function InputController:HandleInputBegan(input)
         elseif input.KeyCode == Enum.KeyCode.R then
             Controllers.Event:FireServer("Combat.Critical")
         elseif input.KeyCode == Enum.KeyCode.Space then
+            --[[if Character.Humanoid.FloorMaterial == Enum.Material.Air then
+                Controllers.Movement:HoldingKey(true)
+            end]]
+
             Controllers.Event:FireServer("Combat.Stomp")
         end
     end
@@ -95,6 +99,8 @@ function InputController:HandleInputEnded(input)
             Controllers.Movement:ToggleRun(false)
         elseif input.KeyCode == Enum.KeyCode.F then
             Controllers.Event:FireServer("Combat.Parry", false)
+        elseif input.KeyCode == Enum.KeyCode.Space then
+            --Controllers.Movement:HoldingKey(false)
         end
     end
 end

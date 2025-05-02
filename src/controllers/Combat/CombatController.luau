@@ -12,7 +12,7 @@ local CombatController = {
     zoomFactor = 5,
     smoothnessValue = 0.05,
     shoulderTransition = 0,
-    shoulderTransitionSpeed = 5,
+    shoulderTransitionSpeed = 1,
     lastMovementDirection = Vector3.new(0, 0, 0),
     shoulderOffset = 4
 }
@@ -117,7 +117,7 @@ function CombatController:LockOn(target, dt)
     local backOffset = dir * self.zoomFactor
     local sideOffset = right * self.shoulderOffset * self.shoulderTransition
 
-    local camPos = playerPos + backOffset + Vector3.new(0,3.5,3) + sideOffset
+    local camPos = playerPos + backOffset + Vector3.new(0 , 5, 0) + sideOffset
     Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(camPos, targetPos), self.smoothnessValue)
 end
 

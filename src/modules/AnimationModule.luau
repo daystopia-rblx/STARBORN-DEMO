@@ -61,8 +61,8 @@ AnimationModule.Assets = {
             PAIN_3 = { id = "rbxassetid://86621762138991", looped = false, priority = Enum.AnimationPriority.Action },
             --GRIP = { id = "rbxassetid://74209689386963", looped = false, priority = Enum.AnimationPriority.Action },
             --GETTING_GRIPPED = { id = "rbxassetid://111905234290449", looped = false, priority = Enum.AnimationPriority.Action },
-            BLOCK_BROKEN = { id = "rbxassetid://82427793787504", looped = false, priority = Enum.AnimationPriority.Action },
-            BLOCK_BROKEN_IDLE = { id = "rbxassetid://89985615700651", looped = true, priority = Enum.AnimationPriority.Core }
+            BLOCK_BROKEN = { id = "rbxassetid://102439960881696", looped = false, priority = Enum.AnimationPriority.Action },
+            BLOCK_BROKEN_IDLE = { id = "rbxassetid://85349531545064", looped = true, priority = Enum.AnimationPriority.Core }
         },
 
         CARRY = {
@@ -76,11 +76,11 @@ AnimationModule.Assets = {
         },
 
         COMBAT = {
-            PARRY_1 = { id = "rbxassetid://71799584769711", looped = false, priority = Enum.AnimationPriority.Action },
-            PARRY_2 = { id = "rbxassetid://79447496088716", looped = false, priority = Enum.AnimationPriority.Action },
+            PARRY_1 = { id = "rbxassetid://128975445882117", looped = false, priority = Enum.AnimationPriority.Action },
+            PARRY_2 = { id = "rbxassetid://126572085566589", looped = false, priority = Enum.AnimationPriority.Action },
             STOMP = { id = "rbxassetid://99185047406332", looped = false, priority = Enum.AnimationPriority.Action },
-            DAZE_LOOP = { id = "rbxassetid://125662108887369", looped = false, priority = Enum.AnimationPriority.Action },
-            DAZE_START = { id = "rbxassetid://85494784562734", looped = false, priority = Enum.AnimationPriority.Action },
+            DAZE_LOOP = { id = "rbxassetid://130826805456978", looped = false, priority = Enum.AnimationPriority.Action },
+            DAZE_START = { id = "rbxassetid://111516494700640", looped = false, priority = Enum.AnimationPriority.Action },
         },
 
         EMOTES = {

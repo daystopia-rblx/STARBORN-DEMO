@@ -15,6 +15,8 @@ local MovementController = {
     Cooldown = false :: boolean,
     DashVelocity = nil :: BodyVelocity,
     DashIdentity = nil :: string,
+
+	WallRunTime = 0 :: number,
 }
 
 MovementController.Dependencies = {
@@ -29,6 +31,7 @@ MovementController.Modules = {
 
 local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
+local RunService = game:GetService("RunService")
 local Animation = require(game.ReplicatedStorage.Modules.Utility.Animation)
 
 --[[ State ]]
@@ -40,6 +43,7 @@ function MovementController:Init(controllers, modules)
     Controllers = controllers
     Modules = modules
 	self:Footsteps()
+	self:WallRun()
     return true
 end
 
@@ -121,27 +125,42 @@ function MovementController:ToggleRun(Active: boolean)
     if not Character then return end
     local Humanoid = Character:FindFirstChild("Humanoid")
 
-	task.spawn(function()
-		while task.wait() do
-			if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking", "Critical", "Parrying", "Blocking") then
-				self:ToggleRun(false)
-				break
-			end
-		end
-	end)
+    task.spawn(function()
+        while task.wait() do
+            if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking", "Critical", "Parrying", "Blocking") then
+                self:ToggleRun(false)
+                break
+            end
+        end
+    end)
 
     if not Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) and Active == true then
         Humanoid.WalkSpeed = Character:GetAttribute("SPEED") * 2
-		Animation:Play(Modules.Animation.Assets.Animations.LOCOMOTION.SPRINT.id, Humanoid, 1, Enum.AnimationPriority.Action, "Run")
+        local AnimationTrack = Animation:Play(Modules.Animation.Assets.Animations.LOCOMOTION.SPRINT.id, Humanoid, 1, Enum.AnimationPriority.Action, "Run")
         Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Running", {Set = true})
+
+        self.StateChangedConnection = Humanoid.StateChanged:Connect(function(_, newState)
+            if AnimationTrack then
+                if newState == Enum.HumanoidStateType.Freefall or newState == Enum.HumanoidStateType.Jumping then
+                    AnimationTrack:AdjustSpeed(0.25)
+                elseif newState == Enum.HumanoidStateType.Running then
+                    AnimationTrack:AdjustSpeed(1)
+                end
+            end
+        end)
 
     elseif Active ~= true then
         if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Running") then
-			self.Debounce = true
-			task.delay(0.25, function()
-				self.Debounce = false
-			end)
-		end
+            self.Debounce = true
+            task.delay(0.25, function()
+                self.Debounce = false
+            end)
+        end
+
+        if self.StateChangedConnection then
+            self.StateChangedConnection:Disconnect()
+            self.StateChangedConnection = nil
+        end
 
         Humanoid.WalkSpeed = Character:GetAttribute("SPEED")
         Animation:Stop(Humanoid, "Run")
@@ -249,7 +268,7 @@ function MovementController:StartDodge()
 		end
 		Obstructed = workspace:Raycast(HRP.Position, (dashDirection * Inverse) * 3, rayParams)
 		if not Obstructed then
-			dashVelocity.Velocity = dashDirection * ((60 * Inverse))
+			dashVelocity.Velocity = dashDirection * ((50 * Inverse))
 		end
 	until tick() - startTick >= 0.25 or Obstructed
 
@@ -269,5 +288,102 @@ function MovementController:StartDodge()
 		end)
 	end
 end
+
+--[[ Wall-running
+function MovementController:HoldingKey(Active: boolean)
+	self.WallRunKey = Active
+end
+
+function MovementController:WallRun()
+    local Player    = Players.LocalPlayer
+    local Character = Player.Character
+    if not Character then return end
+    local HRP = Character:WaitForChild("HumanoidRootPart")
+    local Humanoid = Character:WaitForChild("Humanoid")
+
+    local fadeDuration = 1.5
+    local maxDescent = 20
+
+    self.WallRunTime  = 0
+    self.Wallrunning  = false
+    self.WasWallrunning = false
+    Humanoid.AutoRotate = true
+
+    if self.WallRunBV then 
+        self.WallRunBV:Destroy() 
+        self.WallRunBV = nil
+    end
+
+    if self.WallRunConnection then
+        self.WallRunConnection:Disconnect()
+    end
+
+    self.WallRunConnection = RunService.Heartbeat:Connect(function(dt)
+        if Humanoid.FloorMaterial == Enum.Material.Air then
+            local frontParams = RaycastParams.new()
+            frontParams.FilterType = Enum.RaycastFilterType.Exclude
+            frontParams.FilterDescendantsInstances = {Character}
+
+            local frontHit = workspace:Raycast(HRP.Position, HRP.CFrame.LookVector * 2, frontParams)
+
+			if frontHit then
+                self.Wallrunning = false
+                self.WasWallrunning = false
+                Humanoid.AutoRotate = true
+                if self.WallRunBV then
+                    self.WallRunBV:Destroy()
+                    self.WallRunBV = nil
+                end
+                return
+            end
+
+            if self.WallRunKey and not frontHit then
+                local sideParams = RaycastParams.new()
+                sideParams.FilterType = Enum.RaycastFilterType.Exclude
+                sideParams.FilterDescendantsInstances = {Character, workspace.Entities:GetDescendants()}
+
+                local leftHit  = workspace:Raycast(HRP.Position, -HRP.CFrame.RightVector * 1.5, sideParams)
+                local rightHit = workspace:Raycast(HRP.Position,  HRP.CFrame.RightVector * 1.5, sideParams)
+                local hitSide  = leftHit or rightHit
+
+                if hitSide then
+                    if not self.Wallrunning then
+                        self.WallRunTime = 0
+                    else
+                        self.WallRunTime = self.WallRunTime + dt
+                    end
+                    
+                    self.Wallrunning = true
+                    Humanoid.AutoRotate = false
+
+                    local t = math.clamp((self.WallRunTime) / fadeDuration, 0, 1)
+                    local descentSpeed = maxDescent * t
+
+                    if self.WallRunBV then
+                        self.WallRunBV:Destroy()
+                    end
+
+                    self.WallRunBV = Instance.new("BodyVelocity")
+                    self.WallRunBV.MaxForce = Vector3.new(3e4, 3e4, 3e4)
+                    self.WallRunBV.Velocity = HRP.CFrame.LookVector * 40 + Vector3.new(0, -descentSpeed, 0)
+                    self.WallRunBV.Parent = HRP
+                    
+                    self.WasWallrunning = true
+                    return
+                end
+            end
+        end
+
+        if self.Wallrunning or self.WasWallrunning then
+            self.Wallrunning = false
+            self.WasWallrunning = false
+            Humanoid.AutoRotate = true
+            if self.WallRunBV then
+                self.WallRunBV:Destroy()
+                self.WallRunBV = nil
+            end
+        end
+    end)
+end]]
 
 return MovementController

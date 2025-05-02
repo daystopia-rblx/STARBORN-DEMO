@@ -529,6 +529,8 @@ function CombatService:PostureCheck(Victim: Humanoid, Attacker: Humanoid, Damage
         Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.DAZE_LOOP.id, Victim, 1, Enum.AnimationPriority.Action3, "Dazed")
         Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.DAZE_START.id, Victim, 1, Enum.AnimationPriority.Action3, "DazeStart")
         Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Block_Break.id, parent = Victim.Parent.HumanoidRootPart, duration = 2, volume = 0.5})
+        Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.BlockBroken.Attachment, parent = Victim.Parent.HumanoidRootPart})
+        Services.Particle:CreateParticle({effectType = "LIGHT", colour = Color3.fromRGB(255, 255, 131), brightness = 3, radius = 5, parent = Victim.Parent.HumanoidRootPart, cfPosition = Victim.Parent.HumanoidRootPart.CFrame, duration = 2, tweenTime = 1.5, tweenTable = {Brightness = 0, Range = 0}})
         Services.Particle:PlayParticle("Combat", "Blood", Victim.Parent.HumanoidRootPart, 10)
 
         Services.Stat:ModifyStat(Victim.Parent, "POSTURE", {
@@ -663,28 +665,63 @@ function CombatService:MovementHandler(Humanoid: Humanoid, StunType: string)
         self.OriginalSpeed[Humanoid] = origin
     end
 
-    task.spawn(function()
+    if not self.SpeedPenaltyThreads then
+        self.SpeedPenaltyThreads = {}
+    end
+    
+    if self.SpeedPenaltyThreads[Humanoid] then
+        task.cancel(self.SpeedPenaltyThreads[Humanoid])
+    end
+    
+    self.SpeedPenaltyThreads[Humanoid] = task.spawn(function()
+        local initialTime = tick()
+        
         if StunType == "Dazed" then
             Humanoid.WalkSpeed = 0
             Humanoid.JumpPower = 0
-
+            
         elseif StunType == "Stunned" then
             Humanoid.WalkSpeed = 10
             Humanoid.JumpPower = 0
-
+            
         elseif StunType == "Parried" then
             Humanoid.JumpPower = 0
         end
-
-        repeat task.wait() until not Services.Status:CheckSpecific(Humanoid, { Connection = true }, StunType)
-
+        
+        while Services.Status:CheckSpecific(Humanoid, { Connection = true }, StunType) do
+            if StunType == "Dazed" then
+                if Humanoid.WalkSpeed ~= 0 then
+                    Humanoid.WalkSpeed = 0
+                end
+                if Humanoid.JumpPower ~= 0 then
+                    Humanoid.JumpPower = 0
+                end
+                
+            elseif StunType == "Stunned" then
+                if Humanoid.WalkSpeed ~= 10 then
+                    Humanoid.WalkSpeed = 10
+                end
+                if Humanoid.JumpPower ~= 0 then
+                    Humanoid.JumpPower = 0
+                end
+                
+            elseif StunType == "Parried" then
+                if Humanoid.JumpPower ~= 0 then
+                    Humanoid.JumpPower = 0
+                end
+            end
+            
+            task.wait()
+        end
+        
         if StunType == "Dazed" or StunType == "Stunned" then
             Utility.Animation:Stop(Humanoid, StunType)
             Humanoid.WalkSpeed = origin
             self.OriginalSpeed[Humanoid] = nil
         end
-
+        
         Humanoid.JumpPower = 50
+        self.SpeedPenaltyThreads[Humanoid] = nil
     end)
 end
 
