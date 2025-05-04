@@ -6,6 +6,7 @@
 ]]
 
 local CombatController = {
+    LockOnWanted = false,
     isLockedOn = false,
     currentTarget = nil,
     originalCameraType = nil,
@@ -130,6 +131,14 @@ function CombatController:HandleMouseWheel()
     end)
 end
 
+function CombatController:SetState()
+    if self.LockOnWanted == true then
+        self.LockOnWanted = false
+    else
+        self.LockOnWanted = true
+    end
+end
+
 function CombatController:Start()
     local player = Players.LocalPlayer
     repeat task.wait() until player.Character and player.Character.Parent
@@ -141,7 +150,7 @@ function CombatController:Start()
         local Hum = char:FindFirstChild("Humanoid")
         if not Hum then return end
         local equipped = Controllers.Status:CheckSpecific(Hum,{Connection=true},"Equipped")
-        if equipped then
+        if equipped and self.LockOnWanted then
             local tgt = workspace.Entities.Attack
             self:LockOn(tgt, dt)
         elseif self.isLockedOn then

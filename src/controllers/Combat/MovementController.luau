@@ -15,8 +15,6 @@ local MovementController = {
     Cooldown = false :: boolean,
     DashVelocity = nil :: BodyVelocity,
     DashIdentity = nil :: string,
-
-	WallRunTime = 0 :: number,
 }
 
 MovementController.Dependencies = {
@@ -289,25 +287,37 @@ function MovementController:StartDodge()
 	end
 end
 
---[[ Wall-running
+--[[ Wall-running ]]
 function MovementController:HoldingKey(Active: boolean)
 	self.WallRunKey = Active
 end
 
 function MovementController:WallRun()
-    local Player    = Players.LocalPlayer
+    local Player = Players.LocalPlayer
     local Character = Player.Character
     if not Character then return end
     local HRP = Character:WaitForChild("HumanoidRootPart")
     local Humanoid = Character:WaitForChild("Humanoid")
 
-    local fadeDuration = 1.5
-    local maxDescent = 20
+    local FADE_DURATION = 1.5
+    local MAX_DESCENT = 20
+    local WALLRUN_SPEED = 40
+    local WALL_DETECTION_DISTANCE = 1.5
+    local FRONT_DETECTION_DISTANCE = 2
 
-    self.WallRunTime  = 0
-    self.Wallrunning  = false
+    self:ResetWallRunState(Humanoid)
+
+    self.WallRunConnection = RunService.Heartbeat:Connect(function(dt)
+        self:HandleWallRunLogic(dt, HRP, Humanoid, Character, FADE_DURATION, MAX_DESCENT, WALLRUN_SPEED, WALL_DETECTION_DISTANCE, FRONT_DETECTION_DISTANCE)
+    end)
+end
+
+function MovementController:ResetWallRunState(Humanoid)
+    self.WallRunTime = 0
+    self.Wallrunning = false
     self.WasWallrunning = false
     Humanoid.AutoRotate = true
+    Animation:Stop(Humanoid, "Wallrun")
 
     if self.WallRunBV then 
         self.WallRunBV:Destroy() 
@@ -317,73 +327,99 @@ function MovementController:WallRun()
     if self.WallRunConnection then
         self.WallRunConnection:Disconnect()
     end
+end
 
-    self.WallRunConnection = RunService.Heartbeat:Connect(function(dt)
-        if Humanoid.FloorMaterial == Enum.Material.Air then
-            local frontParams = RaycastParams.new()
-            frontParams.FilterType = Enum.RaycastFilterType.Exclude
-            frontParams.FilterDescendantsInstances = {Character}
-
-            local frontHit = workspace:Raycast(HRP.Position, HRP.CFrame.LookVector * 2, frontParams)
-
-			if frontHit then
-                self.Wallrunning = false
-                self.WasWallrunning = false
-                Humanoid.AutoRotate = true
-                if self.WallRunBV then
-                    self.WallRunBV:Destroy()
-                    self.WallRunBV = nil
-                end
-                return
-            end
-
-            if self.WallRunKey and not frontHit then
-                local sideParams = RaycastParams.new()
-                sideParams.FilterType = Enum.RaycastFilterType.Exclude
-                sideParams.FilterDescendantsInstances = {Character, workspace.Entities:GetDescendants()}
-
-                local leftHit  = workspace:Raycast(HRP.Position, -HRP.CFrame.RightVector * 1.5, sideParams)
-                local rightHit = workspace:Raycast(HRP.Position,  HRP.CFrame.RightVector * 1.5, sideParams)
-                local hitSide  = leftHit or rightHit
-
-                if hitSide then
-                    if not self.Wallrunning then
-                        self.WallRunTime = 0
-                    else
-                        self.WallRunTime = self.WallRunTime + dt
-                    end
-                    
-                    self.Wallrunning = true
-                    Humanoid.AutoRotate = false
-
-                    local t = math.clamp((self.WallRunTime) / fadeDuration, 0, 1)
-                    local descentSpeed = maxDescent * t
-
-                    if self.WallRunBV then
-                        self.WallRunBV:Destroy()
-                    end
-
-                    self.WallRunBV = Instance.new("BodyVelocity")
-                    self.WallRunBV.MaxForce = Vector3.new(3e4, 3e4, 3e4)
-                    self.WallRunBV.Velocity = HRP.CFrame.LookVector * 40 + Vector3.new(0, -descentSpeed, 0)
-                    self.WallRunBV.Parent = HRP
-                    
-                    self.WasWallrunning = true
-                    return
-                end
-            end
+function MovementController:HandleWallRunLogic(dt, HRP, Humanoid, Character, fadeDuration, maxDescent, wallrunSpeed, wallDetectionDistance, frontDetectionDistance)
+    if Humanoid.FloorMaterial ~= Enum.Material.Air then
+        self:StopWallRun(Humanoid)
+        return
+    end
+    
+    local frontHit = self:CheckFrontCollision(HRP, Character, frontDetectionDistance)
+    if frontHit then
+        self:StopWallRun(Humanoid)
+        return
+    end
+    
+    if self.WallRunKey and not frontHit then
+        local hitSide, sideName = self:DetectWallRunSurface(HRP, Character, wallDetectionDistance)
+        
+        if hitSide then
+            self:PerformWallRun(dt, HRP, Humanoid, fadeDuration, maxDescent, wallrunSpeed, sideName)
+            return
         end
+    end
+    
+    if self.Wallrunning or self.WasWallrunning then
+        self:StopWallRun(Humanoid)
+    end
+end
 
-        if self.Wallrunning or self.WasWallrunning then
-            self.Wallrunning = false
-            self.WasWallrunning = false
-            Humanoid.AutoRotate = true
-            if self.WallRunBV then
-                self.WallRunBV:Destroy()
-                self.WallRunBV = nil
-            end
-        end
-    end)
-end]]
+function MovementController:CheckFrontCollision(HRP, Character, distance)
+    local frontParams = RaycastParams.new()
+    frontParams.FilterType = Enum.RaycastFilterType.Exclude
+    frontParams.FilterDescendantsInstances = {Character}
+    
+    return workspace:Raycast(HRP.Position, HRP.CFrame.LookVector * distance, frontParams)
+end
+
+function MovementController:DetectWallRunSurface(HRP, Character, distance)
+    local sideParams = RaycastParams.new()
+    sideParams.FilterType = Enum.RaycastFilterType.Exclude
+    sideParams.FilterDescendantsInstances = {Character, workspace.Entities:GetDescendants()}
+
+    local RUN_LEFT  = workspace:Raycast(HRP.Position, -HRP.CFrame.RightVector * distance, sideParams)
+    local RUN_RIGHT = workspace:Raycast(HRP.Position,  HRP.CFrame.RightVector * distance, sideParams)
+
+    if RUN_LEFT then
+        return RUN_LEFT, "RUN_LEFT"
+    elseif RUN_RIGHT then
+        return RUN_RIGHT, "RUN_RIGHT"
+    end
+    
+    return nil, nil
+end
+
+function MovementController:PerformWallRun(dt, HRP, Humanoid, fadeDuration, maxDescent, wallrunSpeed, sideName)
+    if not self.Wallrunning then
+        self.WallRunTime = 0
+    else
+        self.WallRunTime = self.WallRunTime + dt
+    end
+    
+    if not self.Anim then
+        self.Anim = Animation:Play(Modules.Animation.Assets.Animations.WALL[sideName].id, Humanoid, 1, Enum.AnimationPriority.Action4, "Wallrun")
+    end
+
+    self.Wallrunning = true
+    Humanoid.AutoRotate = false
+
+    local t = math.clamp((self.WallRunTime) / fadeDuration, 0, 1)
+    local descentSpeed = maxDescent * t
+
+    if self.WallRunBV then
+        self.WallRunBV:Destroy()
+    end
+
+    self.WallRunBV = Instance.new("BodyVelocity")
+    self.WallRunBV.MaxForce = Vector3.new(3e4, 3e4, 3e4)
+    self.WallRunBV.Velocity = HRP.CFrame.LookVector * wallrunSpeed + Vector3.new(0, -descentSpeed, 0)
+    self.WallRunBV.Parent = HRP
+    
+    self.WasWallrunning = true
+end
+
+function MovementController:StopWallRun(Humanoid)
+    Animation:Stop(Humanoid, "Wallrun")
+    self.Anim = nil
+    self.Wallrunning = false
+    self.WasWallrunning = false
+    Humanoid.AutoRotate = true
+    
+    if self.WallRunBV then
+        self.WallRunBV:Destroy()
+        self.WallRunBV = nil
+    end
+end
 
 return MovementController

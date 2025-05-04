@@ -30,8 +30,8 @@ AnimationModule.Assets = {
         },
 
         WALL = {
-            --RUN_LEFT = { id = "rbxassetid://112704346655755", looped = true, priority = Enum.AnimationPriority.Action },
-            --RUN_RIGHT = { id = "rbxassetid://74903089680298", looped = true, priority = Enum.AnimationPriority.Action },
+            RUN_LEFT = { id = "rbxassetid://91804748071351", looped = true, priority = Enum.AnimationPriority.Action },
+            RUN_RIGHT = { id = "rbxassetid://86482999938703", looped = true, priority = Enum.AnimationPriority.Action },
             --CLIMB = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action },
             --HOLD = { id = "rbxassetid://115086722054003", looped = true, priority = Enum.AnimationPriority.Action }
         },  

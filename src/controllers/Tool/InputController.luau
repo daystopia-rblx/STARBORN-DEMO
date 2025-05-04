@@ -18,6 +18,8 @@ local Modules
 
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local CombatService = require(game.ReplicatedStorage.Controllers.Combat.CombatController)
+
 function InputController:Init(controllers, modules)
     Controllers = controllers
     Modules = modules
@@ -70,9 +72,9 @@ function InputController:HandleInputBegan(input)
         elseif input.KeyCode == Enum.KeyCode.R then
             Controllers.Event:FireServer("Combat.Critical")
         elseif input.KeyCode == Enum.KeyCode.Space then
-            --[[if Character.Humanoid.FloorMaterial == Enum.Material.Air then
+            if Character.Humanoid.FloorMaterial == Enum.Material.Air then
                 Controllers.Movement:HoldingKey(true)
-            end]]
+            end
 
             Controllers.Event:FireServer("Combat.Stomp")
         end
@@ -85,7 +87,7 @@ function InputController:HandleInputBegan(input)
 			Controllers.Movement:CancelDodge()
         end
     elseif input.UserInputType == Enum.UserInputType.MouseButton3 then
-        Controllers.Event:FireServer("Combat.Critical")
+        CombatService:SetState()
     end
 end
 
@@ -100,7 +102,7 @@ function InputController:HandleInputEnded(input)
         elseif input.KeyCode == Enum.KeyCode.F then
             Controllers.Event:FireServer("Combat.Parry", false)
         elseif input.KeyCode == Enum.KeyCode.Space then
-            --Controllers.Movement:HoldingKey(false)
+            Controllers.Movement:HoldingKey(false)
         end
     end
 end
