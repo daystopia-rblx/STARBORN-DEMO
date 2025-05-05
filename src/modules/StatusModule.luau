@@ -13,7 +13,11 @@ StatusModule.Combat = {
 
 StatusModule.Movement = {
     "Running",
-    "Dodging"
+    "Dodging",
+    "Wallrunning",
+    "Leaping",
+    "Hanging",
+    "Climbing"
 }
 
 StatusModule.Interaction = {
@@ -26,7 +30,8 @@ StatusModule.Cooldown = {
     "Lunge",
     "Stomp",
     "Dodge",
-    "Critical"
+    "Critical",
+    "Climb"
 }
 
 return StatusModule

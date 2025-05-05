@@ -90,6 +90,14 @@ end
 function StatusController:CheckCooldowns(Humanoid: Humanoid, Info: Info, ...: string): {} | boolean
 	local Requests = {...}
 	local Results = {}
+
+	if Info then
+		for i, value in pairs(Info) do
+			if type(value) == "string" then
+				table.insert(Requests, value)
+			end
+		end
+	end
     
     local Actions = Modules.Status.Cooldown
     if Actions then

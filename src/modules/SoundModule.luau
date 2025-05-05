@@ -98,6 +98,14 @@ SoundModule.Assets = {
                     Grass_3 = { id = "rbxassetid://140259793693469", volume = 0.5 },
                     Grass_4 = { id = "rbxassetid://122040048784334", volume = 0.5 },
                 },
+
+                -- Dirt Sounds
+                Ground = {
+                    Ground_1 = { id = "rbxassetid://137480869805041", volume = 0.5 },
+                    Ground_2 = { id = "rbxassetid://121158973354711", volume = 0.5 },
+                    Ground_3 = { id = "rbxassetid://89446832282583", volume = 0.5 },
+                    Ground_4 = { id = "rbxassetid://127070311365238", volume = 0.5 },
+                },
             }
         }
     }

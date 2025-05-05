@@ -76,6 +76,8 @@ function InputController:HandleInputBegan(input)
                 Controllers.Movement:HoldingKey(true)
             end
 
+            Controllers.Movement:Climb()
+            Controllers.Movement:DetectLedge()
             Controllers.Event:FireServer("Combat.Stomp")
         end
     end

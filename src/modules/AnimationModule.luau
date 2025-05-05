@@ -30,10 +30,13 @@ AnimationModule.Assets = {
         },
 
         WALL = {
-            RUN_LEFT = { id = "rbxassetid://91804748071351", looped = true, priority = Enum.AnimationPriority.Action },
-            RUN_RIGHT = { id = "rbxassetid://86482999938703", looped = true, priority = Enum.AnimationPriority.Action },
-            --CLIMB = { id = "rbxassetid://112322610854760", looped = true, priority = Enum.AnimationPriority.Action },
-            --HOLD = { id = "rbxassetid://115086722054003", looped = true, priority = Enum.AnimationPriority.Action }
+            RUN_LEFT = { id = "rbxassetid://111880841161882", looped = true, priority = Enum.AnimationPriority.Action },
+            RUN_RIGHT = { id = "rbxassetid://105859729136618", looped = true, priority = Enum.AnimationPriority.Action },
+            LEAP_LEFT = { id = "rbxassetid://97658678009478", looped = true, priority = Enum.AnimationPriority.Action },
+            LEAP_RIGHT = { id = "rbxassetid://105198310504846", looped = true, priority = Enum.AnimationPriority.Action },
+            CLIMB_1 = { id = "rbxassetid://77475279493591", looped = true, priority = Enum.AnimationPriority.Action },
+            CLIMB_2 = { id = "rbxassetid://113356708737813", looped = true, priority = Enum.AnimationPriority.Action },
+            HOLD = { id = "rbxassetid://112866958769405", looped = true, priority = Enum.AnimationPriority.Action }
         },  
 
         LEDGE = {
