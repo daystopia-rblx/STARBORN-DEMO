@@ -84,7 +84,7 @@ function MovementController:Footsteps()
     local Player = Players.LocalPlayer
     repeat task.wait() until Player.Character and Player.Character.Parent
     local Character = Player.Character
-	local HRP = Character:WaitForChild("HumanoidRootPart")
+    local HRP = Character:WaitForChild("HumanoidRootPart")
     local Humanoid = Character:WaitForChild("Humanoid")
     local Animator = Humanoid:WaitForChild("Animator")
 
@@ -95,18 +95,45 @@ function MovementController:Footsteps()
     local rayParams = RaycastParams.new()
     rayParams.FilterDescendantsInstances = {Character}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    
+    local lastMaterials = {
+        LeftFoot = "Slate",
+        RightFoot = "Slate"
+    }
 
-	local function PlaySurfaceSound(stepEvent: string, surfaceMaterial: string)
-		if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Dodging") then return end
+    local function GetFloorMaterial(footPart)
+        local origin = footPart.Position
+        local direction = Vector3.new(0, -1.5, 0)
+        
+        local rayResult = workspace:Raycast(origin, direction, rayParams)
+        
+        if rayResult and rayResult.Material then
+            lastMaterials[footPart.Name] = rayResult.Material.Name
+            return rayResult.Material.Name
+        else
+            return lastMaterials[footPart.Name] or "Slate"
+        end
+    end
 
-		local materialName = surfaceMaterial
-		if Modules.Sound.Assets.Sounds.SFX.Footsteps[materialName] == nil then
-			materialName = "Slate"
-		end
+    local function PlaySurfaceSound(stepEvent, footPart)
+        if Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Dodging") then return end
+        
+        local surfaceMaterial = GetFloorMaterial(footPart)
+        local materialName = surfaceMaterial
+        
+        if Modules.Sound.Assets.Sounds.SFX.Footsteps[materialName] == nil then
+            materialName = "Slate"
+        end
 
-		local Sound = tostring(materialName.."_"..math.random(1, 4))
-		Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Footsteps[materialName][Sound].id, parent = Character[stepEvent], duration = 2, volume = 0.5})
-	end
+        local Sound = tostring(materialName.."_"..math.random(1, 4))
+        Controllers.Event:FireServer("Particle.Create", {
+            effectType = "SOUND", 
+            sfx = Modules.Sound.Assets.Sounds.SFX.Footsteps[materialName][Sound].id, 
+            parent = footPart, 
+            duration = 2, 
+            volume = 0.5
+        })
+    end
 
     local function handleAnimations()
         for _, conn in pairs(walkConnections) do conn:Disconnect() end
@@ -127,17 +154,21 @@ function MovementController:Footsteps()
             if not Ledge then
                 if isRunning and not isWallRunning and track.Name == "Run" then
                     runConnections[track] = track.KeyframeReached:Connect(function(stepEvent)
-                        PlaySurfaceSound(stepEvent, Humanoid.FloorMaterial.Name)
+                        if Character:FindFirstChild(stepEvent) then
+                            PlaySurfaceSound(stepEvent, Character[stepEvent])
+                        end
                     end)
                     
                 elseif not isRunning and not isWallRunning and track.Name == "WalkAnim" then
                     walkConnections[track] = track.KeyframeReached:Connect(function(stepEvent)
-                        PlaySurfaceSound(stepEvent, Humanoid.FloorMaterial.Name)
+                        if Character:FindFirstChild(stepEvent) then
+                            PlaySurfaceSound(stepEvent, Character[stepEvent])
+                        end
                     end)
                     
                 elseif isWallRunning and track.Name == "Wallrun" then
                     wallRunConnections[track] = track.KeyframeReached:Connect(function(stepEvent)
-                        if not self.CurrentWallSide then return end
+                        if not self.CurrentWallSide or not Character:FindFirstChild(stepEvent) then return end
                         
                         local sideParams = RaycastParams.new()
                         sideParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -153,9 +184,29 @@ function MovementController:Footsteps()
                         end
                         
                         local wallHit = workspace:Raycast(HRP.Position, rayDirection * 1.5, sideParams)
+                        local materialName
+                        
                         if wallHit and wallHit.Material then
-                            PlaySurfaceSound(stepEvent, wallHit.Material.Name)
+                            materialName = wallHit.Material.Name
+                            lastMaterials[stepEvent] = materialName
+                        else
+                            materialName = lastMaterials[stepEvent] or "Slate"
                         end
+                        
+                        if Modules.Sound.Assets.Sounds.SFX.Footsteps[materialName] == nil then
+                            materialName = "Slate"
+                        end
+                        
+                        local footPart = Character[stepEvent]
+                        local Sound = tostring(materialName.."_"..math.random(1, 4))
+                        
+                        Controllers.Event:FireServer("Particle.Create", {
+                            effectType = "SOUND", 
+                            sfx = Modules.Sound.Assets.Sounds.SFX.Footsteps[materialName][Sound].id, 
+                            parent = footPart, 
+                            duration = 2, 
+                            volume = 0.5
+                        })
                     end)
                 end
             end
@@ -631,7 +682,9 @@ function MovementController:DetectLedge()
 					self.ledgePart.Transparency = 1
 
                     Animation:Stop(Humanoid, "Climb")
-					Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD.id, Humanoid, 1, Enum.AnimationPriority.Action4, "Hang")
+                    Animation:Stop(Humanoid, "Dodge")
+                    Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD_INTO.id, Humanoid, 1, Enum.AnimationPriority.Action4, "IntoHang")
+					Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD.id, Humanoid, 1, Enum.AnimationPriority.Action3, "Hang")
 					Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Hanging", {Set = true}) 
 
 					self.HangConnection = RunService.RenderStepped:Connect(function(dt)
@@ -649,6 +702,7 @@ function MovementController:DetectLedge()
 		HRP.Anchored = false
 		Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 		Animation:Stop(Humanoid, "Hang")
+        Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD_VAULT.id, Humanoid, 1, Enum.AnimationPriority.Action4, "VaultHang")
 		Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Hanging", {Set = false}) 
 
 		if self.HangConnection then
@@ -699,10 +753,13 @@ function MovementController:Climb()
         ClimbVel.Parent = HRP
         Debris:AddItem(ClimbVel, 0.2)
 
+        local Climb = "Climb_"..tostring(math.random(1,3))
+        Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Climb].id, parent = HRP, duration = 2, volume = 0.25})
+
         if self.ClimbCount == 1 then
-            Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_1.id, Humanoid, 1.5, Enum.AnimationPriority.Action4, "Climb")
+            Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_1.id, Humanoid, 1, Enum.AnimationPriority.Action3, "Climb")
 		elseif self.ClimbCount == 2 then
-            Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_2.id, Humanoid, 1.5, Enum.AnimationPriority.Action4, "Climb")
+            Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_2.id, Humanoid, 1, Enum.AnimationPriority.Action3, "Climb")
 		end
 
         if self.ClimbCount >= 2 then

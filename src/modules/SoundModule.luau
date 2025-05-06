@@ -31,6 +31,9 @@ SoundModule.Assets = {
             Dodge_3 = { id = "rbxassetid://122955001893264", volume = 0.5 },
             Dodge_4 = { id = "rbxassetid://85072497915464", volume = 0.5 },
             Dodge_5 = { id = "rbxassetid://98587559422210", volume = 0.5 },
+            Climb_1 = { id = "rbxassetid://77911002206293", volume = 0.5 },
+            Climb_2 = { id = "rbxassetid://73699223731453", volume = 0.5 },
+            Climb_3 = { id = "rbxassetid://100241525555092", volume = 0.5 },
             Stomp = { id = "rbxassetid://3784888301", volume = 0.5 },
 
             -- Weapon Sounds
