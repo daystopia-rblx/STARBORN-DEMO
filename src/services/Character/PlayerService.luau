@@ -60,7 +60,8 @@ PlayerService.Listeners = {
                 animateScript:Destroy()
             end
             ]]
-
+            
+            PlayerService:ProvideHair(player)
             PlayerService:SetupGrips(character)
 
             local animateScript = character:FindFirstChild("Animate")
@@ -104,6 +105,30 @@ function PlayerService:SetupGrips(Character)
     WeldRight.Part1 = RightGrip
     WeldRight.C0 = CFrame.new(0, -1, 0)
 end 
+
+function PlayerService:ProvideHair(Player)
+	local humanoidDescription = game.Players:GetHumanoidDescriptionFromUserId(Player.UserId)
+	if humanoidDescription then
+		for _, assetId in ipairs(humanoidDescription.HairAccessory:split(",")) do
+			local hair = game:GetService("InsertService"):LoadAsset(tonumber(assetId))
+			if hair then
+				for _, item in ipairs(hair:GetChildren()) do
+					if item:IsA("Accessory") then
+						item.Parent = Player.Character
+						local handle = item:FindFirstChild("Handle")
+						--[[if handle and handle:IsA("BasePart") then
+							local mesh = handle:FindFirstChildOfClass("SpecialMesh") or handle:FindFirstChildOfClass("Mesh")
+							if mesh then
+								mesh.VertexColor = Vector3.new(hairColor.R, hairColor.G, hairColor.B)
+							end
+							handle.Color = hairColor
+						end]]
+					end
+				end
+			end
+		end
+	end
+end
 
 function PlayerService:Init(services)
     Services = services

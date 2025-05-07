@@ -394,17 +394,15 @@ function CombatService:StompAttack(Character: Model, Humanoid: Humanoid, Root: B
 
     Services.Status:CreateStatus(Humanoid, "Combat", "Attacking", {Set = true, SetTo = false, Timed = true, Time = 0.25}) 
     Services.Status:CreateStatus(Humanoid, "Cooldown", "Stomp", {Set = true, SetTo = false, Timed = true, Time = 3})
-    Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.STOMP.id, Humanoid, 1.35, Enum.AnimationPriority.Action3, "Stomp")
+    Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.STOMP.id, Humanoid, 1.25, Enum.AnimationPriority.Action3, "Stomp")
 
 	local StompVel = Instance.new("BodyVelocity")
 	StompVel.Name = "StompVelocity"
-	Debris:AddItem(StompVel, 0.3)
-
 	StompVel.P = 3e3
 	StompVel.MaxForce = Vector3.new(30000, 30000, 30000)
 	StompVel.Velocity = (Root.CFrame.LookVector * -35) + (Root.CFrame.UpVector * 15)
-
-	StompVel.Parent = Root
+    StompVel.Parent = Root
+    Debris:AddItem(StompVel, 0.3)
 
     Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Stomp.id, parent = Root, duration = 2, volume = 0.5})
     Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.HeadStomp.Attachment, parent = Victim.Head})
@@ -569,14 +567,14 @@ function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
             return
         end
 
-        if Services.Status:CheckSpecific(Victim, {Connection = true}, "Parrying") == true then
+        if Services.Status:CheckSpecific(Victim, {Connection = true}, "Parrying") == true and not Behind then
             Services.Status:CreateStatus(Attacker, "Combat", "Parried", {Set = true, SetTo = false, Timed = true, Time = 0.75})
             self:MovementHandler(Attacker, "Parried")
             self:Parried(Victim, Attacker, Value, Info)
             return
         end
 
-        if Key == "Damage" and Value and Services.Status:CheckSpecific(Victim, {Connection = true}, "Blocking") == true then
+        if Key == "Damage" and Value and Services.Status:CheckSpecific(Victim, {Connection = true}, "Blocking") == true and not Behind then
             self:DamageType(Victim.Parent, Info.DamageType, true)
 
             local postureDamageMultiplier = Modules.Stat.Constants.COMBAT.POSTURE_DAMAGE_MULTIPLIER

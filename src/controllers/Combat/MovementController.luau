@@ -355,7 +355,7 @@ function MovementController:StartDodge()
     local state = Humanoid:GetState()
     local isAir = state == Enum.HumanoidStateType.Freefall
 
-    Animation:Play(Modules.Animation.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action4, "Dodge")
+    Animation:Play(Modules.Animation.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action3, "Dodge")
     local sfx = "Dodge_" .. tostring(math.random(1, 3))
     Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[sfx].id, parent = HRP, duration = 2, volume = 0.75})
 
@@ -522,6 +522,8 @@ function MovementController:PerformWallRun(dt, HRP, Humanoid, sideName, part)
     if self.WallRunCooldown and not self.Wallrunning then return end
     if (not self.Wallrunning) and self.WallRunCount >= 2 then return end
 
+    if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped", "Wallrunning"}}) then return end
+
     if not self.Wallrunning then
         self.WallRunCount = self.WallRunCount + 1
         self.WallRunTime = 0
@@ -589,7 +591,7 @@ function MovementController:PerformWallLeap(HRP, Humanoid, sideName)
     self:StopWallRun(Humanoid)
 
     local LeapAnim = "LEAP_"..tostring(sideName)
-    Animation:Play(Modules.Animation.Assets.Animations.WALL[LeapAnim].id, Humanoid, 1, Enum.AnimationPriority.Action3, "Leap")
+    Animation:Play(Modules.Animation.Assets.Animations.WALL[LeapAnim].id, Humanoid, 1, Enum.AnimationPriority.Action2, "Leap")
     Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Leaping", {Set = true}) 
 
     local Leap = "Dodge_"..tostring(math.random(1,3))
@@ -672,7 +674,7 @@ function MovementController:DetectLedge()
 					self.Hang = false
 
 					self.ledgePart = Instance.new("Part")
-					self.ledgePart.Parent = workspace
+					self.ledgePart.Parent = workspace.Debris
 					self.ledgePart.Anchored = true
 					self.ledgePart.Size = Vector3.one
 					self.ledgePart.CFrame = ledgeOffset + Vector3.new(0, -2, 0) + ledgeOffset.LookVector * -1
@@ -681,13 +683,12 @@ function MovementController:DetectLedge()
 					self.ledgePart.CanTouch = false
 					self.ledgePart.Transparency = 1
 
-                    Animation:Stop(Humanoid, "Climb")
-                    Animation:Stop(Humanoid, "Dodge")
                     Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD_INTO.id, Humanoid, 1, Enum.AnimationPriority.Action4, "IntoHang")
 					Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD.id, Humanoid, 1, Enum.AnimationPriority.Action3, "Hang")
 					Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Hanging", {Set = true}) 
 
 					self.HangConnection = RunService.RenderStepped:Connect(function(dt)
+                        Animation:Stop(Humanoid, "Climb")
 						HRP.Anchored = true
 						Humanoid.AutoRotate = false
 						HRP.CFrame = HRP.CFrame:Lerp(CFrame.lookAt(self.ledgePart.Position, (self.ledgePart.CFrame * CFrame.new(0, 0, -1)).Position), .25)
@@ -722,9 +723,6 @@ function MovementController:Climb()
 	local HRP = Character:WaitForChild("HumanoidRootPart")
 	local Humanoid = Character:WaitForChild("Humanoid")
 
-    if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) then return end
-    if Controllers.Status:CheckCooldowns(Humanoid, {Connection = true, "Climb"}) then return end
-
     local function WallCheck(Character, HRP)
         if not HRP then return false end
         local params = RaycastParams.new()
@@ -742,6 +740,9 @@ function MovementController:Climb()
     end
 
     if Humanoid.FloorMaterial == Enum.Material.Air and WallCheck(Character, HRP) and self.ClimbCount < 2 then
+        if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) then return end
+        if Controllers.Status:CheckCooldowns(Humanoid, {Connection = true, "Climb"}) then return end
+
 		self.ClimbCount = self.ClimbCount + 1
 		Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Climbing", {Set = true}) 
 
@@ -749,40 +750,50 @@ function MovementController:Climb()
         ClimbVel.Name = "ClimbVelocity"
         ClimbVel.P = 3e3
         ClimbVel.MaxForce = Vector3.new(50000, 50000, 50000)
-        ClimbVel.Velocity = (HRP.CFrame.UpVector * 45)
+        ClimbVel.Velocity = (HRP.CFrame.UpVector * 10)
         ClimbVel.Parent = HRP
         Debris:AddItem(ClimbVel, 0.2)
-
-        local Climb = "Climb_"..tostring(math.random(1,3))
-        Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Climb].id, parent = HRP, duration = 2, volume = 0.25})
-
+        
         if self.ClimbCount == 1 then
-            Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_1.id, Humanoid, 1, Enum.AnimationPriority.Action3, "Climb")
-		elseif self.ClimbCount == 2 then
-            Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_2.id, Humanoid, 1, Enum.AnimationPriority.Action3, "Climb")
-		end
+            Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_1.id, Humanoid, 1, Enum.AnimationPriority.Action4, "Climb")
+        elseif self.ClimbCount == 2 then
+            Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_2.id, Humanoid, 1, Enum.AnimationPriority.Action4, "Climb")
+        end
 
-        if self.ClimbCount >= 2 then
-            Controllers.Event:FireServer("Status.Create", Humanoid, "Cooldown", "Climb", {Set = true}) 
-		end
+        task.delay(0.25, function()
+            local ClimbVel = Instance.new("BodyVelocity")
+            ClimbVel.Name = "ClimbVelocity"
+            ClimbVel.P = 3e3
+            ClimbVel.MaxForce = Vector3.new(50000, 50000, 50000)
+            ClimbVel.Velocity = (HRP.CFrame.UpVector * 45)
+            ClimbVel.Parent = HRP
+            Debris:AddItem(ClimbVel, 0.2)
 
-        task.delay(0.3, function()
-            Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Climbing", {Set = false}) 
+            local Climb = "Climb_"..tostring(math.random(1,3))
+            Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Climb].id, parent = HRP, duration = 2, volume = 0.25})
 
-            local function Grounded()
-				if Humanoid.FloorMaterial ~= Enum.Material.Air then
-					self.ClimbCount = 0
-					if Controllers.Status:CheckCooldowns(Humanoid, {Connection = true, "Climb"}) then
-                        Controllers.Event:FireServer("Status.Create", Humanoid, "Cooldown", "Climb", {Set = false}) 
-					end
-					return true
-				end
-				return false
-			end
+            if self.ClimbCount >= 2 then
+                Controllers.Event:FireServer("Status.Create", Humanoid, "Cooldown", "Climb", {Set = true}) 
+            end
 
-			while not Grounded() do
-				task.wait()
-			end
+            task.delay(0.3, function()
+                Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Climbing", {Set = false}) 
+
+                local function Grounded()
+                    if Humanoid.FloorMaterial ~= Enum.Material.Air then
+                        self.ClimbCount = 0
+                        if Controllers.Status:CheckCooldowns(Humanoid, {Connection = true, "Climb"}) then
+                            Controllers.Event:FireServer("Status.Create", Humanoid, "Cooldown", "Climb", {Set = false}) 
+                        end
+                        return true
+                    end
+                    return false
+                end
+
+                while not Grounded() do
+                    task.wait()
+                end
+            end)
         end)
     end
 end
