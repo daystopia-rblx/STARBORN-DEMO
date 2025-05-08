@@ -12,6 +12,7 @@ type Info = {
 	ViewAngle: number,
 	Behavior: string,
 	Ally: string,
+	WalkSpeed: number,
 }
 
 CoreService.Dependencies = {
@@ -54,6 +55,7 @@ function CoreService.Create(Rig: Model, Info: Info)
 	self.ViewAngle = math.rad(Info.ViewAngle or 180)
 	self.Behavior = Info.Behavior or "Passive"
 	self.TrackingEndTime = 0
+	self.WalkSpeed = Info.WalkSpeed or 16
 
 	self.Humanoid:SetAttribute("Behavior", self.Behavior)
 	self.Humanoid:SetAttribute("InCombat", false)
@@ -101,7 +103,7 @@ function CoreService:ClearVisualWaypoints()
 	self.VisualWaypoints = {}
 end
 
-function CoreService:VisualizeWaypoints()
+function CoreService:VisualizeWaypoints() 
 	self:ClearVisualWaypoints()
 
 	for i, waypoint in ipairs(self.Waypoints) do
@@ -119,11 +121,39 @@ function CoreService:VisualizeWaypoints()
 end
 
 function CoreService:Run()
+	if not Services.Status:CheckStatus(self.Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) then
+        self.Humanoid.WalkSpeed = self.WalkSpeed * 2
+        local AnimationTrack = Utility.Animation:Play(Modules.Animation.Assets.Animations.LOCOMOTION.SPRINT.id, self.Humanoid, 1, Enum.AnimationPriority.Action, "Run")
+		Services.Status:CreateStatus(self.Humanoid, "Movement", "Running", {Set = true})
 
+        self.StateChangedConnection = self.Humanoid.StateChanged:Connect(function(_, newState)
+            if AnimationTrack then
+                if newState == Enum.HumanoidStateType.Freefall or newState == Enum.HumanoidStateType.Jumping then
+                    AnimationTrack:AdjustSpeed(0.25)
+                elseif newState == Enum.HumanoidStateType.Running then
+                    AnimationTrack:AdjustSpeed(1)
+                end
+            end
+        end)
+	end
 end
 
 function CoreService:RunStop()
+	if Services.Status:CheckSpecific(self.Humanoid, {Connection = true}, "Running") then
+		self.Debounce = true
+		task.delay(0.25, function()
+			self.Debounce = false
+		end)
+	end
 
+	if self.StateChangedConnection then
+		self.StateChangedConnection:Disconnect()
+		self.StateChangedConnection = nil
+	end
+
+	self.Humanoid.WalkSpeed = self.WalkSpeed
+	Utility.Animation:Stop(self.Humanoid, "Run")
+	Services.Status:CreateStatus(self.Humanoid, "Movement", "Running", {Set = false})
 end
 
 function CoreService:ViewCone(targetPosition)
@@ -464,7 +494,7 @@ function CoreService:Start()
 						if self.AiCombat then
 							local shouldAttack = Coordinator:ShouldEngage(self, target)
 							if shouldAttack then
-								self:HandleCombat(target)
+								--self:HandleCombat(target)
 							end
 						end
 					elseif distance > self.AttackRange + 1 then
