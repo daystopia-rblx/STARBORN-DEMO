@@ -238,10 +238,10 @@ StatModule.EntityProfiles = {
             "HEALTH",
             "BLOOD",
             "OXYGEN",
-            "RESONANCE",
+            "AETHER",
             "STAMINA",
             "POSTURE",
-            "RESONANCE",
+            "AETHER",
             "SPEED",
             "JUMP_POWER",
             "HUNGER",
@@ -256,7 +256,7 @@ StatModule.EntityProfiles = {
         cycles = {
             "HEALTH",
             "BLOOD",
-            "RESONANCE",
+            "AETHER",
             "STAMINA",
             "POSTURE",
             "HUNGER",
@@ -268,10 +268,10 @@ StatModule.EntityProfiles = {
     PERSON = {
         stats = {
             "HEALTH",
-            "RESONANCE",
+            "AETHER",
             "STAMINA",
             "POSTURE",
-            "RESONANCE",
+            "AETHER",
             "SPEED",
             "TRUST",
             "MEMORY",
@@ -279,7 +279,7 @@ StatModule.EntityProfiles = {
         },
         cycles = {
             "HEALTH",
-            "RESONANCE",
+            "AETHER",
             "STAMINA",
             "POSTURE",
             "TRUST",
@@ -685,13 +685,13 @@ StatModule.Templates = {
         }
     },
 
-    RESONANCE = {
+    AETHER = {
         baseValue = 100,
         minValue = 0,
         maxValue = 100,
         regen = { amount = 2, interval = 3 },
         category = "RESOURCE",
-        displayName = "Resonance",
+        displayName = "Aether",
         description = "Magical energy for abilities",
         icon = "",
         color = Color3.fromRGB(0, 0, 255),
@@ -1019,8 +1019,8 @@ StatModule.Templates = {
                 value = 1,
                 type = "MULTIPLY"
             },
-            RESONANCE = {
-                id = "RESONANCE",
+            AETHER = {
+                id = "AETHER",
                 value = 1,
                 type = "MULTIPLY"
             },
