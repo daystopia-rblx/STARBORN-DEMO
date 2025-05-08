@@ -79,6 +79,8 @@ function InputController:HandleInputBegan(input)
             Controllers.Movement:Climb()
             Controllers.Movement:DetectLedge()
             Controllers.Event:FireServer("Combat.Stomp")
+        elseif input.KeyCode == Enum.KeyCode.LeftAlt then
+            CombatService:SwitchTarget()
         end
     end
 
