@@ -2,7 +2,7 @@
     Client-side stat system with UI updates and visual feedback.
     Manages health and aether bars.
     @author @Daystopia
-    @version 1.0.3
+    @version 1.0.4
     @date 2025-05-08
 ]]
 local StatController = {}
@@ -29,7 +29,12 @@ local State = {
         health = HUD.Health,
         aether = HUD.Aether
     },
-    stats = {}
+    stats = {},
+    isInitializing = true,
+    lastUpdate = {
+        health = 100,
+        aether = 100
+    }
 }
 
 StatController.Events = {
@@ -70,6 +75,9 @@ function StatController:Init(controllers, modules)
 end
 
 function StatController:Start()
+    State.isInitializing = true
+    State.lastUpdate = {health = 100, aether = 100}
+
     if State.ui.health and State.ui.health.Fill and State.ui.health.Fill:FindFirstChild("Mask") then
         State.ui.health.Fill.Mask.AnchorPoint = Vector2.new(1, 0)
         State.ui.health.Fill.Mask.Position = UDim2.new(1, 0, 0, 0)
@@ -82,9 +90,10 @@ function StatController:Start()
         State.ui.aether.Fill.Mask.Size = UDim2.new(0, 0, 1, 0)
     end
 
-    task.delay(0.3, function()
+    task.delay(0.1, function()
         self:UpdateBar(State.ui.health, 100, 100)
         self:UpdateBar(State.ui.aether, 100, 100)
+        State.isInitializing = false
     end)
 
     return true
@@ -93,8 +102,22 @@ end
 function StatController:UpdateBar(bar, value, maxValue)
     if not bar or not bar:FindFirstChild("Fill") or not bar.Fill:FindFirstChild("Mask") then return end
 
+    local barType = (bar == State.ui.health) and "health" or "aether"
+
+    if State.isInitializing then
+        if value == 0 then
+            return
+        end
+        State.lastUpdate[barType] = value
+    else
+        if value == 0 and State.lastUpdate[barType] == 0 then
+            return
+        end
+        State.lastUpdate[barType] = value
+    end
+
     if maxValue == 0 then maxValue = 1 end
-    local fillAmount = math.clamp(value / maxValue, 0, 1)
+    local missingAmount = 1 - math.clamp(value / maxValue, 0, 1)
 
     local tweenInfo = TweenInfo.new(
         UPDATE_SETTINGS.FILL_DURATION,
@@ -105,11 +128,10 @@ function StatController:UpdateBar(bar, value, maxValue)
     local tween = TweenService:Create(
         bar.Fill.Mask,
         tweenInfo,
-        {Size = UDim2.new(fillAmount, 0, 1, 0)}
+        {Size = UDim2.new(missingAmount, 0, 1, 0)}
     )
 
     tween:Play()
-
     return tween
 end
 
