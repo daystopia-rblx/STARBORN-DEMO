@@ -189,4 +189,4 @@ function CoordinationService:GetEngagementStatus(target)
 	}
 end
 
-return CoordinationService
+return  CoordinationService.new()

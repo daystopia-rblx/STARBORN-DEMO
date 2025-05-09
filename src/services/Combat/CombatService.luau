@@ -8,6 +8,7 @@ type Info = {
 	DamageType: string,
 	CombatTags: boolean,
 	BlockBreak: boolean,
+    Ai: boolean,
 }
 
 CombatService.Dependencies = {
@@ -74,9 +75,6 @@ CombatService.Listeners = {
         local Weapon = "Fist"
         local Data = WeaponData["Fist"]
 
-        local EquipKey = string.upper(Weapon)
-	    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[EquipKey].EQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
-
         self:Equip(Humanoid, Weapon, Data)
     end,
 
@@ -90,10 +88,6 @@ CombatService.Listeners = {
         -- Figure out how to get player Weapon from Data
         local Weapon = "Fist"
         local Data = WeaponData["Fist"]
-
-        local UnequipKey = string.upper(Weapon)
-	    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[UnequipKey].UNEQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
-        Utility.Animation:Stop(Humanoid, "Idle")
 
         self:Unequip(Humanoid, Weapon, Data)
     end,
@@ -186,6 +180,9 @@ end
 
 --[[ Equipping ]]
 function CombatService:Equip(Humanoid: Humanoid, Weapon: string, Data: WeaponData)
+    local EquipKey = string.upper(Weapon)
+    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[EquipKey].EQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
+
     local IdleKey = string.upper(Weapon)
     Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[IdleKey].IDLE.id, Humanoid, 1, Enum.AnimationPriority.Idle, "Idle")
 
@@ -193,6 +190,10 @@ function CombatService:Equip(Humanoid: Humanoid, Weapon: string, Data: WeaponDat
 end
 
 function CombatService:Unequip(Humanoid: Humanoid, Weapon: string, Data: WeaponData)
+    local UnequipKey = string.upper(Weapon)
+    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[UnequipKey].UNEQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
+    Utility.Animation:Stop(Humanoid, "Idle")
+
     Services.Status:CreateStatus(Humanoid, "Combat", "Equipped", {Set = false})
 end
 
@@ -278,11 +279,8 @@ function CombatService:Critical(Character: Model, Humanoid: Humanoid, Root: Base
     if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Critical") == true then return end
 
     Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Critical_Indicator.id, parent = Root, duration = 5, volume = 0.75})
-
-    -- Temp stuff
     Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.CriticalIndicator.Attachment, parent = Root, duration = 5})
     Services.Particle:CreateParticle({effectType = "LIGHT", colour = Color3.fromRGB(255, 0, 0), brightness = 3, radius = 5, parent = Root, cfPosition = Root.CFrame, duration = 4, tweenTime = 3, tweenTable = {Brightness = 0, Range = 0}})
-
 
     local WeaponCritical = require(Data.Attack.Critical.Module)
     WeaponCritical:Critical(Character, Humanoid, Root, Data)
@@ -359,7 +357,7 @@ function CombatService:Aerial(Character: Model, Humanoid: Humanoid, Root: BasePa
 end
 
 --[[ Stomp ]]
-function CombatService:Stomp(Character: Model, Humanoid: Humanoid, Root: BasePart)
+function CombatService:Stomp(Character: Model, Humanoid: Humanoid, Root: BasePart, Info: Info)
     if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
     if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Stomp") == true then return end
 
@@ -368,10 +366,16 @@ function CombatService:Stomp(Character: Model, Humanoid: Humanoid, Root: BasePar
 	Params.FilterDescendantsInstances = {Character}
 
     if not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
+        local OffsetCF = CFrame.new(0, -3, 0)
+
+        if Info and Info.Ai == true then
+            OffsetCF = CFrame.new(0, -2, -2)
+        end
+
         local Hitbox = Services.Hitbox:Create(Root.CFrame, Vector3.new(5, 3, 5), Params)
         Hitbox:WeldTo(Root)
         Hitbox:SetConfig({
-            Offset = CFrame.new(0, -3, 0)
+            Offset = OffsetCF
         })
 
         local CombatConfig = {
@@ -413,7 +417,7 @@ function CombatService:ParryStart(Humanoid: Humanoid, Weapon: string, Data: Weap
     if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Stunned", "Parried", "Sprinting"}}) == true then return end
     if Humanoid.Health <= 0 then return end
 
-    local origin = self.OriginalSpeed[Humanoid]
+    --[[local origin = self.OriginalSpeed[Humanoid]
     if not origin then
         origin = Humanoid.Parent:GetAttribute("SPEED") or 16
         self.OriginalSpeed[Humanoid] = origin
@@ -427,7 +431,7 @@ function CombatService:ParryStart(Humanoid: Humanoid, Weapon: string, Data: Weap
                 Humanoid.WalkSpeed = origin
             end
         end
-    end)
+    end)]]
 
     Utility.Animation:Stop(Humanoid, "Pain")
 

@@ -37,6 +37,9 @@ local Modules
 
 local Debris = game:GetService("Debris")
 local PathfindingService = game:GetService("PathfindingService")
+local ChatService = game:GetService("Chat")
+local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
+local CombatService = require(game.ServerScriptService.Services.Combat.CombatService)
 local Coordinator = require(script.Parent.CoordinationService)
 
 function CoreService:Init(services, modules)
@@ -79,11 +82,13 @@ function CoreService.Create(Rig: Model, Info: Info)
 		AgentHeight = Info.Height or 4,
 		AgentRadius = Info.Radius or 4,
 		AgentCanJump = Info.Jump or false,
-		WaypointSpacing = 12,
+		WaypointSpacing = 20,
 	})
 
+	self.ClimbCount = 0
+
 	self.Weapon = Info.Weapon or "Fist"
-	self.Range = Info.Range or 50
+	self.Range = Info.Range or 100
 	self.AttackRange = Info.AttackRange or 6
 	self.PreferredDistance = self.AttackRange * 0.55
 	self.LastAttacker = nil
@@ -121,7 +126,8 @@ function CoreService:VisualizeWaypoints()
 end
 
 function CoreService:Run()
-	if not Services.Status:CheckStatus(self.Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) then
+	if not self.Running and not Services.Status:CheckStatus(self.Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) then
+		self.Running = true
         self.Humanoid.WalkSpeed = self.WalkSpeed * 2
         local AnimationTrack = Utility.Animation:Play(Modules.Animation.Assets.Animations.LOCOMOTION.SPRINT.id, self.Humanoid, 1, Enum.AnimationPriority.Action, "Run")
 		Services.Status:CreateStatus(self.Humanoid, "Movement", "Running", {Set = true})
@@ -151,6 +157,7 @@ function CoreService:RunStop()
 		self.StateChangedConnection = nil
 	end
 
+	self.Running = false
 	self.Humanoid.WalkSpeed = self.WalkSpeed
 	Utility.Animation:Stop(self.Humanoid, "Run")
 	Services.Status:CreateStatus(self.Humanoid, "Movement", "Running", {Set = false})
@@ -260,28 +267,110 @@ function CoreService:CheckLedge()
 	return false
 end
 
+function CoreService:Climb()
+    local function WallCheck(Character, HRP)
+        if not HRP then return false end
+        local params = RaycastParams.new()
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.FilterDescendantsInstances = {Character, workspace.Entities:GetDescendants()}
+        local directions = {
+            HRP.CFrame.LookVector,
+            -HRP.CFrame.RightVector,
+            HRP.CFrame.RightVector,
+            -HRP.CFrame.LookVector * 0.5
+        }
+        
+        for _, direction in ipairs(directions) do
+            local result = workspace:Raycast(HRP.Position, direction * 3, params)
+            if result and result.Instance.Transparency ~= 1 and not result.Instance:GetAttribute("NoClimb") then
+                return true
+            end
+        end
+        return false
+    end
+
+    if WallCheck(self.Character, self.HRP) and self.ClimbCount < 2 then
+        if Services.Status:CheckStatus(self.Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) then return end
+        if Services.Status:CheckCooldowns(self.Humanoid, {Connection = true, "Climb"}) then return end
+
+		self.ClimbCount = self.ClimbCount + 1
+		Services.Status:CreateStatus(self.Humanoid, "Movement", "Climbing", {Set = true})
+
+        local ClimbVel = Instance.new("BodyVelocity")
+        ClimbVel.Name = "ClimbVelocity"
+        ClimbVel.P = 3e3
+        ClimbVel.MaxForce = Vector3.new(50000, 50000, 50000)
+        ClimbVel.Velocity = (self.HRP.CFrame.UpVector * 10)
+        ClimbVel.Parent = self.HRP
+        Debris:AddItem(ClimbVel, 0.2)
+        
+        if self.ClimbCount == 1 then
+            Utility.Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_1.id, self.Humanoid, 1, Enum.AnimationPriority.Action4, "Climb")
+        elseif self.ClimbCount == 2 then
+            Utility.Animation:Play(Modules.Animation.Assets.Animations.WALL.CLIMB_2.id, self.Humanoid, 1, Enum.AnimationPriority.Action4, "Climb")
+        end
+
+        task.delay(0.25, function()
+            local ClimbVel = Instance.new("BodyVelocity")
+            ClimbVel.Name = "ClimbVelocity"
+            ClimbVel.P = 3e3
+            ClimbVel.MaxForce = Vector3.new(50000, 50000, 50000)
+            ClimbVel.Velocity = (self.HRP.CFrame.UpVector * 55)
+            ClimbVel.Parent = self.HRP
+            Debris:AddItem(ClimbVel, 0.2)
+
+            local Climb = "Climb_"..tostring(math.random(1,3))
+			Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Climb].id, parent = self.HRP, duration = 2, volume = 0.25})
+
+            if self.ClimbCount >= 2 then
+				Services.Status:CreateStatus(self.Humanoid, "Cooldown", "Climb", {Set = true})
+            end
+
+            task.delay(0.3, function()
+				Services.Status:CreateStatus(self.Humanoid, "Movement", "Climbing", {Set = false})
+
+                local function Grounded()
+                    if self.Humanoid.FloorMaterial ~= Enum.Material.Air then
+                        self.ClimbCount = 0
+                        if Services.Status:CheckCooldowns(self.Humanoid, {Connection = true, "Climb"}) then
+							Services.Status:CreateStatus(self.Humanoid, "Cooldown", "Climb", {Set = false})
+                        end
+                        return true
+                    end
+                    return false
+                end
+
+                while not Grounded() do
+                    task.wait()
+                end
+            end)
+        end)
+    end
+end
+
 function CoreService:FollowPath(destination)
 	local success, errorMessage = pcall(function()
-		self.Path:ComputeAsync(self.HumanoidRootPart.Position - Vector3.new(0, self.Character.PrimaryPart.Size.Y / 0.75, 0), destination)
+		self.Path:ComputeAsync(self.HRP.Position - Vector3.new(0, self.Character.PrimaryPart.Size.Y / 0.75, 0), destination)
 	end)
 
 	local LedgeDetected = self:CheckLedge()
 	local SlopeAngle = self:CheckSlope()
 
 	if LedgeDetected then
-		--[[if self:InitiateJumpAndClimb() then
+		if self:Climb() then
 			return
-		end]]
+		end
+
 		self.Humanoid:MoveTo(destination)
 		return
 	end
 
 	if SlopeAngle and SlopeAngle > 45 then
-		--[[if self:InitiateJumpAndClimb() then
+		if self:Climb() then
 			return
-		end]]
+		end
 
-		local DirectionTarget = (destination - self.HumanoidRootPart.Position).unit
+		local DirectionTarget = (destination - self.HRP.Position).unit
 		self.Humanoid:MoveTo(destination)
 		return
 	end
@@ -300,9 +389,9 @@ function CoreService:FollowPath(destination)
 				local nextWaypoint = self.Waypoints[self.NextWaypointIndex]
 
 				if nextWaypoint.Action == Enum.PathWaypointAction.Jump then
-					--[[if try climb then
-						return]]
-					--[[else]]if self.Humanoid.FloorMaterial.Name ~= "Air" then
+					if self:Climb() then
+						return
+					elseif self.Humanoid.FloorMaterial.Name ~= "Air" then
 						self.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 					end
 				end
@@ -321,9 +410,10 @@ function CoreService:FollowPath(destination)
 			self.Humanoid:MoveTo(self.Waypoints[self.NextWaypointIndex].Position)
 		end
 	else
-		--[[if try climb then
+		if self:Climb() then
 			return
-		end]]
+		end
+
 		self.Humanoid:MoveTo(destination)
 	end
 end
@@ -452,6 +542,54 @@ function CoreService:UpdateRotation(target)
 	end
 end
 
+function CoreService:HandleCombat(target, distance)
+	local Data = WeaponData[self.Weapon]
+	
+	local Speech = {
+		"You dare challenge me?",
+		"This won't end well for you.",
+		"I've seen stronger winds than you.",
+		"Prepare yourself!",
+		"You're no match for me!"
+	}
+
+	if not Services.Status:CheckSpecific(self.Humanoid, {Connection = true}, "Equipped") then
+		CombatService:Equip(self.Humanoid, self.Weapon, Data)
+
+		local randomIndex = math.random(1, #Speech)
+		local Message = Speech[randomIndex]
+		ChatService:Chat(self.Character.Head, Message, Enum.ChatColor.White)
+
+	elseif Services.Status:CheckSpecific(self.Humanoid, {Connection = true}, "Equipped") and distance <= self.AttackRange then
+		if Services.Status:CheckSpecific(target.Humanoid, {Connection = true}, "Attacking", "Critical") then
+			local Chance = 0.55
+			if math.random() < Chance then
+				CombatService:ParryStart(self.Humanoid, self.Weapon, Data)
+				repeat task.wait() until not Services.Status:CheckSpecific(target.Humanoid, {Connection = true}, "Attacking")
+				CombatService:ParryStop(self.Humanoid)
+				return
+			end
+		end
+
+		CombatService:Attack(self.Character, self.Humanoid, self.HRP, Data)
+
+		local Random = math.random()
+
+		if Random < 0.25 then
+			CombatService:Critical(self.Character, self.Humanoid, self.HRP, Data)
+		elseif Random < 0.40 then
+			CombatService:Stomp(self.Character, self.Humanoid, self.HRP, {Ai = true})
+
+			task.delay(0.55, function()
+				repeat task.wait() until not Services.Status:CheckSpecific(self.Humanoid, {Connection = true}, "Attacking")
+				if self.Humanoid.FloorMaterial ~= Enum.Material.Air then return end
+				CombatService:Aerial(self.Character, self.Humanoid, self.HRP, Data)
+			end)
+		end
+	end
+end
+
+
 function CoreService:Start()
 	task.spawn(function()
 		while task.wait() do
@@ -484,19 +622,13 @@ function CoreService:Start()
 					self.TrackingEndTime = tick() + 30
 				end
 
-				local distance = (self.HumanoidRootPart.Position - target.HumanoidRootPart.Position).Magnitude 
+				local distance = (self.HRP.Position - target.HumanoidRootPart.Position).Magnitude 
 
 				if Coordinator:ShouldEngage(self, target) then
-					if distance > self.Range then return end
-
-					if distance <= self.AttackRange then -- Error!!!!
+					self:HandleCombat(target, distance)
+					
+					if distance <= self.AttackRange then
 						self:RunStop()
-						if self.AiCombat then
-							local shouldAttack = Coordinator:ShouldEngage(self, target)
-							if shouldAttack then
-								--self:HandleCombat(target)
-							end
-						end
 					elseif distance > self.AttackRange + 1 then
 						local targetPosition = self:CalculateTargetPosition(target.HumanoidRootPart.Position)
 						self:FollowPath(targetPosition)
@@ -505,7 +637,7 @@ function CoreService:Start()
 				else
 					local waitPos = Coordinator:GetWaitPosition(self, target)
 					if waitPos then
-						local distanceToWaitPos = (self.HumanoidRootPart.Position - waitPos).Magnitude
+						local distanceToWaitPos = (self.HRP.Position - waitPos).Magnitude
 						if distanceToWaitPos > 5 then
 							self:FollowPath(waitPos)
 							if distanceToWaitPos > self.AttackRange * 2 then
@@ -514,7 +646,7 @@ function CoreService:Start()
 								self:RunStop()
 							end
 						else
-							self.Humanoid:MoveTo(self.HumanoidRootPart.Position)
+							self.Humanoid:MoveTo(self.HRP.Position)
 							self:RunStop()
 						end
 					end
