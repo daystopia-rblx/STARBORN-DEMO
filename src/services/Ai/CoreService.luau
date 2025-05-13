@@ -252,7 +252,7 @@ end
 
 function CoreService:CheckLedge()
 	local RayOrigin = self.HRP.Position
-	local RayDirection = Vector3.new(0, -1, 0) * 4
+	local RayDirection = Vector3.new(0, -1, 0) * 10
 
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterDescendantsInstances = {self.Character}
@@ -672,6 +672,7 @@ function CoreService:Start()
 						Coordinator:RemoveFromEngagement(self, self.currentTarget)
 					end
 				end
+				Coordinator:RemoveFromAllEngagements(self)
 				self:RunStop()
 			end
 		end
