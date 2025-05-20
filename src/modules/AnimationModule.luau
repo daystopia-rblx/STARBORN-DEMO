@@ -122,6 +122,10 @@ AnimationModule.Assets = {
                 BLOCK_POSE = { id = "rbxassetid://70601470557911", looped = true, priority = Enum.AnimationPriority.Core },
                 BLOCK_IMPACT = { id = "rbxassetid://136897473293714", looped = true, priority = Enum.AnimationPriority.Core }
             },
+
+            SPEAR = {
+                IDLE = { id = "rbxassetid://77561783677444", looped = true, priority = Enum.AnimationPriority.Core },
+            },
         }
     }
 }

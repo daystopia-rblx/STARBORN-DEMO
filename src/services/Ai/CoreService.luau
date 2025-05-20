@@ -554,7 +554,7 @@ function CoreService:HandleCombat(target, distance)
 	}
 
 	if not Services.Status:CheckSpecific(self.Humanoid, {Connection = true}, "Equipped") then
-		CombatService:Equip(self.Humanoid, self.Weapon, Data)
+		CombatService:Equip(self.Character, self.Humanoid, self.Weapon, Data)
 
 		local randomIndex = math.random(1, #Speech)
 		local Message = Speech[randomIndex]

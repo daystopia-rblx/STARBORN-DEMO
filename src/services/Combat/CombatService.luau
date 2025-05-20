@@ -17,7 +17,9 @@ CombatService.Dependencies = {
     "Status",
     "Stat",
     "Hitbox",
-    "Particle"
+    "Particle",
+    "Data",
+    "Weapon"
 }
 
 CombatService.Modules = {
@@ -71,11 +73,10 @@ CombatService.Listeners = {
 
         if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped"}}) == true then return end
 
-        -- Figure out how to get player Weapon from Data
-        local Weapon = "Fist"
-        local Data = WeaponData["Fist"]
+        local Weapon = Services.Data:GetData(Player.UserId, "PlayerData").inventory.weapon.type
+        local Data = WeaponData[Weapon]
 
-        self:Equip(Humanoid, Weapon, Data)
+        self:Equip(Character, Humanoid, Weapon, Data)
     end,
 
     ["Combat.Unequip"] = function(self, Player: Player)
@@ -85,11 +86,10 @@ CombatService.Listeners = {
 
         if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped"}}) == true then return end
 
-        -- Figure out how to get player Weapon from Data
-        local Weapon = "Fist"
-        local Data = WeaponData["Fist"]
+        local Weapon = Services.Data:GetData(Player.UserId, "PlayerData").inventory.weapon.type
+        local Data = WeaponData[Weapon]
 
-        self:Unequip(Humanoid, Weapon, Data)
+        self:Unequip(Character, Humanoid, Weapon, Data)
     end,
 
     ["Combat.Attack"] = function(self, Player: Player)
@@ -98,8 +98,8 @@ CombatService.Listeners = {
         local Humanoid = Character:FindFirstChild("Humanoid")
         if not Humanoid then return end
 
-        -- Figure out how to get player Weapon from Data
-        local Data = WeaponData["Fist"]
+        local Weapon = Services.Data:GetData(Player.UserId, "PlayerData").inventory.weapon.type
+        local Data = WeaponData[Weapon]
 
         if Services.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
             if Humanoid.FloorMaterial == Enum.Material.Air then
@@ -118,8 +118,8 @@ CombatService.Listeners = {
 
         if Services.Status:CheckSpecific(Character.Humanoid, {Connection = true}, "Equipped") then
 
-            -- Figure out how to get player Weapon from Data
-            local Data = WeaponData["Fist"]
+        local Weapon = Services.Data:GetData(Player.UserId, "PlayerData").inventory.weapon.type
+        local Data = WeaponData[Weapon]
 
             self:Critical(Character, Humanoid, Root, Data)
         end
@@ -145,13 +145,11 @@ CombatService.Listeners = {
         end
         
         if Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Equipped") then
-            -- Figure out how to get player Weapon from Data
-            local Weapon = "Fist"
-            local Data = WeaponData["Fist"]
+            local Weapon = Services.Data:GetData(Player.UserId, "PlayerData").inventory.weapon.type
+            local Data = WeaponData[Weapon]
 
             self:ParryStart(Humanoid, Weapon, Data)
         else
-            -- Default to fist parrying (so you can parry without equipping)
             local Weapon = "Fist"
             local Data = WeaponData["Fist"]
 
@@ -179,21 +177,22 @@ function CombatService:Trail(Character, Duration)
 end
 
 --[[ Equipping ]]
-function CombatService:Equip(Humanoid: Humanoid, Weapon: string, Data: WeaponData)
-    local EquipKey = string.upper(Weapon)
-    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[EquipKey].EQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
+function CombatService:Equip(Character: Model, Humanoid: Humanoid, Weapon: string, Data: WeaponData)
+    if not Data then Data = WeaponData["Fist"] end
+    Utility.Animation:Play(Data.General.Equip.Equip, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
+    Utility.Animation:Play(Data.General.Equip.Idle, Humanoid, 1, Enum.AnimationPriority.Idle, "Idle")
 
-    local IdleKey = string.upper(Weapon)
-    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[IdleKey].IDLE.id, Humanoid, 1, Enum.AnimationPriority.Idle, "Idle")
-
+    Services.Weapon:EquipStart(Character, Humanoid, Data)
     Services.Status:CreateStatus(Humanoid, "Combat", "Equipped", {Set = true})
 end
 
-function CombatService:Unequip(Humanoid: Humanoid, Weapon: string, Data: WeaponData)
-    local UnequipKey = string.upper(Weapon)
-    Utility.Animation:Play(Modules.Animation.Assets.Animations.WEAPONS[UnequipKey].UNEQUIP.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
+function CombatService:Unequip(Character: Model, Humanoid: Humanoid, Weapon: string, Data: WeaponData)
+    if not Data then Data = WeaponData["Fist"] end
+    Utility.Animation:Play(Data.General.Equip.Unequip, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
     Utility.Animation:Stop(Humanoid, "Idle")
 
+
+    Services.Weapon:UnequipStart(Character, Humanoid, Data)
     Services.Status:CreateStatus(Humanoid, "Combat", "Equipped", {Set = false})
 end
 

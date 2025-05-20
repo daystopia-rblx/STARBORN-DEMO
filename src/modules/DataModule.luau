@@ -79,6 +79,12 @@ DataModule.Templates = {
             multipliers = {}
         },
 
+        inventory = {
+            weapon = {
+                type = "Fist",
+            },
+        },
+
         quests = {
             active = {},
             completed = {},
@@ -174,7 +180,7 @@ DataModule.Templates = {
 
 DataModule.Validation = {
     PlayerData = {
-        required = {"stats", "skills", "equipment", "progress", "settings", "world", "relationships", "memory", "economy", "quests"},
+        required = {"stats", "skills", "equipment", "progress", "settings", "world", "relationships", "memory", "economy", "quests", "inventory"},
         types = {
             stats = "table",
             skills = "table",
@@ -185,7 +191,8 @@ DataModule.Validation = {
             relationships = "table",
             memory = "table",
             economy = "table",
-            quests = "table"
+            quests = "table",
+            inventory = "table",
         }
     },
 
