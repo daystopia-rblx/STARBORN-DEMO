@@ -117,27 +117,27 @@ WeaponData = {
 
 	["Spear"] = {
 		General = {
-			WeaponBlock = false,
+			WeaponBlock = true,
 
 			Parry = {
-				ParryStart = AnimationModule.Assets.Animations.WEAPONS.FIST.PARRY_START,
-				ParryImpact = AnimationModule.Assets.Animations.WEAPONS.FIST.PARRY
+				ParryStart = AnimationModule.Assets.Animations.WEAPONS.SPEAR.PARRY_START,
+				ParryImpact = AnimationModule.Assets.Animations.WEAPONS.SPEAR.PARRY
 			},
 
 			Block = {
-				BlockHold = AnimationModule.Assets.Animations.WEAPONS.FIST.BLOCK_POSE,
-				BlockImpact = AnimationModule.Assets.Animations.WEAPONS.FIST.BLOCK_IMPACT
+				BlockHold = AnimationModule.Assets.Animations.WEAPONS.SPEAR.BLOCK_POSE,
+				BlockImpact = AnimationModule.Assets.Animations.WEAPONS.SPEAR.BLOCK_IMPACT
 			},
 
 			Equip = {
-				Equip = AnimationModule.Assets.Animations.WEAPONS.FIST.EQUIP.id,
-				Unequip = AnimationModule.Assets.Animations.WEAPONS.FIST.UNEQUIP.id,
+				Equip = AnimationModule.Assets.Animations.WEAPONS.SPEAR.EQUIP.id,
+				Unequip = AnimationModule.Assets.Animations.WEAPONS.SPEAR.UNEQUIP.id,
 				Idle = AnimationModule.Assets.Animations.WEAPONS.SPEAR.IDLE.id
 			},
 
 			Model = {
 				Right = {
-					Weapon = game.ReplicatedStorage.Assets.Weapons.TestSpear.TestSpear,
+					Weapon = game.ReplicatedStorage.Assets.Weapons.Unique.TestSpear,
 					Parent = "Torso",
 					Position = Vector3.new(0.5, 0.25, 0.5),
 					Orientation = Vector3.new(-25, 90, 0)
@@ -146,7 +146,7 @@ WeaponData = {
         },
 
 		Attack = {
-            Speed =  1,
+            Speed =  0.9,
             Cooldown = 1.5,
             ComboMax = 4,
 
@@ -157,81 +157,81 @@ WeaponData = {
 
 					Damage = 8,
 					DamageType = "Slash",
-					Hitbox = Vector3.new(5, 6, 5),
-					Offset = CFrame.new(0, 0, -3),
+					Hitbox = Vector3.new(5, 5, 10),
+					Offset = CFrame.new(0, 0, -5),
 
-					Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.SWING_1,
+					Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.SWING_1,
                     Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
 				},
 
                 [2] = {
-                    Windup = 0.3,
+                    Windup = 0.35,
                     Duration = 0.45,
                     
 					Damage = 8,
 					DamageType = "Slash",
-					Hitbox = Vector3.new(5, 6, 5),
-					Offset = CFrame.new(0, 0, -3),
+					Hitbox = Vector3.new(5, 5, 10),
+					Offset = CFrame.new(0, 0, -5),
 
-					Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.SWING_2,
+					Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.SWING_2,
                     Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing2.id
 				},
 
                 [3] = {
                     Windup = 0.3,
-                    Duration = 0.55,
-                    
-					Damage = 8,
-					DamageType = "Slash",
-					Hitbox = Vector3.new(5, 6, 5),
-					Offset = CFrame.new(0, 0, -3),
-
-					Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.SWING_3,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing3.id
-				},
-
-                [4] = {
-                    Windup = 0.25,
                     Duration = 0.45,
                     
 					Damage = 8,
 					DamageType = "Slash",
-					Hitbox = Vector3.new(5, 6, 5),
-					Offset = CFrame.new(0, 0, -3),
+					Hitbox = Vector3.new(5, 5, 9),
+					Offset = CFrame.new(0, 0, -5),
 
-					Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.SWING_4,
+					Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.SWING_3,
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing3.id
+				},
+
+                [4] = {
+                    Windup = 0.3,
+                    Duration = 0.45,
+                    
+					Damage = 8,
+					DamageType = "Slash",
+					Hitbox = Vector3.new(5, 5, 10),
+					Offset = CFrame.new(0, 0, -5),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.SWING_4,
                     Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
 				},
 			},
 
             Aerial = {
-				Windup = 0.225,
+				Windup = 0.3,
 				Duration = 0.35,
 
 				Damage = 8,
 				DamageType = "Slash",
-				Hitbox = Vector3.new(5, 6, 5),
-				Offset = CFrame.new(0,0,-3),
+				Hitbox = Vector3.new(5, 5, 11),
+				Offset = CFrame.new(0,0,-5),
 
-				Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.AERIAL,
+				Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.AERIAL,
                 Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
 			},
 
 			Critical = {
-				Module = game.ServerScriptService.Services.Combat.Criticals.Fist.FistService,
+				Module = game.ServerScriptService.Services.Combat.Criticals.Spear.SpearService,
 				Duration = 1.25,
-				Windup = 0.65,
-				Speed = 1,
-				Cooldown = 5,
+				Windup = 0.55,
+				Speed = 0.95,
+				Cooldown = 6,
 
 				Damage = 16,
 				DamageType = "Slash",
-				Hitbox = Vector3.new(5, 6, 6),
-				Offset = CFrame.new(0,0,-4),
+				Hitbox = Vector3.new(11, 5, 9),
+				Offset = CFrame.new(0,0,-5),
 
-				Animation = AnimationModule.Assets.Animations.WEAPONS.FIST.CRITICAL,
+				Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.CRITICAL,
                 Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id,
-				Stomp = SoundModule.Assets.Sounds.SFX.Fist_Stomp.id
+				--Stomp = SoundModule.Assets.Sounds.SFX.Fist_Stomp.id
 			}
 		},
 	},

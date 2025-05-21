@@ -146,13 +146,11 @@ function MovementController:Footsteps()
 
         local tracks = Animator:GetPlayingAnimationTracks()
 
-        local Ledge = Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Hanging")
         local isRunning = Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Running")
         local isWallRunning = Controllers.Status:CheckSpecific(Humanoid, {Connection = true}, "Wallrunning")
 
         for _, track in ipairs(tracks) do
-            if not Ledge then
-                if isRunning and not isWallRunning and track.Name == "Run" then
+            if isRunning and not isWallRunning and track.Name == "Run" then
                     runConnections[track] = track.KeyframeReached:Connect(function(stepEvent)
                         if Character:FindFirstChild(stepEvent) then
                             PlaySurfaceSound(stepEvent, Character[stepEvent])
@@ -209,7 +207,6 @@ function MovementController:Footsteps()
                         })
                     end)
                 end
-            end
         end
     end
 
@@ -644,7 +641,7 @@ function MovementController:DetectLedge()
 	local HRP = Character:WaitForChild("HumanoidRootPart")
 	local Humanoid = Character:WaitForChild("Humanoid")
 
-    if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped", "Hanging"}}) then return end
+    if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) then return end
 
 	local rayParams = RaycastParams.new()
 	rayParams.FilterType = Enum.RaycastFilterType.Exclude
@@ -659,61 +656,7 @@ function MovementController:DetectLedge()
 		end
 	end
 
-	if self.Hang and Humanoid:GetState() == Enum.HumanoidStateType.Freefall then
-		local hangCheck = workspace:Raycast(HRP.CFrame.Position, HRP.CFrame.LookVector * 5, rayParams)
-
-		if hangCheck and hangCheck.Instance and not hangCheck.Instance:GetAttribute("NoClimb") then
-			local localPos = hangCheck.Instance.CFrame:PointToObjectSpace(hangCheck.Position)
-			local localLedgePos = Vector3.new(localPos.X, hangCheck.Instance.Size.Y/2, localPos.Z)
-			local ledgePos = hangCheck.Instance.CFrame:PointToWorldSpace(localLedgePos)
-			local ledgeOffset = CFrame.lookAt(ledgePos, ledgePos - hangCheck.Normal)
-
-			local magnitude = (ledgePos - Character.Head.Position).Magnitude
-			if magnitude < 4 then
-				if Check(ledgeOffset) then
-					self.Hang = false
-
-					self.ledgePart = Instance.new("Part")
-					self.ledgePart.Parent = workspace.Debris
-					self.ledgePart.Anchored = true
-					self.ledgePart.Size = Vector3.one
-					self.ledgePart.CFrame = ledgeOffset + Vector3.new(0, -2, 0) + ledgeOffset.LookVector * -1
-					self.ledgePart.CanQuery = false
-					self.ledgePart.CanCollide = false
-					self.ledgePart.CanTouch = false
-					self.ledgePart.Transparency = 1
-
-                    Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD_INTO.id, Humanoid, 1, Enum.AnimationPriority.Action4, "IntoHang")
-					Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD.id, Humanoid, 1, Enum.AnimationPriority.Action3, "Hang")
-					Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Hanging", {Set = true}) 
-
-					self.HangConnection = RunService.RenderStepped:Connect(function(dt)
-                        Animation:Stop(Humanoid, "Climb")
-						HRP.Anchored = true
-						Humanoid.AutoRotate = false
-						HRP.CFrame = HRP.CFrame:Lerp(CFrame.lookAt(self.ledgePart.Position, (self.ledgePart.CFrame * CFrame.new(0, 0, -1)).Position), .25)
-						Humanoid:ChangeState(Enum.HumanoidStateType.Seated)
-					end)
-				end
-			end
-		end
-	elseif not self.Hang then
-		self.Hang = true
-		Humanoid.AutoRotate = true
-		HRP.Anchored = false
-		Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-		Animation:Stop(Humanoid, "Hang")
-        Animation:Play(Modules.Animation.Assets.Animations.WALL.HOLD_VAULT.id, Humanoid, 1, Enum.AnimationPriority.Action4, "VaultHang")
-		Controllers.Event:FireServer("Status.Create", Humanoid, "Movement", "Hanging", {Set = false}) 
-
-		if self.HangConnection then
-			self.HangConnection:Disconnect()
-		end
-
-		if self.ledgePart then
-			self.ledgePart:Destroy()
-		end
-	end
+	-- rad backflip instead
 end
 
 function MovementController:Climb()

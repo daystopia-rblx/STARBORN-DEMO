@@ -16,7 +16,6 @@ StatusModule.Movement = {
     "Dodging",
     "Wallrunning",
     "Leaping",
-    "Hanging",
     "Climbing"
 }
 

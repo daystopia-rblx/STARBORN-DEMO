@@ -42,6 +42,7 @@ local Services
 local Modules
 
 local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
+local Players = game:GetService("Players")
 local Debris = game:GetService("Debris")
 
 CombatService.Listeners = {
@@ -364,17 +365,11 @@ function CombatService:Stomp(Character: Model, Humanoid: Humanoid, Root: BasePar
 	Params.FilterType = Enum.RaycastFilterType.Exclude
 	Params.FilterDescendantsInstances = {Character}
 
-    if not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
-        local OffsetCF = CFrame.new(0, -3, 0)
-
-        if Info and Info.Ai == true then
-            OffsetCF = CFrame.new(0, -2, -2)
-        end
-
+    if not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") and Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Equipped")then
         local Hitbox = Services.Hitbox:Create(Root.CFrame, Vector3.new(5, 3, 5), Params)
         Hitbox:WeldTo(Root)
         Hitbox:SetConfig({
-            Offset = OffsetCF
+            Offset = CFrame.new(0, -2, -2)
         })
 
         local CombatConfig = {
@@ -496,8 +491,8 @@ end
 function CombatService:Parried(Victim: Humanoid, Attacker: Humanoid, Value: number, Info: Info)
     if not Victim or not Attacker then return end
 
-	local ATKWeapon = WeaponData["Fist"] -- Create get humanoid weapon data func
-	local VICWeapon = WeaponData["Fist"] -- Create get humanoid weapon data func
+	local ATKWeapon = self:GetWeapon(Attacker)
+	local VICWeapon = self:GetWeapon(Victim)
 
     Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Parry.Attachment, parent = Victim.Parent.HumanoidRootPart, position = Vector3.new(0, 0, -2)})
     Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Parry.id, parent = Victim.Parent.HumanoidRootPart, duration = 2, volume = 0.5})
@@ -547,6 +542,20 @@ function CombatService:PostureCheck(Victim: Humanoid, Attacker: Humanoid, Damage
 end
 
 --[[ Handler ]]
+function CombatService:GetWeapon(Humanoid: Humanoid)
+    local player = Players:GetPlayerFromCharacter(Humanoid.Parent)
+    local WeaponType
+
+    if player then
+        local Data = Services.Data:GetData(player.UserId, "PlayerData")
+        WeaponType = Data.inventory.weapon.type
+    else
+        WeaponType = "Fist"
+    end
+
+    return WeaponData[WeaponType]
+end
+
 function CombatService:Handler(Attacker: Humanoid, Victim: Humanoid, Info: Info)
     if not Attacker or not Victim or not Info then return end
 
@@ -618,13 +627,18 @@ end
 function CombatService:DamageType(Character: Model, DamageType: string, Blocking: boolean)
     if Blocking == true then
 
-        local VICWeapon = WeaponData["Fist"] -- Create get humanoid weapon data func
-        local WeaponBlock = VICWeapon.General.WeaponBlock -- For now blocking will appear from arms, will next time reference WeaponData
+        local VICWeapon = self:GetWeapon(Character.Humanoid)
+        local WeaponBlock = VICWeapon.General.WeaponBlock
 
         Utility.Animation:Play(VICWeapon.General.Block.BlockImpact.id, Character.Humanoid, 1, Enum.AnimationPriority.Action3, "BlockImpact")
 
         if WeaponBlock == true then
-            -- Find weapon model/blade, play VFX
+            for _, WeaponPart in pairs(Character:GetDescendants()) do
+                if WeaponPart:GetAttribute("Weapon") == true then
+                    Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Block.WeaponBlock.Attachment, parent = WeaponPart, duration = 2, notAttachment = true})
+                end
+            end
+            Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Blocked_Hit.id, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
         else
             Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Block.FistBlock.Attachment, parent = Character["Left Arm"], duration = 2, notAttachment = true})
             Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Block.FistBlock.Attachment, parent = Character["Right Arm"], duration = 2, notAttachment = true})

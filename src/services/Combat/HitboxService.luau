@@ -89,9 +89,9 @@ function HitboxService:Create(cf: CFrame, size: Vector3, params: RaycastParams, 
 			self.Config[key] = value
 		end
 		
-		--[[if RunService:IsStudio() then
+		if RunService:IsStudio() then
 			self.Part.Transparency = 0.5
-		end]]
+		end
 	end
 
 	return Hitbox

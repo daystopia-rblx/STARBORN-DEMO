@@ -194,15 +194,15 @@ local function UpdateAtmosphere(condition: WeatherCondition)
     atmosphere.Name = "Atmosphere"
     atmosphere.Parent = Lighting
 
-    local density = 0.3
-    local haze = 0.1
-    local color = Color3.fromRGB(255, 255, 255)
-    local decay = Color3.fromRGB(90, 90, 90)
-    local glare = 0
+    local density = 0.45
+    local haze = 1.5
+    local color = Color3.fromRGB(255, 252, 239)
+    local decay = Color3.fromRGB(219, 238, 255)
+    local glare = 0.25
 
     local intensity = condition.intensity
 
-    if condition.type == WeatherService.CONSTANTS.TYPES.CLEAR or condition.type == WeatherService.CONSTANTS.TYPES.SUNNY then
+    --[[if condition.type == WeatherService.CONSTANTS.TYPES.CLEAR or condition.type == WeatherService.CONSTANTS.TYPES.SUNNY then
         density = lerp(0.3, 0.1, intensity)
         haze = lerp(0.1, 0.0, intensity)
         glare = lerp(0, 0.3, intensity)
@@ -271,7 +271,7 @@ local function UpdateAtmosphere(condition: WeatherCondition)
         color = Color3.fromRGB(180, 220, 255):Lerp(Color3.fromRGB(150, 200, 255), intensity)
         decay = Color3.fromRGB(100, 150, 180):Lerp(Color3.fromRGB(80, 130, 170), intensity)
         glare = lerp(0.1, 0.3, intensity)
-    end
+    end]]
 
     atmosphere.Density = density
     atmosphere.Haze = haze
