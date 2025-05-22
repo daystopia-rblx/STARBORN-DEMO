@@ -59,6 +59,12 @@ AnimationModule.Assets = {
         },
 
         WEAPONS = {
+            EQUIP = {
+                EQUIP_1 = { id = "rbxassetid://73737387634684", looped = false, priority = Enum.AnimationPriority.Action },
+                EQUIP_2 = { id = "rbxassetid://118276883179050", looped = false, priority = Enum.AnimationPriority.Action },
+                UNEQUIP = { id = "rbxassetid://136867849127982", looped = false, priority = Enum.AnimationPriority.Action },
+            },
+
             FIST = {
                 SWING_1 = { id = "rbxassetid://133569150898553", looped = false, priority = Enum.AnimationPriority.Action },
                 SWING_2 = { id = "rbxassetid://112280660000076", looped = false, priority = Enum.AnimationPriority.Action },

@@ -5,6 +5,7 @@ local AnimationModule = require(game.ReplicatedStorage.Modules.AnimationModule)
 WeaponData = {
 	["Fist"] = {
 		General = {
+			Fist = true,
 			WeaponBlock = false,
 
 			Parry = {
@@ -130,8 +131,10 @@ WeaponData = {
 			},
 
 			Equip = {
-				Equip = AnimationModule.Assets.Animations.WEAPONS.SPEAR.EQUIP.id,
-				Unequip = AnimationModule.Assets.Animations.WEAPONS.SPEAR.UNEQUIP.id,
+				Summon = true,
+				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
+				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
+				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
 				Idle = AnimationModule.Assets.Animations.WEAPONS.SPEAR.IDLE.id
 			},
 
@@ -161,7 +164,7 @@ WeaponData = {
 					Offset = CFrame.new(0, 0, -5),
 
 					Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.SWING_1,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
+                    Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id
 				},
 
                 [2] = {
@@ -174,7 +177,7 @@ WeaponData = {
 					Offset = CFrame.new(0, 0, -5),
 
 					Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.SWING_2,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing2.id
+                    Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing2.id
 				},
 
                 [3] = {
@@ -187,7 +190,7 @@ WeaponData = {
 					Offset = CFrame.new(0, 0, -5),
 
 					Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.SWING_3,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing3.id
+                    Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing3.id
 				},
 
                 [4] = {
@@ -200,7 +203,7 @@ WeaponData = {
 					Offset = CFrame.new(0, 0, -5),
 
 					Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.SWING_4,
-                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
+                    Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id
 				},
 			},
 
@@ -214,7 +217,7 @@ WeaponData = {
 				Offset = CFrame.new(0,0,-5),
 
 				Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.AERIAL,
-                Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
+                Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id
 			},
 
 			Critical = {
@@ -230,7 +233,7 @@ WeaponData = {
 				Offset = CFrame.new(0,0,-5),
 
 				Animation = AnimationModule.Assets.Animations.WEAPONS.SPEAR.CRITICAL,
-                Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id,
+                Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id,
 				--Stomp = SoundModule.Assets.Sounds.SFX.Fist_Stomp.id
 			}
 		},

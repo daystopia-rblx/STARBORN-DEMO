@@ -38,14 +38,28 @@ SoundModule.Assets = {
 
             -- Weapon Sounds
             Critical_Indicator = { id = "rbxassetid://8649690928", volume = 0.5},
-            --Blade_Swing = { id = "rbxassetid://6241709963", volume = 0.5 },
+            Blade_Swing1 = { id = "rbxassetid://73897284744657", volume = 0.5 },
+            Blade_Swing2 = { id = "rbxassetid://124365109994225", volume = 0.5 },
+            Blade_Swing3 = { id = "rbxassetid://140239097961250", volume = 0.5 },
             --Critical_Hit = { id = "rbxassetid://13471740561", volume = 0.5 },
-            Blunt = { id = "rbxassetid://5501600429", volume = 0.5 },
-            Slash = { id = "rbxassetid://7171761940", volume = 0.5 },
+
+            Blunt = { 
+                Blunt_1 = { id = "rbxassetid://138598677741333", volume = 0.5 },
+                Blunt_2 = { id = "rbxassetid://72051112319936", volume = 0.5 },
+                Blunt_3 = { id = "rbxassetid://135136663978133", volume = 0.5 },
+            },
+
+            Slash = { 
+                Slash_1 = { id = "rbxassetid://95566488933810", volume = 0.5 },
+                Slash_2 = { id = "rbxassetid://91470157935106", volume = 0.5 },
+                Slash_3 = { id = "rbxassetid://135820656659420", volume = 0.5 },
+            },
+
             Blocked_Hit = { id = "rbxassetid://4958429431", volume = 0.5 },
             Block_Break = { id = "rbxassetid://4516507682", volume = 0.5 },
-            -- Feint = { id = "rbxassetid://6042053626", volume = 0.5 },
+            -- Feint = { id = "rbxassetid://116032302399612", volume = 0.5 },
             Parry = { id = "rbxassetid://15057101114", volume = 0.5 },
+            Summon = { id = "rbxassetid://4085783973", volume = 0.5 },
 
             -- Fist Sounds
             Fist_Swing1 = { id = "rbxassetid://132891698914204", volume = 0.5 },

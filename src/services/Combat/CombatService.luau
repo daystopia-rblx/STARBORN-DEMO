@@ -1,6 +1,7 @@
 local CombatService = {
     HitCounts = {},
-    OriginalSpeed = {}
+    OriginalSpeed = {},
+    LastDamage = {}
 }
 
 type Info = {
@@ -168,6 +169,16 @@ end
 --[[ Trail ]]
 function CombatService:Trail(Character, Duration)
     for _, trail in ipairs(Character:GetDescendants()) do
+        if trail:IsA("Trail") and ((trail:GetAttribute("WeaponTrail") == true)) then
+            trail.Enabled = true
+            task.delay(Duration, function()
+                trail.Enabled = false
+            end)
+            return
+        end
+    end
+
+    for _, trail in ipairs(Character:GetDescendants()) do
         if trail:IsA("Trail") and ((trail:GetAttribute("GripTrail") == true)) then
             trail.Enabled = true
             task.delay(Duration, function()
@@ -180,7 +191,6 @@ end
 --[[ Equipping ]]
 function CombatService:Equip(Character: Model, Humanoid: Humanoid, Weapon: string, Data: WeaponData)
     if not Data then Data = WeaponData["Fist"] end
-    Utility.Animation:Play(Data.General.Equip.Equip, Humanoid, 1, Enum.AnimationPriority.Action, "Equip")
     Utility.Animation:Play(Data.General.Equip.Idle, Humanoid, 1, Enum.AnimationPriority.Idle, "Idle")
 
     Services.Weapon:EquipStart(Character, Humanoid, Data)
@@ -189,7 +199,6 @@ end
 
 function CombatService:Unequip(Character: Model, Humanoid: Humanoid, Weapon: string, Data: WeaponData)
     if not Data then Data = WeaponData["Fist"] end
-    Utility.Animation:Play(Data.General.Equip.Unequip, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
     Utility.Animation:Stop(Humanoid, "Idle")
 
 
@@ -651,8 +660,14 @@ function CombatService:DamageType(Character: Model, DamageType: string, Blocking
             Services.Particle:PlayParticle("Combat", "Blood", Character.HumanoidRootPart, 10)
         end
 
-        Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles[DamageType].Attachment, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
-        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[DamageType].id, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
+        Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles[DamageType].Attachment, parent = Character.HumanoidRootPart, duration = 2})
+
+        self.LastDamage[DamageType] = (self.LastDamage[DamageType] or 0) % 3 + 1
+        local Key = DamageType .. "_" .. self.LastDamage[DamageType]
+        local SFX  = Modules.Sound.Assets.Sounds.SFX[DamageType][Key].id
+
+        local DamageSFX = tostring(DamageType.."_"..math.random(1,3))
+        Services.Particle:CreateParticle({effectType = "SOUND", sfx = SFX, parent = Character.HumanoidRootPart, duration = 2, volume = 0.4})
     end
 end
 

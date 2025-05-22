@@ -497,7 +497,7 @@ function MovementController:DetectWallRunSurface(HRP, Character)
     local function isParallelToWall(normal, lookVector)
         local rightVector = HRP.CFrame.RightVector
         local alignment = math.abs(normal:Dot(rightVector))
-        return alignment > 0.8
+        return alignment > 0.75
     end
 
     local leftRay = workspace:Raycast(HRP.Position, -HRP.CFrame.RightVector * self.WallDistance, sideParams)
