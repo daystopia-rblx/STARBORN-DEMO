@@ -1,6 +1,6 @@
-local SpearService = {}
+local SwordService = {}
 
-SpearService.Dependencies = {
+SwordService.Dependencies = {
     "Event",
     "Asset",
     "Status",
@@ -9,7 +9,7 @@ SpearService.Dependencies = {
     "Particle"
 }
 
-SpearService.Modules = {
+SwordService.Modules = {
     "Animation",
     "Status",
     "Stat",
@@ -25,13 +25,13 @@ local Modules
 local Debris = game:GetService("Debris")
 local CombatService = require(game.ServerScriptService.Services.Combat.CombatService)
 
-function SpearService:Init(services, modules)
+function SwordService:Init(services, modules)
     Services = services
     Modules = modules
     return true
 end
 
-function SpearService:Trail(Character, Duration)
+function SwordService:Trail(Character, Duration)
     for _, trail in ipairs(Character:GetDescendants()) do
         if trail:IsA("Trail") and ((trail:GetAttribute("WeaponTrail") == true)) then
             trail.Enabled = true
@@ -52,7 +52,7 @@ function SpearService:Trail(Character, Duration)
     end
 end
 
-function SpearService:Critical(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
+function SwordService:Critical(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
     if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
     if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Critical") == true then return end
 
@@ -92,7 +92,7 @@ function SpearService:Critical(Character: Model, Humanoid: Humanoid, Root: BaseP
     end)
 
     Utility.Animation:Play(Data.Attack.Critical.Animation.id, Humanoid, Data.Attack.Speed, Enum.AnimationPriority.Action3, "Critical")
-    SpearService:Trail(Character, Data.Attack.Critical.Duration)
+    SwordService:Trail(Character, Data.Attack.Critical.Duration)
 
     local Params = OverlapParams.new()
     Params.FilterType = Enum.RaycastFilterType.Exclude
@@ -122,4 +122,4 @@ function SpearService:Critical(Character: Model, Humanoid: Humanoid, Root: BaseP
     end
 end
 
-return SpearService
+return SwordService

@@ -1,6 +1,6 @@
-local SpearService = {}
+local DaggerService = {}
 
-SpearService.Dependencies = {
+DaggerService.Dependencies = {
     "Event",
     "Asset",
     "Status",
@@ -9,7 +9,7 @@ SpearService.Dependencies = {
     "Particle"
 }
 
-SpearService.Modules = {
+DaggerService.Modules = {
     "Animation",
     "Status",
     "Stat",
@@ -25,13 +25,13 @@ local Modules
 local Debris = game:GetService("Debris")
 local CombatService = require(game.ServerScriptService.Services.Combat.CombatService)
 
-function SpearService:Init(services, modules)
+function DaggerService:Init(services, modules)
     Services = services
     Modules = modules
     return true
 end
 
-function SpearService:Trail(Character, Duration)
+function DaggerService:Trail(Character, Duration)
     for _, trail in ipairs(Character:GetDescendants()) do
         if trail:IsA("Trail") and ((trail:GetAttribute("WeaponTrail") == true)) then
             trail.Enabled = true
@@ -52,7 +52,7 @@ function SpearService:Trail(Character, Duration)
     end
 end
 
-function SpearService:Critical(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
+function DaggerService:Critical(Character: Model, Humanoid: Humanoid, Root: BasePart, Data: WeaponData)
     if Services.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Equipped", "Running"}}) == true then return end
     if Services.Status:CheckCooldowns(Humanoid, {Connection = true}, "Critical") == true then return end
 
@@ -92,7 +92,7 @@ function SpearService:Critical(Character: Model, Humanoid: Humanoid, Root: BaseP
     end)
 
     Utility.Animation:Play(Data.Attack.Critical.Animation.id, Humanoid, Data.Attack.Speed, Enum.AnimationPriority.Action3, "Critical")
-    SpearService:Trail(Character, Data.Attack.Critical.Duration)
+    DaggerService:Trail(Character, Data.Attack.Critical.Duration)
 
     local Params = OverlapParams.new()
     Params.FilterType = Enum.RaycastFilterType.Exclude
@@ -100,26 +100,37 @@ function SpearService:Critical(Character: Model, Humanoid: Humanoid, Root: BaseP
 
     task.wait(Data.Attack.Critical.Windup)
 
-    if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
-        Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Critical.Swing, parent = Root, duration = 2, volume = 0.5})
-        --Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Critical.Stomp, parent = Root, duration = 2, volume = 0.75})
-        local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Critical.Hitbox, Params)
-        Hitbox:WeldTo(Root)
-        Hitbox:SetConfig({
-            Offset = Data.Attack.Critical.Offset
-        })
-
+    if not Interrupted() and not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then  
         local CombatConfig = {
             DamageType = Data.Attack.Critical.DamageType,
             Damage = Data.Attack.Critical.Damage,
         }
 
-        Hitbox:OnHit(function(Char, Hum, Rot)
-            CombatService:Handler(Humanoid, Hum, CombatConfig)
-        end)
+        for i = 1, 3 do
+            if Interrupted() or Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Stunned", "Dazed") then
+                break
+            end
 
-        Hitbox:Run(0.15)
+            local Swing = tostring("Swing_"..i)
+            Services.Particle:CreateParticle({effectType = "SOUND", sfx = Data.Attack.Critical[Swing], parent = Root, duration = 2, volume = 0.5})
+
+            local Hitbox = Services.Hitbox:Create(Root.CFrame, Data.Attack.Critical.Hitbox, Params)
+            Hitbox:WeldTo(Root)
+            Hitbox:SetConfig({
+                Offset = Data.Attack.Critical.Offset
+            })
+
+            Hitbox:OnHit(function(Char, Hum, Rot)
+                CombatService:Handler(Humanoid, Hum, CombatConfig)
+            end)
+
+            Hitbox:Run(0.15)
+            
+            if i < 3 then
+                task.wait(0.2)
+            end
+        end
     end
 end
 
-return SpearService
+return DaggerService

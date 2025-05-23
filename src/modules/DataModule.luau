@@ -82,6 +82,7 @@ DataModule.Templates = {
         inventory = {
             weapon = {
                 type = "Fist",
+                parts = {}
             },
         },
 

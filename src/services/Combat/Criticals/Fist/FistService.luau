@@ -33,6 +33,16 @@ end
 
 function FistService:Trail(Character, Duration)
     for _, trail in ipairs(Character:GetDescendants()) do
+        if trail:IsA("Trail") and ((trail:GetAttribute("WeaponTrail") == true)) then
+            trail.Enabled = true
+            task.delay(Duration, function()
+                trail.Enabled = false
+            end)
+            return
+        end
+    end
+
+    for _, trail in ipairs(Character:GetDescendants()) do
         if trail:IsA("Trail") and ((trail:GetAttribute("GripTrail") == true)) then
             trail.Enabled = true
             task.delay(Duration, function()

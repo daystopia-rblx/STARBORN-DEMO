@@ -1,5 +1,9 @@
 local WeaponService = {}
 
+type Info = {
+	Structure: {string},
+}
+
 WeaponService.Dependencies = {
     "Event",
     "Asset",
@@ -23,6 +27,8 @@ local Services
 local Modules
 
 local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
+local WeaponModels = game.ReplicatedStorage.Assets.Weapons
+local Players = game:GetService("Players")
 
 function WeaponService:Init(services, modules)
     Services = services
@@ -42,6 +48,7 @@ end
 function WeaponService:EquipWeld(Character, Weapon)
 	for _, Weld in ipairs(Character:GetChildren()) do
 		if Weld.Name == "ActiveWeld" or (Weld.Name == Weapon) then
+			print(Weld)
 			Weld:Destroy()
 		end
 	end
@@ -60,6 +67,83 @@ function WeaponService:SheathWeld(Part0, Weapon, Data)
 	Weld.Name = "ActiveWeld"
 end
 
+function WeaponService:AssembleWeapon(Character, Humanoid, Data, Profile)
+    if Data.General.Unique then return end
+
+    local Model = Instance.new("Model")
+    Model.Name = Data.General.Name or "CustomWeapon"
+    --Model.Parent = game.ReplicatedStorage
+
+    local GripPart
+
+    local handConfig = Data.General.Model.Right or Data.General.Model.Left
+    if handConfig and handConfig.Weapon then
+        for _, key in ipairs(handConfig.Weapon) do
+            local partInfo = Profile.inventory.weapon.parts[key]
+            local modelName = partInfo.Model
+            local materialName = partInfo.Material
+            local colorString = partInfo.Colour or partInfo.Color
+
+            for _, template in ipairs(WeaponModels:GetDescendants()) do
+                if template:IsA("Model") and template.Name == modelName then
+                    local clone = template:Clone()
+                    clone.Parent = Model
+
+                    if materialName then
+                        local matTemplate = template:FindFirstChild(materialName, true)
+                        if matTemplate and matTemplate:IsA("SurfaceAppearance") then
+                            for _, subPart in ipairs(clone:GetDescendants()) do
+                                if subPart:IsA("MeshPart") then
+                                    local matClone = matTemplate:Clone()
+                                    matClone.Parent = subPart
+                                end
+                            end
+                        end
+                    end
+
+					if colorString then
+                        local r, g, b = colorString:match("(%d+),%s*(%d+),%s*(%d+)")
+                        if r and g and b then
+                            local color3 = Color3.fromRGB(tonumber(r), tonumber(g), tonumber(b))
+                            for _, subPart in ipairs(clone:GetDescendants()) do
+                                if subPart:IsA("MeshPart") or subPart:IsA("SurfaceAppearance") then
+                                    subPart.Color = color3
+								end
+                            end
+                        end
+                    end
+
+                    for _, child in ipairs(clone:GetChildren()) do
+                        child.Parent = Model
+                    end
+                    clone:Destroy()
+                    break
+                end
+            end
+        end
+
+        for _, part in ipairs(Model:GetDescendants()) do
+            if part:IsA("BasePart") and part.Name == "Grip" then
+                GripPart = part
+                break
+            end
+        end
+        Model.PrimaryPart = GripPart
+
+        for _, joint in ipairs(Model:GetDescendants()) do
+            if joint:IsA("BasePart") and joint.Name == "Joint" then
+                local weld = Instance.new("Weld")
+                weld.Part0 = GripPart
+                weld.Part1 = joint
+                weld.C1 = CFrame.Angles(0, math.rad(180), math.rad(90))
+                weld.Parent = GripPart
+            end
+        end
+    end
+
+    return Model
+end
+
 local function Deletethislater(Weapon)
 	task.delay(0.05, function()
 		for _, Part in ipairs(Weapon:GetDescendants()) do	
@@ -70,7 +154,7 @@ local function Deletethislater(Weapon)
 	end)
 end
 
-function WeaponService:EquipStart(Character, Humanoid, Data)
+function WeaponService:EquipStart(Character, Humanoid, Data, ...)
 	repeat task.wait() until not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Attacking") or not Services.Status:CheckSpecific(Humanoid, {Connection = true}, "Critical")
 
 	--[[if Data.General.Equip and Anim ~= false then -- Removed the Anim boolean for now
@@ -82,6 +166,24 @@ function WeaponService:EquipStart(Character, Humanoid, Data)
         
 		task.wait(Data.General.Equip.Timing)
 	end]]
+
+	local Weapon
+	if Data.General.Model and Data.General.Model.Right then
+		Weapon = Data.General.Model.Right.Weapon
+	end
+
+	if Data.General.Model and Data.General.Model.Left then
+		Weapon = Data.General.Model.Left.Weapon
+	end
+
+    local Player = Players:GetPlayerFromCharacter(Character)
+
+    if Player then
+        local Profile = Services.Data:GetData(Player.UserId, "PlayerData")
+		if not Data.General.Unique then
+			Weapon = self:AssembleWeapon(Character, Humanoid, Data, Profile)
+		end
+    end
 	
 	if Data.General.Equip.Summon == true then -- Delete later
         local EquipSummon = Utility.Animation:Play(Data.General.Equip.Equip.id, Humanoid, 2.5, Enum.AnimationPriority.Action, "Equip")
@@ -108,25 +210,25 @@ function WeaponService:EquipStart(Character, Humanoid, Data)
 		end
 
 		if Data.General.Model.Right then
-			local Weapon = Data.General.Model.Right.Weapon:Clone()
-			Weapon.Parent = Character.RightGrip
-			self:EquipMotor6D(Character.RightGrip, Weapon.Grip)
+			local WeaponClone = Weapon:Clone()
+			WeaponClone.Parent = Character.RightGrip
+			self:EquipMotor6D(Character.RightGrip, WeaponClone.Grip)
 		end
 	else
 		if Data.General.Model and Data.General.Model.Right then
-			self:EquipWeld(Character, Data.General.Model.Right.Weapon.Name)
-			local Weapon = Data.General.Model.Right.Weapon:Clone()
-			Weapon.Parent = Character.RightGrip
-			Deletethislater(Weapon)
-			self:EquipMotor6D(Character.RightGrip, Weapon.Grip)
+			local WeaponClone = Weapon:Clone()
+			WeaponClone.Parent = Character.RightGrip
+			self:EquipWeld(Character, WeaponClone.Name)
+			self:EquipMotor6D(Character.RightGrip, WeaponClone.Grip)
+			Deletethislater(WeaponClone)
 		end
 
 		if Data.General.Model and Data.General.Model.Left then
-			self:EquipWeld(Character, Data.General.Model.Left.Weapon.Name)
-			local Weapon = Data.General.Model.Left.Weapon:Clone()
-			Weapon.Parent = Character.LeftGrip
-			Deletethislater(Weapon)
-			self:EquipMotor6D(Character.LeftGrip, Weapon.Grip)
+			local WeaponClone = Weapon:Clone()
+			WeaponClone.Parent = Character.LeftGrip
+			self:EquipWeld(Character, WeaponClone.Name)
+			self:EquipMotor6D(Character.LeftGrip, WeaponClone.Grip)
+			Deletethislater(WeaponClone)
 		end
 	end
 end
@@ -172,6 +274,24 @@ function WeaponService:UnequipStart(Character, Humanoid, Data)
 		task.wait(Data.General.Equip.Timing)
 	end]]
 
+	local Weapon
+	if Data.General.Model and Data.General.Model.Right then
+		Weapon = Data.General.Model.Right.Weapon
+	end
+
+	if Data.General.Model and Data.General.Model.Left then
+		Weapon = Data.General.Model.Left.Weapon
+	end
+
+    local Player = Players:GetPlayerFromCharacter(Character)
+
+    if Player then
+        local Profile = Services.Data:GetData(Player.UserId, "PlayerData")
+		if not Data.General.Unique then
+			Weapon = self:AssembleWeapon(Character, Humanoid, Data, Profile)
+		end
+    end
+	
 	if Data.General.Equip.Summon == true then -- Delete later
 		local track = Utility.Animation:Play(Data.General.Equip.Unequip.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
     	repeat local name = track.KeyframeReached:Wait() until name == "Unequip"
@@ -199,32 +319,32 @@ function WeaponService:UnequipStart(Character, Humanoid, Data)
 		end
 		
 		if Data.General.Model and Data.General.Model.Right then
-			self:UnequipMotor6D(Character, Data.General.Model.Right.Weapon.Name)
+			self:UnequipMotor6D(Character, Weapon.Name)
 		end
 		if Data.General.Model and Data.General.Model.Left then
-			self:UnequipMotor6D(Character, Data.General.Model.Left.Weapon.Name)
+			self:UnequipMotor6D(Character, Weapon.Name)
 		end
 	else
 		if Data.General.Model and Data.General.Model.Right then
-			self:UnequipMotor6D(Character, Data.General.Model.Right.Weapon.Name)
-			local Weapon = Data.General.Model.Right.Weapon:Clone()
-			Weapon.Parent = Character
-			Deletethislater(Weapon)
+			self:UnequipMotor6D(Character, Weapon.Name)
+			local WeaponClone = Weapon:Clone()
+			WeaponClone.Parent = Character
+			Deletethislater(WeaponClone)
 			for _, Location in ipairs(Character:GetChildren()) do
 				if Location.Name == Data.General.Model.Right.Parent then
-					self:UnequipWeld(Location, Weapon, Data.General.Model.Right)
+					self:UnequipWeld(Location, WeaponClone, Data.General.Model.Right)
 				end
 			end
 		end
 		
 		if Data.General.Model and Data.General.Model.Left then
-			self:UnequipMotor6D(Character, Data.General.Model.Left.Weapon.Name)
-			local Weapon = Data.General.Model.Left.Weapon:Clone()
-			Weapon.Parent = Character
-			Deletethislater(Weapon)
+			self:UnequipMotor6D(Character, Weapon.Name)
+			local WeaponClone = Weapon:Clone()
+			WeaponClone.Parent = Character
+			Deletethislater(WeaponClone)
 			for _, Location in ipairs(Character:GetChildren()) do
 				if Location.Name == Data.General.Model.Left.Parent then
-					self:UnequipWeld(Location, Weapon, Data.General.Model.Left)
+					self:UnequipWeld(Location, WeaponClone, Data.General.Model.Left)
 				end
 			end
 		end

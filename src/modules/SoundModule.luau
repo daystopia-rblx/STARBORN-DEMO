@@ -41,7 +41,6 @@ SoundModule.Assets = {
             Blade_Swing1 = { id = "rbxassetid://73897284744657", volume = 0.5 },
             Blade_Swing2 = { id = "rbxassetid://124365109994225", volume = 0.5 },
             Blade_Swing3 = { id = "rbxassetid://140239097961250", volume = 0.5 },
-            --Critical_Hit = { id = "rbxassetid://13471740561", volume = 0.5 },
 
             Blunt = { 
                 Blunt_1 = { id = "rbxassetid://138598677741333", volume = 0.5 },

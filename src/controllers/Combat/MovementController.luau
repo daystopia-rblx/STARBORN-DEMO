@@ -93,7 +93,7 @@ function MovementController:Footsteps()
     local wallRunConnections = {}
 
     local rayParams = RaycastParams.new()
-    rayParams.FilterDescendantsInstances = {Character}
+    rayParams.FilterDescendantsInstances = {Character, game.Debris:GetDescendants()}
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
     
     local lastMaterials = {
