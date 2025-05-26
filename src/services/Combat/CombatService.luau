@@ -191,7 +191,8 @@ end
 --[[ Equipping ]]
 function CombatService:Equip(Character: Model, Humanoid: Humanoid, Weapon: string, Data: WeaponData)
     if not Data then Data = WeaponData["Fist"] end
-    Utility.Animation:Play(Data.General.Equip.Idle, Humanoid, 1, Enum.AnimationPriority.Idle, "Idle")
+    Utility.Animation:Play(Data.General.Equip.Idle, Humanoid, 1, Enum.AnimationPriority.Core, "Idle")
+    Utility.Animation:Play(Data.General.Equip.Walk, Humanoid, 1, Enum.AnimationPriority.Idle, "Walk")
 
     Services.Weapon:EquipStart(Character, Humanoid, Data)
     Services.Status:CreateStatus(Humanoid, "Combat", "Equipped", {Set = true})
@@ -200,7 +201,7 @@ end
 function CombatService:Unequip(Character: Model, Humanoid: Humanoid, Weapon: string, Data: WeaponData)
     if not Data then Data = WeaponData["Fist"] end
     Utility.Animation:Stop(Humanoid, "Idle")
-
+    Utility.Animation:Stop(Humanoid, "Walk")
 
     Services.Weapon:UnequipStart(Character, Humanoid, Data)
     Services.Status:CreateStatus(Humanoid, "Combat", "Equipped", {Set = false})
@@ -503,7 +504,7 @@ function CombatService:Parried(Victim: Humanoid, Attacker: Humanoid, Value: numb
 	local ATKWeapon = self:GetWeapon(Attacker)
 	local VICWeapon = self:GetWeapon(Victim)
 
-    Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Parry.Attachment, parent = Victim.Parent.HumanoidRootPart, position = Vector3.new(0, 0, -2)})
+    Services.Particle:CreateParticle({effectType = "CHARACTER", vfx = game.ReplicatedStorage.Assets.Particles.Parry.Attachment, parent = Victim.Parent.HumanoidRootPart, position = Vector3.new(0, 0, -3)})
     Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Parry.id, parent = Victim.Parent.HumanoidRootPart, duration = 2, volume = 0.5})
     Utility.Animation:Play(Modules.Animation.Assets.Animations.COMBAT.PARRY_1.id, Attacker, 1, Enum.AnimationPriority.Action3, "Parried")
 

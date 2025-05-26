@@ -23,7 +23,8 @@ WeaponData = {
 			Equip = {
 				Equip = AnimationModule.Assets.Animations.WEAPONS.FIST.EQUIP.id,
 				Unequip = AnimationModule.Assets.Animations.WEAPONS.FIST.UNEQUIP.id,
-				Idle = AnimationModule.Assets.Animations.WEAPONS.FIST.IDLE.id
+				Idle = AnimationModule.Assets.Animations.WEAPONS.FIST.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.FIST.WALK.id
 			},
         },
 
@@ -118,6 +119,121 @@ WeaponData = {
 		},
 	},
 
+	["Kickboxing"] = {
+		General = {
+			Fist = true,
+			Unique = true,
+			WeaponBlock = false,
+
+			Parry = {
+				ParryStart = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.PARRY_START,
+				ParryImpact = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.PARRY
+			},
+
+			Block = {
+				BlockHold = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.BLOCK_POSE,
+				BlockImpact = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.BLOCK_IMPACT
+			},
+
+			Equip = {
+				Equip = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.EQUIP.id,
+				Unequip = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.UNEQUIP.id,
+				Idle = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.WALK.id
+			},
+        },
+
+		Attack = {
+            Speed =  1,
+            Cooldown = 1.5,
+            ComboMax = 4,
+
+			Combo = {
+				[1] = { 
+                    Windup = 0.3,
+                    Duration = 0.45,
+
+					Damage = 8,
+					DamageType = "Blunt",
+					Hitbox = Vector3.new(5, 6, 5),
+					Offset = CFrame.new(0, 0, -3),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.SWING_1,
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
+				},
+
+                [2] = {
+                    Windup = 0.25,
+                    Duration = 0.45,
+                    
+					Damage = 8,
+					DamageType = "Blunt",
+					Hitbox = Vector3.new(5, 6, 5),
+					Offset = CFrame.new(0, 0, -3),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.SWING_2,
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing2.id
+				},
+
+                [3] = {
+                    Windup = 0.25,
+                    Duration = 0.55,
+                    
+					Damage = 8,
+					DamageType = "Blunt",
+					Hitbox = Vector3.new(5, 6, 5),
+					Offset = CFrame.new(0, 0, -3),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.SWING_3,
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing3.id
+				},
+
+                [4] = {
+                    Windup = 0.25,
+                    Duration = 0.45,
+                    
+					Damage = 8,
+					DamageType = "Blunt",
+					Hitbox = Vector3.new(5, 6, 5),
+					Offset = CFrame.new(0, 0, -3),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.SWING_4,
+                    Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
+				},
+			},
+
+            Aerial = {
+				Windup = 0.3,
+				Duration = 0.7,
+
+				Damage = 8,
+				DamageType = "Blunt",
+				Hitbox = Vector3.new(5, 6, 5),
+				Offset = CFrame.new(0,0,-3),
+
+				Animation = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.AERIAL,
+                Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id
+			},
+
+			Critical = {
+				Module = game.ServerScriptService.Services.Combat.Criticals.Fist.FistService,
+				Duration = 1.25,
+				Windup = 0.7,
+				Speed = 1,
+				Cooldown = 5,
+
+				Damage = 16,
+				DamageType = "Blunt",
+				Hitbox = Vector3.new(5, 6, 6),
+				Offset = CFrame.new(0,0,-4),
+
+				Animation = AnimationModule.Assets.Animations.WEAPONS.KICKBOXING.CRITICAL,
+                Swing = SoundModule.Assets.Sounds.SFX.Fist_Swing1.id,
+				Stomp = SoundModule.Assets.Sounds.SFX.Fist_Stomp.id
+			}
+		},
+	},
+
 	["Starter Sword"] = {
 		General = {
 			WeaponBlock = true,
@@ -138,7 +254,8 @@ WeaponData = {
 				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
 				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
 				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
-				Idle = AnimationModule.Assets.Animations.WEAPONS.SWORD.IDLE.id
+				Idle = AnimationModule.Assets.Animations.WEAPONS.SWORD.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.SWORD.WALK.id
 			},
 
 			Model = {
@@ -262,7 +379,8 @@ WeaponData = {
 				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
 				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
 				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
-				Idle = AnimationModule.Assets.Animations.WEAPONS.AXE.IDLE.id
+				Idle = AnimationModule.Assets.Animations.WEAPONS.AXE.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.AXE.WALK.id
 			},
 
 			Model = {
@@ -386,7 +504,8 @@ WeaponData = {
 				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
 				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
 				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
-				Idle = AnimationModule.Assets.Animations.WEAPONS.DAGGER.IDLE.id
+				Idle = AnimationModule.Assets.Animations.WEAPONS.DAGGER.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.DAGGER.WALK.id
 			},
 
 			Model = {
@@ -512,7 +631,8 @@ WeaponData = {
 				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
 				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
 				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
-				Idle = AnimationModule.Assets.Animations.WEAPONS.SPEAR.IDLE.id
+				Idle = AnimationModule.Assets.Animations.WEAPONS.SPEAR.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.SPEAR.WALK.id
 			},
 
 			Model = {
@@ -641,7 +761,8 @@ WeaponData = {
 				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
 				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
 				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
-				Idle = AnimationModule.Assets.Animations.WEAPONS.SWORD.IDLE.id
+				Idle = AnimationModule.Assets.Animations.WEAPONS.SWORD.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.SWORD.WALK.id
 			},
 
 			Model = {
@@ -769,7 +890,8 @@ WeaponData = {
 				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
 				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
 				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
-				Idle = AnimationModule.Assets.Animations.WEAPONS.DAGGER.IDLE.id
+				Idle = AnimationModule.Assets.Animations.WEAPONS.DAGGER.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.DAGGER.WALK.id
 			},
 
 			Model = {

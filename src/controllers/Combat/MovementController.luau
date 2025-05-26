@@ -321,10 +321,15 @@ function MovementController:StartDodge()
     if Controllers.Status:CheckStatus(Humanoid, {Connection = true, Exclude = {"Running", "Equipped"}}) then return end
     if Controllers.Status:CheckCooldowns(Humanoid, {Connection = true}, "Dodge") then return end
 
+    local state = Humanoid:GetState()
+    local isAir = state == Enum.HumanoidStateType.Freefall
+
     local flatVel = Vector3.new(HRP.Velocity.X, 0, HRP.Velocity.Z)
     local dashIdentity
-    if flatVel.Magnitude < 0.1 then
+    if flatVel.Magnitude < 0.1 and not isAir then
         dashIdentity = "BACK"
+    elseif flatVel.Magnitude < 0.1 and isAir then
+        dashIdentity = "FORWARD"
     else
         local vUnit = flatVel.Unit
         local forwardDot = HRP.CFrame.LookVector:Dot(vUnit)
@@ -348,9 +353,6 @@ function MovementController:StartDodge()
     dashVelocity.Parent = HRP
     Debris:AddItem(dashVelocity, 0.35)
     self.DashVelocity = dashVelocity
-
-    local state = Humanoid:GetState()
-    local isAir = state == Enum.HumanoidStateType.Freefall
 
     Animation:Play(Modules.Animation.Assets.Animations.ROLL[dashIdentity].id, Humanoid, 1, Enum.AnimationPriority.Action3, "Dodge")
     local sfx = "Dodge_" .. tostring(math.random(1, 3))

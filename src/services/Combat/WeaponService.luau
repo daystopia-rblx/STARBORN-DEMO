@@ -1,9 +1,5 @@
 local WeaponService = {}
 
-type Info = {
-	Structure: {string},
-}
-
 WeaponService.Dependencies = {
     "Event",
     "Asset",
@@ -72,7 +68,6 @@ function WeaponService:AssembleWeapon(Character, Humanoid, Data, Profile)
 
     local Model = Instance.new("Model")
     Model.Name = Data.General.Name or "CustomWeapon"
-    --Model.Parent = game.ReplicatedStorage
 
     local GripPart
 
@@ -144,7 +139,7 @@ function WeaponService:AssembleWeapon(Character, Humanoid, Data, Profile)
     return Model
 end
 
-local function Deletethislater(Weapon)
+function WeaponService:SummonVFX(Weapon)
 	task.delay(0.05, function()
 		for _, Part in ipairs(Weapon:GetDescendants()) do	
 			if Part:IsA("BasePart") and Part.Transparency < 1 then
@@ -185,7 +180,7 @@ function WeaponService:EquipStart(Character, Humanoid, Data, ...)
 		end
     end
 	
-	if Data.General.Equip.Summon == true then -- Delete later
+	if Data.General.Equip.Summon == true then
         local EquipSummon = Utility.Animation:Play(Data.General.Equip.Equip.id, Humanoid, 2.5, Enum.AnimationPriority.Action, "Equip")
 
 		EquipSummon.Stopped:Wait()
@@ -220,7 +215,7 @@ function WeaponService:EquipStart(Character, Humanoid, Data, ...)
 			WeaponClone.Parent = Character.RightGrip
 			self:EquipWeld(Character, WeaponClone.Name)
 			self:EquipMotor6D(Character.RightGrip, WeaponClone.Grip)
-			Deletethislater(WeaponClone)
+			self:SummonVFX(WeaponClone)
 		end
 
 		if Data.General.Model and Data.General.Model.Left then
@@ -228,7 +223,7 @@ function WeaponService:EquipStart(Character, Humanoid, Data, ...)
 			WeaponClone.Parent = Character.LeftGrip
 			self:EquipWeld(Character, WeaponClone.Name)
 			self:EquipMotor6D(Character.LeftGrip, WeaponClone.Grip)
-			Deletethislater(WeaponClone)
+			self:SummonVFX(WeaponClone)
 		end
 	end
 end
@@ -292,7 +287,7 @@ function WeaponService:UnequipStart(Character, Humanoid, Data)
 		end
     end
 	
-	if Data.General.Equip.Summon == true then -- Delete later
+	if Data.General.Equip.Summon == true then
 		local track = Utility.Animation:Play(Data.General.Equip.Unequip.id, Humanoid, 1, Enum.AnimationPriority.Action, "Unequip")
     	repeat local name = track.KeyframeReached:Wait() until name == "Unequip"
 		Services.Particle:CreateParticle({effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX.Summon.id, parent = Character.HumanoidRootPart, duration = 2, volume = 0.5})
@@ -329,7 +324,7 @@ function WeaponService:UnequipStart(Character, Humanoid, Data)
 			self:UnequipMotor6D(Character, Weapon.Name)
 			local WeaponClone = Weapon:Clone()
 			WeaponClone.Parent = Character
-			Deletethislater(WeaponClone)
+			self:SummonVFX(WeaponClone)
 			for _, Location in ipairs(Character:GetChildren()) do
 				if Location.Name == Data.General.Model.Right.Parent then
 					self:UnequipWeld(Location, WeaponClone, Data.General.Model.Right)
@@ -341,7 +336,7 @@ function WeaponService:UnequipStart(Character, Humanoid, Data)
 			self:UnequipMotor6D(Character, Weapon.Name)
 			local WeaponClone = Weapon:Clone()
 			WeaponClone.Parent = Character
-			Deletethislater(WeaponClone)
+			self:SummonVFX(WeaponClone)
 			for _, Location in ipairs(Character:GetChildren()) do
 				if Location.Name == Data.General.Model.Left.Parent then
 					self:UnequipWeld(Location, WeaponClone, Data.General.Model.Left)
