@@ -658,7 +658,49 @@ function MovementController:DetectLedge()
 		end
 	end
 
-	-- rad backflip instead
+    if Humanoid:GetState() == Enum.HumanoidStateType.Freefall then
+		local hangCheck = workspace:Raycast(HRP.CFrame.Position, HRP.CFrame.LookVector * 5, rayParams)
+
+		if hangCheck and hangCheck.Instance and not hangCheck.Instance:GetAttribute("NoClimb") then
+			local localPos = hangCheck.Instance.CFrame:PointToObjectSpace(hangCheck.Position)
+			local localLedgePos = Vector3.new(localPos.X, hangCheck.Instance.Size.Y/2, localPos.Z)
+			local ledgePos = hangCheck.Instance.CFrame:PointToWorldSpace(localLedgePos)
+			local ledgeOffset = CFrame.lookAt(ledgePos, ledgePos - hangCheck.Normal)
+
+			local magnitude = (ledgePos - Character.Head.Position).Magnitude
+			if magnitude < 3 then
+				if Check(ledgeOffset) then
+                    Animation:Play(Modules.Animation.Assets.Animations.WALL.LEDGE.id, Humanoid, 1.25, Enum.AnimationPriority.Action4, "Ledge")
+
+                    local ClimbVel = Instance.new("BodyVelocity")
+                    ClimbVel.Name = "ClimbVelocity"
+                    ClimbVel.P = 3e3
+                    ClimbVel.MaxForce = Vector3.new(50000, 50000, 50000)
+                    ClimbVel.Velocity = (HRP.CFrame.UpVector * 10)
+                    ClimbVel.Parent = HRP
+                    Debris:AddItem(ClimbVel, 0.05)
+
+                    task.delay(0.1, function()
+                        local LedgeVel = Instance.new("BodyVelocity")
+                        LedgeVel.Name = "LedgeVelocity"
+                        Debris:AddItem(LedgeVel, 0.2)
+
+                        LedgeVel.P = 3e3
+                        LedgeVel.MaxForce = Vector3.new(50000,50000,50000)
+                        LedgeVel.Velocity = (HRP.CFrame.LookVector * 10) + (HRP.CFrame.UpVector * 30)
+
+                        LedgeVel.Parent = HRP
+
+                        local Climb = "Climb_"..tostring(math.random(1,3))
+                        Controllers.Event:FireServer("Particle.Create", {effectType = "SOUND", sfx = Modules.Sound.Assets.Sounds.SFX[Climb].id, parent = HRP, duration = 2, volume = 0.25})
+                    end)
+                    return true
+				end
+			end
+		end
+	end
+
+    return false
 end
 
 function MovementController:Climb()
@@ -667,6 +709,8 @@ function MovementController:Climb()
 	if not Character then return end
 	local HRP = Character:WaitForChild("HumanoidRootPart")
 	local Humanoid = Character:WaitForChild("Humanoid")
+
+    if self:DetectLedge() == true then return end
 
     local function WallCheck(Character, HRP)
         if not HRP then return false end

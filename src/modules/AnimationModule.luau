@@ -32,6 +32,7 @@ AnimationModule.Assets = {
             LEAP_RIGHT = { id = "rbxassetid://105198310504846", looped = true, priority = Enum.AnimationPriority.Action },
             CLIMB_1 = { id = "rbxassetid://88582569897007", looped = true, priority = Enum.AnimationPriority.Action },
             CLIMB_2 = { id = "rbxassetid://110825214802042", looped = true, priority = Enum.AnimationPriority.Action },
+            LEDGE = { id = "rbxassetid://92548348824136", looped = true, priority = Enum.AnimationPriority.Action },
         },  
 
         STATUS = {
@@ -88,7 +89,7 @@ AnimationModule.Assets = {
                 SWING_2 = { id = "rbxassetid://115240863295006", looped = false, priority = Enum.AnimationPriority.Action },
                 SWING_3 = { id = "rbxassetid://135504084006314", looped = false, priority = Enum.AnimationPriority.Action },
                 SWING_4 = { id = "rbxassetid://119972234941849", looped = false, priority = Enum.AnimationPriority.Action },
-                AERIAL = { id = "rbxassetid://131317642162238", looped = false, priority = Enum.AnimationPriority.Action },
+                AERIAL = { id = "rbxassetid://103908699892247", looped = false, priority = Enum.AnimationPriority.Action },
                 PARRY_START = { id = "rbxassetid://116687952242424", looped = false, priority = Enum.AnimationPriority.Action },
                 PARRY = { id = "rbxassetid://116374783188059", looped = false, priority = Enum.AnimationPriority.Action },
                 EQUIP = { id = "rbxassetid://0", looped = false, priority = Enum.AnimationPriority.Action },

@@ -23,6 +23,7 @@ local Services
 local Modules
 
 local WeaponData = require(game.ReplicatedStorage.Modules.Data.Combat.WeaponData)
+local CombatService = require(game.ServerScriptService.Services.Combat.CombatService)
 local WeaponModels = game.ReplicatedStorage.Assets.Weapons
 local Players = game:GetService("Players")
 
@@ -268,7 +269,7 @@ function WeaponService:UnequipStart(Character, Humanoid, Data)
 		end
 		task.wait(Data.General.Equip.Timing)
 	end]]
-
+	
 	local Weapon
 	if Data.General.Model and Data.General.Model.Right then
 		Weapon = Data.General.Model.Right.Weapon
@@ -344,6 +345,32 @@ function WeaponService:UnequipStart(Character, Humanoid, Data)
 			end
 		end
 	end
+end
+
+--[[ Switch ]]
+function WeaponService:Switch(Player, Character, Humanoid, Change)
+	local NewData = WeaponData[Change]
+
+    local CurrentWeapon = Services.Data:GetData(Player.UserId, "PlayerData").inventory.weapon.type
+    local CurrentData = WeaponData[CurrentWeapon]
+
+	CombatService:Unequip(Character, Humanoid, Change, NewData)
+
+	task.delay(0.25, function()
+		for _, Models in pairs(Character:GetDescendants()) do
+			if Models:GetAttribute("WeldWeapon") then
+				Models:Destroy()
+			end
+		end
+
+		Services.Data:UpdateData(Player.UserId, "PlayerData", function(data)
+			data.inventory = data.inventory or {}
+			data.inventory.weapon = data.inventory.weapon or {}
+			data.inventory.weapon.type = Change
+
+			return data
+		end)
+	end)
 end
 
 return WeaponService
