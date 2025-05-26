@@ -11,10 +11,12 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Modules = {
     Animation = require(ReplicatedStorage.Modules.AnimationModule),
+    Clothing = require(ReplicatedStorage.Modules.ClothingModule)
 }
 
 PlayerService.Dependencies = {
-    "Event"
+    "Event",
+    "Data"
 }
 
 PlayerService.Events = {
@@ -61,6 +63,7 @@ PlayerService.Listeners = {
             end
             ]]
             
+            PlayerService:ProvideClothing(player)
             PlayerService:ProvideHair(player)
             PlayerService:SetupGrips(character)
 
@@ -107,7 +110,11 @@ function PlayerService:SetupGrips(Character)
 end 
 
 function PlayerService:ProvideHair(Player)
+    repeat task.wait() until Services.Data:GetData(Player.UserId, "PlayerData") ~= nil
 	local humanoidDescription = game.Players:GetHumanoidDescriptionFromUserId(Player.UserId)
+    local hairColour = Services.Data:GetData(Player.UserId, "PlayerData").character.hair.colour
+    local r, g, b = hairColour:match("(%d+),%s*(%d+),%s*(%d+)")
+
 	if humanoidDescription then
 		for _, assetId in ipairs(humanoidDescription.HairAccessory:split(",")) do
 			local hair = game:GetService("InsertService"):LoadAsset(tonumber(assetId))
@@ -116,19 +123,35 @@ function PlayerService:ProvideHair(Player)
 					if item:IsA("Accessory") then
 						item.Parent = Player.Character
 						local handle = item:FindFirstChild("Handle")
-						--[[if handle and handle:IsA("BasePart") then
+						if handle and handle:IsA("BasePart") then
 							local mesh = handle:FindFirstChildOfClass("SpecialMesh") or handle:FindFirstChildOfClass("Mesh")
 							if mesh then
-								mesh.VertexColor = Vector3.new(hairColor.R, hairColor.G, hairColor.B)
+                                mesh.TextureId = ""
+								mesh.VertexColor = Vector3.new(tonumber(r), tonumber(g), tonumber(b))
 							end
-							handle.Color = hairColor
-						end]]
+						end
 					end
 				end
 			end
 		end
 	end
 end
+
+function PlayerService:ProvideClothing(Player)
+    repeat task.wait() until Services.Data:GetData(Player.UserId, "PlayerData") ~= nil
+    local Clothing = Services.Data:GetData(Player.UserId, "PlayerData").character.clothing
+    local ClothingData = Modules.Clothing.Assets[Clothing]
+
+    for _, Item in pairs(Player.Character:GetChildren()) do
+        if Item:IsA("Shirt") then
+            Item.ShirtTemplate = ClothingData.Shirt.id
+        end
+            
+        if Item:IsA("Pants") then
+            Item.PantsTemplate = ClothingData.Pants.id
+        end
+    end
+end 
 
 function PlayerService:Init(services)
     Services = services

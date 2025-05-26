@@ -79,6 +79,13 @@ DataModule.Templates = {
             multipliers = {}
         },
 
+        character = {
+            clothing = "Starter",
+            hair = {
+                colour = "0, 0, 0"
+            }
+        },
+
         inventory = {
             weapon = {
                 type = "Fist",
@@ -194,6 +201,7 @@ DataModule.Validation = {
             economy = "table",
             quests = "table",
             inventory = "table",
+            character = "table"
         }
     },
 

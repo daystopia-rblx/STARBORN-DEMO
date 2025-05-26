@@ -354,7 +354,7 @@ function WeaponService:Switch(Player, Character, Humanoid, Change)
     local CurrentWeapon = Services.Data:GetData(Player.UserId, "PlayerData").inventory.weapon.type
     local CurrentData = WeaponData[CurrentWeapon]
 
-	CombatService:Unequip(Character, Humanoid, Change, NewData)
+	CombatService:Unequip(Character, Humanoid, Change, CurrentData)
 
 	task.delay(0.25, function()
 		for _, Models in pairs(Character:GetDescendants()) do
