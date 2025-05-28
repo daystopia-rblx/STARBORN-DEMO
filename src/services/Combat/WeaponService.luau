@@ -45,7 +45,6 @@ end
 function WeaponService:EquipWeld(Character, Weapon)
 	for _, Weld in ipairs(Character:GetChildren()) do
 		if Weld.Name == "ActiveWeld" or (Weld.Name == Weapon) then
-			print(Weld)
 			Weld:Destroy()
 		end
 	end

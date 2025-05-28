@@ -234,6 +234,131 @@ WeaponData = {
 		},
 	},
 
+	["Kanabo"] = {
+		General = {
+			WeaponBlock = true,
+			Unique = true,
+
+			Parry = {
+				ParryStart = AnimationModule.Assets.Animations.WEAPONS.HAMMER.PARRY_START,
+				ParryImpact = AnimationModule.Assets.Animations.WEAPONS.HAMMER.PARRY
+			},
+
+			Block = {
+				BlockHold = AnimationModule.Assets.Animations.WEAPONS.HAMMER.BLOCK_POSE,
+				BlockImpact = AnimationModule.Assets.Animations.WEAPONS.HAMMER.BLOCK_IMPACT
+			},
+
+			Equip = {
+				Summon = true,
+				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
+				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
+				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
+				Idle = AnimationModule.Assets.Animations.WEAPONS.HAMMER.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.HAMMER.WALK.id
+			},
+
+			Model = {
+				Right = {
+					Weapon = game.ReplicatedStorage.Assets.Weapons.Unique.Kanabo,
+
+					Parent = "Torso",
+					Position = Vector3.new(1.65, 1.5, 0.5),
+					Orientation = Vector3.new(-45, 90, 0)
+				}
+			}
+        },
+
+		Attack = {
+            Speed =  0.9,
+            Cooldown = 1.5,
+            ComboMax = 4,
+
+			Combo = {
+				[1] = { 
+                    Windup = 0.75,
+                    Duration = 0.85,
+
+					Damage = 8,
+					DamageType = "Blunt",
+					Hitbox = Vector3.new(13, 5, 8),
+					Offset = CFrame.new(0, 0, -4),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.HAMMER.SWING_1,
+                    Swing = SoundModule.Assets.Sounds.SFX.Blunt_Swing1.id
+				},
+
+                [2] = {
+                    Windup = 0.5,
+                    Duration = 0.65,
+                    
+					Damage = 8,
+					DamageType = "Blunt",
+					Hitbox = Vector3.new(5, 5, 8),
+					Offset = CFrame.new(0, 0, -4),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.HAMMER.SWING_2,
+                    Swing = SoundModule.Assets.Sounds.SFX.Blunt_Swing2.id
+				},
+
+                [3] = {
+                    Windup = 0.6,
+                    Duration = 0.8,
+                    
+					Damage = 8,
+					DamageType = "Blunt",
+					Hitbox = Vector3.new(11, 5, 8),
+					Offset = CFrame.new(0, 0, -4),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.HAMMER.SWING_3,
+                    Swing = SoundModule.Assets.Sounds.SFX.Blunt_Swing3.id
+				},
+
+                [4] = {
+                    Windup = 0.5,
+                    Duration = 0.65,
+                    
+					Damage = 8,
+					DamageType = "Blunt",
+					Hitbox = Vector3.new(5, 5, 9),
+					Offset = CFrame.new(0, 0, -4),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.HAMMER.SWING_4,
+                    Swing = SoundModule.Assets.Sounds.SFX.Blunt_Swing1.id
+				},
+			},
+
+            Aerial = {
+				Windup = 0.45,
+				Duration = 0.45,
+
+				Damage = 8,
+				DamageType = "Blunt",
+				Hitbox = Vector3.new(5, 5, 8),
+				Offset = CFrame.new(0,0,-4),
+
+				Animation = AnimationModule.Assets.Animations.WEAPONS.HAMMER.AERIAL,
+                Swing = SoundModule.Assets.Sounds.SFX.Blunt_Swing1.id
+			},
+
+			Critical = {
+				Module = game.ServerScriptService.Services.Combat.Criticals.Sword.SwordService,
+				Duration = 1.25,
+				Windup = 0.75,
+				Speed = 1,
+				Cooldown = 5,
+
+				Damage = 16,
+				DamageType = "Blunt",
+				Hitbox = Vector3.new(5, 5, 9),
+				Offset = CFrame.new(0,0,-4),
+
+				Animation = AnimationModule.Assets.Animations.WEAPONS.HAMMER.CRITICAL,
+                Swing = SoundModule.Assets.Sounds.SFX.Blunt_Swing1.id
+			}
+		},
+	},
+
 	["Starter Sword"] = {
 		General = {
 			WeaponBlock = true,
@@ -607,6 +732,131 @@ WeaponData = {
                 Swing_1 = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id,
 				Swing_2 = SoundModule.Assets.Sounds.SFX.Blade_Swing2.id,
 				Swing_3 = SoundModule.Assets.Sounds.SFX.Blade_Swing3.id,
+			}
+		},
+	},
+
+	["Shattered Katana"] = {
+		General = {
+			WeaponBlock = true,
+			Unique = true,
+
+			Parry = {
+				ParryStart = AnimationModule.Assets.Animations.WEAPONS.KATANA.PARRY_START,
+				ParryImpact = AnimationModule.Assets.Animations.WEAPONS.KATANA.PARRY
+			},
+
+			Block = {
+				BlockHold = AnimationModule.Assets.Animations.WEAPONS.KATANA.BLOCK_POSE,
+				BlockImpact = AnimationModule.Assets.Animations.WEAPONS.KATANA.BLOCK_IMPACT
+			},
+
+			Equip = {
+				Summon = true,
+				Equip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_1,
+				Equip2 = AnimationModule.Assets.Animations.WEAPONS.EQUIP.EQUIP_2,
+				Unequip = AnimationModule.Assets.Animations.WEAPONS.EQUIP.UNEQUIP,
+				Idle = AnimationModule.Assets.Animations.WEAPONS.KATANA.IDLE.id,
+				Walk = AnimationModule.Assets.Animations.WEAPONS.KATANA.WALK.id
+			},
+
+			Model = {
+				Right = {
+					Weapon = game.ReplicatedStorage.Assets.Weapons.Unique.ShatteredKatana,
+
+					Parent = "Torso",
+					Position = Vector3.new(-1, -0.75, -1.25),
+					Orientation = Vector3.new(-20, 180, 0)
+				}
+			}
+        },
+
+		Attack = {
+            Speed =  0.85,
+            Cooldown = 1.5,
+            ComboMax = 4,
+
+			Combo = {
+				[1] = { 
+                    Windup = 0.35,
+                    Duration = 0.45,
+
+					Damage = 8,
+					DamageType = "Slash",
+					Hitbox = Vector3.new(12, 5, 7),
+					Offset = CFrame.new(0, 0, -4),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.KATANA.SWING_1,
+                    Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id
+				},
+
+                [2] = {
+                    Windup = 0.35,
+                    Duration = 0.45,
+                    
+					Damage = 8,
+					DamageType = "Slash",
+					Hitbox = Vector3.new(6, 5, 6),
+					Offset = CFrame.new(0, 0, -4),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.KATANA.SWING_2,
+                    Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing2.id
+				},
+
+                [3] = {
+                    Windup = 0.25,
+                    Duration = 0.35,
+                    
+					Damage = 8,
+					DamageType = "Slash",
+					Hitbox = Vector3.new(10, 5, 7),
+					Offset = CFrame.new(0, 0, -4),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.KATANA.SWING_3,
+                    Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing3.id
+				},
+
+                [4] = {
+                    Windup = 0.3,
+                    Duration = 0.45,
+                    
+					Damage = 8,
+					DamageType = "Slash",
+					Hitbox = Vector3.new(10, 5, 7),
+					Offset = CFrame.new(0, 0, -4),
+
+					Animation = AnimationModule.Assets.Animations.WEAPONS.KATANA.SWING_4,
+                    Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id
+				},
+			},
+
+            Aerial = {
+				Windup = 0.4,
+				Duration = 0.55,
+
+				Damage = 8,
+				DamageType = "Slash",
+				Hitbox = Vector3.new(5, 5, 7),
+				Offset = CFrame.new(0,0,-4),
+
+				Animation = AnimationModule.Assets.Animations.WEAPONS.KATANA.AERIAL,
+                Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id
+			},
+
+			Critical = {
+				Module = game.ServerScriptService.Services.Combat.Criticals.Sword.SwordService,
+				Duration = 1.25,
+				Windup = 0.55,
+				Speed = 0.95,
+				Cooldown = 6,
+
+				Damage = 16,
+				DamageType = "Slash",
+				Hitbox = Vector3.new(10, 5, 6),
+				Offset = CFrame.new(0,0,-4),
+
+				Animation = AnimationModule.Assets.Animations.WEAPONS.KATANA.CRITICAL,
+                Swing = SoundModule.Assets.Sounds.SFX.Blade_Swing1.id,
 			}
 		},
 	},
